@@ -9,20 +9,40 @@ mit Vergleichstabelle, Diagrammen und Brutto-Renditeübersicht.
 
 - Node.js ≥ 20
 - pnpm
+- PostgreSQL für den Suchserver (lokal am einfachsten via Docker Compose);
+  die CLI braucht keine Datenbank
 
 ## Suchserver (empfohlener Einstieg)
 
 ```sh
 pnpm install
-pnpm serve
+pnpm db:up            # startet Postgres via Docker Compose
+cp .env.example .env  # DATABASE_URL (Standard passt zum Compose-Setup)
+pnpm serve            # wendet Migrationen automatisch an
 ```
 
 Dann <http://localhost:8787> im Browser öffnen (Port über die Umgebungsvariable
 `PORT` änderbar). Die Suchseite fragt Bundesland, Kauf/Miete, Preis-, Flächen-
-und Zimmerbereich sowie optional Ort/PLZ/Bezirk ab. Beim Absenden crawlt der
-Server live willhaben.at und immoscout24.at (nur Wohnungen, max. ≈150 bzw.
-≈75 Inserate pro Segment, sequentiell mit Pause — die Suche dauert einige
-Sekunden) und liefert den Analyse-Report für die kombinierten Treffer zurück.
+und Zimmerbereich sowie optional Ort/PLZ/Bezirk ab. Beim Absenden legt der
+Server einen Suchlauf in der Datenbank an und crawlt im Hintergrund live
+willhaben.at und immoscout24.at (nur Wohnungen, max. ≈150 bzw. ≈75 Inserate
+pro Segment, sequentiell mit Pause — die Suche dauert einige Sekunden). Der
+Browser landet sofort auf `/suchen/<id>`, die Seite aktualisiert sich selbst
+und zeigt den Analyse-Report, sobald der Suchlauf fertig ist.
+
+### Suchhistorie
+
+Jede Suche wird mit Kriterien, Status (läuft / fertig / fehlgeschlagen) und
+den gefundenen Inseraten in Postgres gespeichert:
+
+- Die Startseite zeigt die letzten 10 Suchen, `/suchen` die komplette Historie.
+- `/suchen/<id>` ist eine dauerhafte URL — der Report wird beim Aufruf aus den
+  gespeicherten Inseraten neu berechnet, ohne erneuten Crawl.
+- Wird der Server während eines Suchlaufs neu gestartet, markiert er die
+  unterbrochene Suche beim nächsten Start als fehlgeschlagen.
+
+Migrationen (nummerierte SQL-Dateien in `migrations/`) laufen beim Serverstart
+automatisch; `pnpm db:migrate` wendet sie manuell an.
 
 **Hinweise:** Für die Rendite-Berechnung braucht ein Ort sowohl Kauf- als
 auch Mietinserate — Typ „beide" ist daher der Standard. Die Crawler lesen das
@@ -124,7 +144,10 @@ pnpm build           # kompiliert nach dist/
 Die Crawler-Tests laufen komplett offline gegen eingecheckte Fixtures
 (`tests/fixtures/willhaben-next-data.json`,
 `tests/fixtures/immoscout24-initial-state.html`) und ein injiziertes
-Fake-`fetch` — CI braucht kein Netz.
+Fake-`fetch` — CI braucht kein Netz. Die Datenbank-Integrationstests
+(`tests/db.integration.test.ts`) laufen nur, wenn `DATABASE_URL` gesetzt ist
+(z. B. `DATABASE_URL=postgres://immo:immo@localhost:5432/immo pnpm test`);
+ohne Datenbank werden sie übersprungen und `pnpm test` bleibt grün.
 
 ### Architektur
 
@@ -155,7 +178,19 @@ src/
   stats.ts                  Median, Quantile, IQR-Ausreißer, Bruttorendite
   analyze.ts                Gruppierung nach Gebiet, Kennzahlen
   report.ts                 HTML-Report (Chart.js via CDN)
+  suchlauf.ts               Portal-Crawl + Hintergrund-Ausführung eines Suchlaufs
+  db/client.ts              Lazy Postgres-Pool (braucht DATABASE_URL)
+  db/migrieren.ts           Migrations-Runner (migrations/*.sql)
+  db/suchen-repo.ts         Persistenz der Suchläufe und Treffer
+  pages/layout.ts           Gemeinsames Seitengerüst + CSS
   pages/search-page.ts      Suchformular + Fehler-/Keine-Treffer-Seiten
-  server.ts                 HTTP-Server (GET / und /report)
-  cli.ts                    Kommandozeile
+  pages/suchen-pages.ts     Polling-Seite, Historie, Fehlgeschlagen-Seite
+  server.ts                 HTTP-Server (Suchen starten, Status, Historie, Reports)
+  cli.ts                    Kommandozeile (ohne Datenbank lauffähig)
 ```
+
+Der Server-Lifecycle einer Suche: `POST /suchen` legt die Suche an
+(status=laufend) und startet den Crawl im Hintergrund; `GET /suchen/<id>`
+zeigt je nach Status die Polling-Seite, den Report (aus gespeicherten
+Inseraten neu berechnet) oder die Fehlermeldung; `GET /suchen/<id>/status`
+liefert den Status als JSON für das Polling.
