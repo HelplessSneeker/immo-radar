@@ -1,0 +1,453 @@
+import type { AnalyseErgebnis, GebietStatistik, InseratAnalyse } from './analyze.js';
+
+export interface ReportMeta {
+  quellen: string[];
+  erstellt: string; // ISO-Datum
+  /** Region für die Überschrift (Standard: Kärnten, das V1-Beispielgebiet). */
+  region?: string;
+}
+
+/** Ziel-Bruttorendite, ab der ein Gebiet im Report hervorgehoben wird. */
+export const ZIEL_RENDITE = 0.04;
+
+const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+
+const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
+const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nfPct = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function fmtEurM2(wert: number, typ: 'kauf' | 'miete'): string {
+  return typ === 'kauf' ? nfEur0.format(Math.round(wert)) : nfEur2.format(wert);
+}
+
+function fmtRendite(anteil: number): string {
+  return `${nfPct.format(anteil * 100)} %`;
+}
+
+function segmentZellen(g: GebietStatistik, typ: 'kauf' | 'miete'): string {
+  const s = typ === 'kauf' ? g.kauf : g.miete;
+  if (!s) return '<td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td>';
+  return (
+    `<td class="num">${s.anzahl}</td>` +
+    `<td class="num"><strong>${fmtEurM2(s.medianEurM2, typ)}</strong></td>` +
+    `<td class="num">${fmtEurM2(s.meanEurM2, typ)}</td>` +
+    `<td class="num">${fmtEurM2(s.minEurM2, typ)}–${fmtEurM2(s.maxEurM2, typ)}</td>`
+  );
+}
+
+function renditeTiles(gebiete: GebietStatistik[]): string {
+  return gebiete
+    .map((g) => {
+      const erreicht = g.bruttoRendite !== null && g.bruttoRendite >= ZIEL_RENDITE;
+      const wert = g.bruttoRendite === null ? '–' : fmtRendite(g.bruttoRendite);
+      const badge = erreicht
+        ? '<span class="badge badge-good">✓ Ziel ≥ 4 % erreicht</span>'
+        : g.bruttoRendite === null
+          ? '<span class="badge badge-muted">keine Miet- oder Kaufdaten</span>'
+          : '<span class="badge badge-muted">unter 4 %-Ziel</span>';
+      return `<div class="tile${erreicht ? ' tile-good' : ''}">
+        <div class="tile-label">${escapeHtml(g.gebiet)}</div>
+        <div class="tile-value">${wert}</div>
+        ${badge}
+      </div>`;
+    })
+    .join('\n');
+}
+
+function vergleichsTabelle(gebiete: GebietStatistik[]): string {
+  const zeilen = gebiete
+    .map((g) => {
+      const erreicht = g.bruttoRendite !== null && g.bruttoRendite >= ZIEL_RENDITE;
+      const rendite =
+        g.bruttoRendite === null
+          ? '–'
+          : erreicht
+            ? `<strong class="good">✓ ${fmtRendite(g.bruttoRendite)}</strong>`
+            : fmtRendite(g.bruttoRendite);
+      return `<tr>
+        <th scope="row">${escapeHtml(g.gebiet)}<span class="sub">${escapeHtml(g.plz)} · ${escapeHtml(g.bezirk)}</span></th>
+        ${segmentZellen(g, 'kauf')}
+        ${segmentZellen(g, 'miete')}
+        <td class="num">${rendite}</td>
+      </tr>`;
+    })
+    .join('\n');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th rowspan="2" scope="col">Gebiet</th>
+        <th colspan="4" scope="colgroup">Kauf (€/m²)</th>
+        <th colspan="4" scope="colgroup">Miete kalt (€/m²)</th>
+        <th rowspan="2" scope="col">Brutto-Rendite</th>
+      </tr>
+      <tr>
+        <th scope="col">n</th><th scope="col">Median</th><th scope="col">Ø</th><th scope="col">Min–Max</th>
+        <th scope="col">n</th><th scope="col">Median</th><th scope="col">Ø</th><th scope="col">Min–Max</th>
+      </tr>
+    </thead>
+    <tbody>${zeilen}</tbody>
+  </table>`;
+}
+
+function inserateTabelle(inserate: InseratAnalyse[]): string {
+  const sortiert = [...inserate].sort(
+    (a, b) => a.ort.localeCompare(b.ort, 'de') || a.typ.localeCompare(b.typ) || a.eurM2 - b.eurM2,
+  );
+  const zeilen = sortiert
+    .map((i) => {
+      const id = i.url ? `<a href="${escapeHtml(i.url)}">${escapeHtml(i.id)}</a>` : escapeHtml(i.id);
+      return `<tr${i.istAusreisser ? ' class="row-outlier"' : ''}>
+        <td>${id}</td>
+        <td>${i.typ === 'kauf' ? 'Kauf' : 'Miete'}</td>
+        <td>${escapeHtml(i.ort)}</td>
+        <td class="num">${nfEur0.format(i.preis)} €</td>
+        <td class="num">${nfEur2.format(i.flaeche_m2)}</td>
+        <td class="num">${fmtEurM2(i.eurM2, i.typ)}</td>
+        <td>${i.zustand ? escapeHtml(i.zustand) : '–'}</td>
+        <td>${i.istAusreisser ? '<span class="badge badge-critical">▲ Ausreißer</span>' : ''}</td>
+      </tr>`;
+    })
+    .join('\n');
+
+  return `<table>
+    <thead><tr>
+      <th scope="col">Inserat</th><th scope="col">Typ</th><th scope="col">Ort</th>
+      <th scope="col">Preis</th><th scope="col">m²</th><th scope="col">€/m²</th>
+      <th scope="col">Zustand</th><th scope="col"></th>
+    </tr></thead>
+    <tbody>${zeilen}</tbody>
+  </table>`;
+}
+
+export function renderReport(ergebnis: AnalyseErgebnis, meta: ReportMeta): string {
+  const { gebiete, inserate } = ergebnis;
+  const chartDaten = {
+    gebiete: gebiete.map((g) => ({
+      gebiet: g.gebiet,
+      kaufMedian: g.kauf?.medianEurM2 ?? null,
+      mieteMedian: g.miete?.medianEurM2 ?? null,
+    })),
+    inserate: inserate.map((i) => ({
+      id: i.id,
+      typ: i.typ,
+      ort: i.ort,
+      preis: i.preis,
+      flaeche: i.flaeche_m2,
+      eurM2: i.eurM2,
+      zustand: i.zustand ?? null,
+      ausreisser: i.istAusreisser,
+    })),
+  };
+  // "</script>"-sicher einbetten
+  const datenJson = JSON.stringify(chartDaten).replace(/</g, '\\u003c');
+  const anzahlKauf = inserate.filter((i) => i.typ === 'kauf').length;
+  const anzahlMiete = inserate.length - anzahlKauf;
+
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>immo-radar · Marktanalyse ${escapeHtml(meta.erstellt)}</title>
+<style>
+  :root {
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-kauf: #2a78d6;   /* categorical slot 1 (blau) */
+    --series-miete: #1baf7a;  /* categorical slot 2 (aqua) */
+    --series-3: #eda100;      /* categorical slot 3 (gelb) */
+    --status-critical: #d03b3b;
+    --good-text: #006300;
+    --good-bg: rgba(12,163,12,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-kauf: #3987e5;
+      --series-miete: #199e70;
+      --series-3: #c98500;
+      --status-critical: #d03b3b;
+      --good-text: #0ca30c;
+      --good-bg: rgba(12,163,12,0.14);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--page); color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .meta { color: var(--text-secondary); font-size: 13px; }
+  section {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .tile-good { background: var(--good-bg); }
+  .tile-label { color: var(--text-secondary); font-size: 13px; }
+  .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
+  .badge { font-size: 12px; color: var(--text-muted); }
+  .badge-good { color: var(--good-text); font-weight: 600; }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .good { color: var(--good-text); }
+  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .chart-box { min-width: 0; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .chart-wrap { position: relative; height: 260px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+  thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody th { font-weight: 600; }
+  tbody th .sub { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+  a { color: var(--series-kauf); }
+  footer { color: var(--text-muted); font-size: 12px; }
+  footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>immo-radar · Marktanalyse ${escapeHtml(meta.region ?? 'Kärnten')}</h1>
+    <p class="meta">Erstellt am ${escapeHtml(meta.erstellt)} · ${inserate.length} Inserate
+      (${anzahlKauf} Kauf, ${anzahlMiete} Miete) · Quellen: ${meta.quellen.map(escapeHtml).join(', ')}</p>
+  </header>
+
+  <section>
+    <h2>Brutto-Mietrendite pro Gebiet</h2>
+    <div class="tiles">
+${renditeTiles(gebiete)}
+    </div>
+  </section>
+
+  <section>
+    <h2>Vergleich der Gebiete</h2>
+${vergleichsTabelle(gebiete)}
+  </section>
+
+  <section>
+    <h2>Median €/m² pro Gebiet</h2>
+    <div class="charts-2">
+      <div class="chart-box">
+        <div class="chart-title">Kauf (€/m²)</div>
+        <div class="chart-wrap"><canvas id="chart-kauf" role="img" aria-label="Balkendiagramm: Median-Kaufpreis in Euro pro Quadratmeter je Gebiet. Werte stehen in der Vergleichstabelle."></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Miete kalt (€/m²)</div>
+        <div class="chart-wrap"><canvas id="chart-miete" role="img" aria-label="Balkendiagramm: Median-Kaltmiete in Euro pro Quadratmeter je Gebiet. Werte stehen in der Vergleichstabelle."></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Fläche vs. Preis (Ausreißer markiert)</h2>
+    <div class="charts-2">
+      <div class="chart-box">
+        <div class="chart-title">Kauf: Fläche (m²) vs. Kaufpreis (€)</div>
+        <div class="chart-wrap"><canvas id="scatter-kauf" role="img" aria-label="Streudiagramm Fläche gegen Kaufpreis, Ausreißer als rote Rauten markiert. Alle Werte stehen in der Inseratstabelle."></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Miete: Fläche (m²) vs. Kaltmiete (€/Monat)</div>
+        <div class="chart-wrap"><canvas id="scatter-miete" role="img" aria-label="Streudiagramm Fläche gegen Kaltmiete, Ausreißer als rote Rauten markiert. Alle Werte stehen in der Inseratstabelle."></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Alle Inserate</h2>
+${inserateTabelle(inserate)}
+  </section>
+
+  <footer>
+    <p><strong>Methodik:</strong> Median/Quartile mit linearer Interpolation (R-7). Ausreißer: €/m² außerhalb
+      von Q1 − 1,5×IQR bzw. Q3 + 1,5×IQR, je Gebiet und Typ (erst ab 4 Inseraten bewertet).
+      Brutto-Mietrendite = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis €/m² — ohne Nebenkosten,
+      Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).</p>
+    <p>Datenbasis: manuell erfasste Inserate — kein Anspruch auf Marktvollständigkeit.</p>
+  </footer>
+</main>
+
+<script>const DATA = ${datenJson};</script>
+<script src="${CHART_JS_CDN}"></script>
+<script>
+(function () {
+  'use strict';
+  if (typeof Chart === 'undefined') {
+    // CDN nicht erreichbar (offline): Hinweis statt leerer Flächen; Tabellen tragen die Werte.
+    document.querySelectorAll('.chart-wrap').forEach((el) => {
+      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Diagramm nicht verfügbar '
+        + '(Chart.js-CDN nicht erreichbar – Internetverbindung nötig). '
+        + 'Alle Werte stehen in den Tabellen.</p>';
+    });
+    return;
+  }
+  const nfEur = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
+  const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  const GEBIETE = [...new Set(DATA.inserate.map((i) => i.ort))].sort((a, b) => a.localeCompare(b, 'de'));
+  // Feste Slot-Reihenfolge (CVD-validiert), niemals zyklisch: ab dem 8. Gebiet wird gefaltet.
+  const SLOT_VARS = ['--series-kauf', '--series-miete', '--series-3'];
+  let charts = [];
+
+  function gebietFarbe(idx) {
+    return idx < SLOT_VARS.length ? cssVar(SLOT_VARS[idx]) : cssVar('--text-muted');
+  }
+
+  // Werte direkt an der Balkenspitze (selektiv: eine Serie, wenige Balken)
+  const valueLabels = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart, _args, opts) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '600 11px ' + FONT;
+      ctx.fillStyle = cssVar('--text-secondary');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      chart.getDatasetMeta(0).data.forEach((el, i) => {
+        const v = chart.data.datasets[0].data[i];
+        if (v !== null) ctx.fillText(opts.format(v), el.x, el.y - 5);
+      });
+      ctx.restore();
+    },
+  };
+
+  function balken(canvasId, werte, farbeVar, format) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'bar',
+      data: {
+        labels: DATA.gebiete.map((g) => g.gebiet),
+        datasets: [{
+          data: werte,
+          backgroundColor: cssVar(farbeVar),
+          maxBarThickness: 24,
+          borderRadius: { topLeft: 4, topRight: 4 },
+          borderSkipped: 'bottom',
+        }],
+      },
+      plugins: [valueLabels],
+      options: {
+        animation: false, // statischer Report – sofort zeichnen
+        maintainAspectRatio: false,
+        layout: { padding: { top: 18 } },
+        plugins: {
+          legend: { display: false }, // eine Serie: Panel-Titel benennt sie
+          valueLabels: { format },
+          tooltip: { callbacks: { label: (c) => format(c.parsed.y) + ' €/m²' } },
+        },
+        scales: {
+          x: { grid: { display: false }, border: { color: cssVar('--baseline') },
+               ticks: { color: cssVar('--text-secondary'), font: { family: FONT } } },
+          y: { beginAtZero: true, grid: { color: cssVar('--grid') }, border: { display: false },
+               ticks: { color: cssVar('--text-muted'), font: { family: FONT },
+                        callback: (v) => nfEur.format(v) } },
+        },
+      },
+    });
+  }
+
+  function streu(canvasId, typ, preisFormat) {
+    const punkte = DATA.inserate.filter((i) => i.typ === typ);
+    const datasets = GEBIETE.map((ort, idx) => ({
+      label: ort,
+      data: punkte.filter((i) => i.ort === ort && !i.ausreisser)
+        .map((i) => ({ x: i.flaeche, y: i.preis, inserat: i })),
+      backgroundColor: gebietFarbe(idx),
+      borderColor: cssVar('--surface-1'), // 2px Surface-Ring
+      borderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+    }));
+    datasets.push({
+      label: 'Ausreißer (1,5×IQR)',
+      data: punkte.filter((i) => i.ausreisser).map((i) => ({ x: i.flaeche, y: i.preis, inserat: i })),
+      backgroundColor: cssVar('--status-critical'),
+      borderColor: cssVar('--surface-1'),
+      borderWidth: 2,
+      pointStyle: 'rectRot', // eigene Form: Markierung hängt nicht an Farbe allein
+      pointRadius: 7,
+      pointHoverRadius: 9,
+    });
+    return new Chart(document.getElementById(canvasId), {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        animation: false,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { usePointStyle: true, color: cssVar('--text-secondary'),
+                      font: { family: FONT }, boxWidth: 8, boxHeight: 8 },
+          },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const i = c.raw.inserat;
+                return i.id + ' · ' + i.ort + ' · ' + nfEur2.format(i.flaeche) + ' m² · '
+                  + preisFormat(i.preis) + ' · ' + (typ === 'kauf'
+                    ? nfEur.format(Math.round(i.eurM2)) : nfEur2.format(i.eurM2)) + ' €/m²'
+                  + (i.zustand ? ' · ' + i.zustand : '')
+                  + (i.ausreisser ? ' · AUSREISSER' : '');
+              },
+            },
+          },
+        },
+        scales: {
+          x: { title: { display: true, text: 'Fläche (m²)', color: cssVar('--text-muted'), font: { family: FONT } },
+               grid: { color: cssVar('--grid') }, border: { color: cssVar('--baseline') },
+               ticks: { color: cssVar('--text-muted'), font: { family: FONT } } },
+          y: { title: { display: true, text: typ === 'kauf' ? 'Kaufpreis (€)' : 'Kaltmiete (€/Monat)',
+                        color: cssVar('--text-muted'), font: { family: FONT } },
+               grid: { color: cssVar('--grid') }, border: { display: false },
+               ticks: { color: cssVar('--text-muted'), font: { family: FONT },
+                        callback: (v) => nfEur.format(v) } },
+        },
+      },
+    });
+  }
+
+  function renderAll() {
+    charts.forEach((c) => c.destroy());
+    charts = [
+      balken('chart-kauf', DATA.gebiete.map((g) => g.kaufMedian), '--series-kauf',
+        (v) => nfEur.format(Math.round(v))),
+      balken('chart-miete', DATA.gebiete.map((g) => g.mieteMedian), '--series-miete',
+        (v) => nfEur2.format(v)),
+      streu('scatter-kauf', 'kauf', (p) => nfEur.format(p) + ' €'),
+      streu('scatter-miete', 'miete', (p) => nfEur.format(p) + ' €/Monat'),
+    ];
+  }
+
+  renderAll();
+  // Dark-Mode-Wechsel: Charts mit den Farben des neuen Modus neu aufbauen
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+})();
+</script>
+</body>
+</html>
+`;
+}

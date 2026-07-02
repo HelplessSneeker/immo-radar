@@ -1,0 +1,21 @@
+id,typ,ort,plz,bezirk,preis,flaeche_m2,zimmer,baujahr,zustand,url,datum_erfasst
+KL-K1,kauf,Klagenfurt,9020,Klagenfurt Stadt,165000,52,2,1985,saniert,https://example.at/inserat/kl-k1,2026-06-12
+KL-K2,kauf,Klagenfurt,9020,Klagenfurt Stadt,189000,58,2,2001,gepflegt,https://example.at/inserat/kl-k2,2026-06-14
+KL-K3,kauf,Klagenfurt,9020,Klagenfurt Stadt,145000,47,2,1975,renovierungsbedürftig,https://example.at/inserat/kl-k3,2026-06-15
+KL-K4,kauf,Klagenfurt,9020,Klagenfurt Stadt,259000,55,2,2021,neuwertig,https://example.at/inserat/kl-k4,2026-06-18
+KL-M1,miete,Klagenfurt,9020,Klagenfurt Stadt,560,54,2,1990,gepflegt,https://example.at/inserat/kl-m1,2026-06-12
+KL-M2,miete,Klagenfurt,9020,Klagenfurt Stadt,610,58,2,2005,gepflegt,https://example.at/inserat/kl-m2,2026-06-16
+KL-M3,miete,Klagenfurt,9020,Klagenfurt Stadt,495,50,2,1978,einfach,https://example.at/inserat/kl-m3,2026-06-17
+KL-M4,miete,Klagenfurt,9020,Klagenfurt Stadt,980,55,2,2023,neuwertig,https://example.at/inserat/kl-m4,2026-06-20
+VI-K1,kauf,Villach,9500,Villach Stadt,149000,50,2,1988,gepflegt,https://example.at/inserat/vi-k1,2026-06-11
+VI-K2,kauf,Villach,9500,Villach Stadt,172000,56,2,1999,saniert,https://example.at/inserat/vi-k2,2026-06-13
+VI-K3,kauf,Villach,9500,Villach Stadt,135000,48,2,1972,renovierungsbedürftig,https://example.at/inserat/vi-k3,2026-06-15
+VI-K4,kauf,Villach,9500,Villach Stadt,198000,62,2,2010,gepflegt,https://example.at/inserat/vi-k4,2026-06-19
+VI-M1,miete,Villach,9500,Villach Stadt,520,52,2,1995,gepflegt,https://example.at/inserat/vi-m1,2026-06-12
+VI-M2,miete,Villach,9500,Villach Stadt,545,55,2,2001,gepflegt,https://example.at/inserat/vi-m2,2026-06-16
+VI-M3,miete,Villach,9500,Villach Stadt,480,46,2,1983,einfach,https://example.at/inserat/vi-m3,2026-06-18
+FE-K1,kauf,Feldkirchen,9560,Feldkirchen,119000,54,2,1980,gepflegt,https://example.at/inserat/fe-k1,2026-06-13
+FE-K2,kauf,Feldkirchen,9560,Feldkirchen,129000,50,2,1996,saniert,https://example.at/inserat/fe-k2,2026-06-15
+FE-K3,kauf,Feldkirchen,9560,Feldkirchen,98000,45,2,1968,renovierungsbedürftig,https://example.at/inserat/fe-k3,2026-06-17
+FE-M1,miete,Feldkirchen,9560,Feldkirchen,430,48,2,1985,einfach,https://example.at/inserat/fe-m1,2026-06-14
+FE-M2,miete,Feldkirchen,9560,Feldkirchen,465,52,2,1992,gepflegt,https://example.at/inserat/fe-m2,2026-06-18

@@ -1,0 +1,416 @@
+{
+  "props": {
+    "pageProps": {
+      "searchResult": {
+        "rowsFound": 5,
+        "rowsReturned": 5,
+        "advertSummaryList": {
+          "advertSummary": [
+            {
+              "attributes": {
+                "attribute": [
+                  {
+                    "name": "LOCATION",
+                    "values": [
+                      "Seeboden"
+                    ]
+                  },
+                  {
+                    "name": "POSTCODE",
+                    "values": [
+                      "9871"
+                    ]
+                  },
+                  {
+                    "name": "STATE",
+                    "values": [
+                      "Kärnten"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE/LIVING_AREA",
+                    "values": [
+                      "68"
+                    ]
+                  },
+                  {
+                    "name": "DISTRICT",
+                    "values": [
+                      "Spittal an der Drau"
+                    ]
+                  },
+                  {
+                    "name": "HEADING",
+                    "values": [
+                      "Moderne Terrassenwohnung oberhalb von Seeboden - großzügige Panoramaterrasse!"
+                    ]
+                  },
+                  {
+                    "name": "PROPERTY_TYPE",
+                    "values": [
+                      "Wohnung"
+                    ]
+                  },
+                  {
+                    "name": "NUMBER_OF_ROOMS",
+                    "values": [
+                      "3"
+                    ]
+                  },
+                  {
+                    "name": "ADID",
+                    "values": [
+                      "2119553802"
+                    ]
+                  },
+                  {
+                    "name": "SEO_URL",
+                    "values": [
+                      "immobilien/d/eigentumswohnung/kaernten/spittal-an-der-drau/moderne-terrassenwohnung-oberhalb-von-seeboden-grosszuegige-panoramaterrasse-2119553802/"
+                    ]
+                  },
+                  {
+                    "name": "PUBLISHED_String",
+                    "values": [
+                      "2026-07-02T10:58:00Z"
+                    ]
+                  },
+                  {
+                    "name": "PRICE",
+                    "values": [
+                      "348000"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE",
+                    "values": [
+                      "68"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "attributes": {
+                "attribute": [
+                  {
+                    "name": "LOCATION",
+                    "values": [
+                      "Klagenfurt"
+                    ]
+                  },
+                  {
+                    "name": "POSTCODE",
+                    "values": [
+                      "9020"
+                    ]
+                  },
+                  {
+                    "name": "STATE",
+                    "values": [
+                      "Kärnten"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE/LIVING_AREA",
+                    "values": [
+                      "81"
+                    ]
+                  },
+                  {
+                    "name": "DISTRICT",
+                    "values": [
+                      "Klagenfurt"
+                    ]
+                  },
+                  {
+                    "name": "HEADING",
+                    "values": [
+                      "LEBENSTRAUM II - 3-Zimmer-Wohnung im 1.Obergeschoss"
+                    ]
+                  },
+                  {
+                    "name": "PROPERTY_TYPE",
+                    "values": [
+                      "Wohnung"
+                    ]
+                  },
+                  {
+                    "name": "NUMBER_OF_ROOMS",
+                    "values": [
+                      "3"
+                    ]
+                  },
+                  {
+                    "name": "ADID",
+                    "values": [
+                      "1362098278"
+                    ]
+                  },
+                  {
+                    "name": "SEO_URL",
+                    "values": [
+                      "immobilien/d/eigentumswohnung/kaernten/klagenfurt/lebenstraum-ii-3-zimmer-wohnung-im-1-obergeschoss-1362098278/"
+                    ]
+                  },
+                  {
+                    "name": "PUBLISHED_String",
+                    "values": [
+                      "2026-07-02T10:57:00Z"
+                    ]
+                  },
+                  {
+                    "name": "PRICE",
+                    "values": [
+                      "382000"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE",
+                    "values": [
+                      "81"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "attributes": {
+                "attribute": [
+                  {
+                    "name": "LOCATION",
+                    "values": [
+                      "Seeboden"
+                    ]
+                  },
+                  {
+                    "name": "POSTCODE",
+                    "values": [
+                      "9871"
+                    ]
+                  },
+                  {
+                    "name": "STATE",
+                    "values": [
+                      "Kärnten"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE/LIVING_AREA",
+                    "values": [
+                      "68"
+                    ]
+                  },
+                  {
+                    "name": "DISTRICT",
+                    "values": [
+                      "Spittal an der Drau"
+                    ]
+                  },
+                  {
+                    "name": "HEADING",
+                    "values": [
+                      "Moderne Terrassenwohnung oberhalb von Seeboden - großzügige Panoramaterrasse!"
+                    ]
+                  },
+                  {
+                    "name": "PROPERTY_TYPE",
+                    "values": [
+                      "Wohnung"
+                    ]
+                  },
+                  {
+                    "name": "NUMBER_OF_ROOMS",
+                    "values": [
+                      "0"
+                    ]
+                  },
+                  {
+                    "name": "ADID",
+                    "values": [
+                      "111111111"
+                    ]
+                  },
+                  {
+                    "name": "SEO_URL",
+                    "values": [
+                      "immobilien/d/eigentumswohnung/kaernten/spittal-an-der-drau/moderne-terrassenwohnung-oberhalb-von-seeboden-grosszuegige-panoramaterrasse-2119553802/"
+                    ]
+                  },
+                  {
+                    "name": "PUBLISHED_String",
+                    "values": [
+                      "2026-07-02T10:58:00Z"
+                    ]
+                  },
+                  {
+                    "name": "PRICE",
+                    "values": [
+                      "348000"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE",
+                    "values": [
+                      "68"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "attributes": {
+                "attribute": [
+                  {
+                    "name": "LOCATION",
+                    "values": [
+                      "Klagenfurt"
+                    ]
+                  },
+                  {
+                    "name": "POSTCODE",
+                    "values": [
+                      "9020"
+                    ]
+                  },
+                  {
+                    "name": "STATE",
+                    "values": [
+                      "Kärnten"
+                    ]
+                  },
+                  {
+                    "name": "DISTRICT",
+                    "values": [
+                      "Klagenfurt"
+                    ]
+                  },
+                  {
+                    "name": "HEADING",
+                    "values": [
+                      "LEBENSTRAUM II - 3-Zimmer-Wohnung im 1.Obergeschoss"
+                    ]
+                  },
+                  {
+                    "name": "PROPERTY_TYPE",
+                    "values": [
+                      "Wohnung"
+                    ]
+                  },
+                  {
+                    "name": "NUMBER_OF_ROOMS",
+                    "values": [
+                      "3"
+                    ]
+                  },
+                  {
+                    "name": "ADID",
+                    "values": [
+                      "222222222"
+                    ]
+                  },
+                  {
+                    "name": "SEO_URL",
+                    "values": [
+                      "immobilien/d/eigentumswohnung/kaernten/klagenfurt/lebenstraum-ii-3-zimmer-wohnung-im-1-obergeschoss-1362098278/"
+                    ]
+                  },
+                  {
+                    "name": "PUBLISHED_String",
+                    "values": [
+                      "2026-07-02T10:57:00Z"
+                    ]
+                  },
+                  {
+                    "name": "PRICE",
+                    "values": [
+                      "382000"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "attributes": {
+                "attribute": [
+                  {
+                    "name": "LOCATION",
+                    "values": [
+                      "Seeboden"
+                    ]
+                  },
+                  {
+                    "name": "POSTCODE",
+                    "values": [
+                      "9871"
+                    ]
+                  },
+                  {
+                    "name": "STATE",
+                    "values": [
+                      "Kärnten"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE/LIVING_AREA",
+                    "values": [
+                      "68"
+                    ]
+                  },
+                  {
+                    "name": "DISTRICT",
+                    "values": [
+                      "Spittal an der Drau"
+                    ]
+                  },
+                  {
+                    "name": "HEADING",
+                    "values": [
+                      "Moderne Terrassenwohnung oberhalb von Seeboden - großzügige Panoramaterrasse!"
+                    ]
+                  },
+                  {
+                    "name": "PROPERTY_TYPE",
+                    "values": [
+                      "Wohnung"
+                    ]
+                  },
+                  {
+                    "name": "NUMBER_OF_ROOMS",
+                    "values": [
+                      "3"
+                    ]
+                  },
+                  {
+                    "name": "ADID",
+                    "values": [
+                      "333333333"
+                    ]
+                  },
+                  {
+                    "name": "SEO_URL",
+                    "values": [
+                      "immobilien/d/eigentumswohnung/kaernten/spittal-an-der-drau/moderne-terrassenwohnung-oberhalb-von-seeboden-grosszuegige-panoramaterrasse-2119553802/"
+                    ]
+                  },
+                  {
+                    "name": "PUBLISHED_String",
+                    "values": [
+                      "2026-07-02T10:58:00Z"
+                    ]
+                  },
+                  {
+                    "name": "ESTATE_SIZE",
+                    "values": [
+                      "68"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
