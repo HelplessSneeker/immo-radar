@@ -197,6 +197,14 @@ export async function suchenAuflisten(limit?: number): Promise<Suche[]> {
   return rows.map(sucheAusZeile);
 }
 
+/** Aktuell laufende Suchen – für den Aktivitäts-Indikator im Kopf. */
+export async function laufendeSuchen(): Promise<Suche[]> {
+  const { rows } = await holePool().query<SucheZeile>(
+    `${SUCHE_SELECT} WHERE s.status = 'laufend' ORDER BY s.id DESC`,
+  );
+  return rows.map(sucheAusZeile);
+}
+
 /** Beim Serverstart: nach einem Neustart hängengebliebene Suchen abräumen. */
 export async function zombieSuchenBereinigen(): Promise<number> {
   const ergebnis = await holePool().query(

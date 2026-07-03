@@ -22,6 +22,7 @@ export const TOKEN_CSS = `
   :root {
     --page: #f9f9f7;
     --surface-1: #fcfcfb;
+    --surface-hover: rgba(11,11,11,0.035);
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
     --text-muted: #898781;
@@ -30,6 +31,7 @@ export const TOKEN_CSS = `
     --border: rgba(11,11,11,0.10);
     --akzent: #1a66c4;
     --akzent-flaeche: #1a66c4;
+    --akzent-flaeche-hover: #155aab;
     --series-kauf: #2a78d6;
     --series-miete: #1baf7a;
     --series-3: #eda100;
@@ -37,11 +39,16 @@ export const TOKEN_CSS = `
     --status-good: #2e7d43;
     --good-text: #006300;
     --good-bg: rgba(12,163,12,0.08);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --dauer-fein: 120ms;
+    --dauer-schnell: 180ms;
+    --dauer-mittel: 240ms;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --page: #0d0d0d;
       --surface-1: #1a1a19;
+      --surface-hover: rgba(255,255,255,0.045);
       --text-primary: #ffffff;
       --text-secondary: #c3c2b7;
       --text-muted: #898781;
@@ -50,6 +57,7 @@ export const TOKEN_CSS = `
       --border: rgba(255,255,255,0.10);
       --akzent: #3987e5;
       --akzent-flaeche: #2a6fc9;
+      --akzent-flaeche-hover: #3a80d6;
       --series-kauf: #3987e5;
       --series-miete: #199e70;
       --series-3: #c98500;
@@ -70,13 +78,13 @@ export const BASIS_CSS = `
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .hauptnav {
-    position: sticky; top: 0; z-index: 1; /* über dem Seiteninhalt, sonst gibt es keine Ebenen */
-    display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap;
-    padding: 12px 24px;
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 10px 24px;
     background: var(--surface-1);
     border-bottom: 1px solid var(--baseline);
   }
-  .hauptnav a { text-decoration: none; }
+  .hauptnav a { text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
   .hauptnav a:hover { text-decoration: underline; }
   .hauptnav .marke { color: var(--text-primary); font-weight: 600; margin-right: 8px; }
   .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
@@ -92,23 +100,34 @@ export const BASIS_CSS = `
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px;
   }
-  a { color: var(--akzent); }
+  a { color: var(--akzent); transition: color var(--dauer-fein) var(--ease-out); }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
     outline: 2px solid var(--akzent); outline-offset: 2px;
+    transition: outline-offset var(--dauer-fein) var(--ease-out);
   }
   button {
     padding: 10px 16px; font: inherit; font-weight: 600;
     color: #fff; background: var(--akzent-flaeche);
     border: 0; border-radius: 6px; cursor: pointer;
+    transition: background-color var(--dauer-schnell) var(--ease-out),
+                opacity var(--dauer-schnell) var(--ease-out);
   }
+  button:hover:not(:disabled) { background: var(--akzent-flaeche-hover); }
+  button:active:not(:disabled) { background: var(--akzent-flaeche-hover); opacity: 0.9; }
   button:disabled { opacity: 0.6; cursor: wait; }
   button.klein {
     padding: 4px 10px; font-size: 12px; font-weight: 400;
     color: var(--akzent); background: transparent;
     border: 1px solid var(--grid);
+    transition: background-color var(--dauer-schnell) var(--ease-out),
+                border-color var(--dauer-schnell) var(--ease-out),
+                color var(--dauer-schnell) var(--ease-out);
   }
+  button.klein:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--baseline); }
   button.klein.kritisch { color: var(--status-critical); }
-  .aktionen { display: flex; gap: 6px; }
+  button.klein.kritisch:hover:not(:disabled) { border-color: var(--status-critical); }
+  .aktionen { display: flex; gap: 6px; flex-wrap: nowrap; }
+  .aktionen button { white-space: nowrap; flex-shrink: 0; }
   .sr-nur {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); white-space: nowrap;
@@ -122,11 +141,16 @@ export const BASIS_CSS = `
   thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
   tbody th { font-weight: 600; }
   tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background-color var(--dauer-fein) var(--ease-out); }
+  tbody tr:hover { background: var(--surface-hover); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td .sub, tbody th .sub {
     display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary);
   }
-  .status-badge { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .status-badge {
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+    transition: color var(--dauer-schnell) var(--ease-out);
+  }
   .status-laufend { color: var(--akzent); }
   .status-fertig { color: var(--status-good); }
   .status-fehlgeschlagen { color: var(--status-critical); }
@@ -135,6 +159,115 @@ export const BASIS_CSS = `
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }
+
+  /* Puls für die „läuft"-Zustände – der einzige rein motorische Effekt im System,
+     bewusst leise (Opazitäts-Wechsel, kein Skalieren). Bei Status-Badges nur in
+     Tabellen-Kontext (Zeilen-Status), damit statische Kopf-Beschriftungen ruhig bleiben. */
+  .status-badge.status-laufend::before,
+  .aktivitaet-punkt {
+    content: "";
+    display: inline-block;
+    width: 6px; height: 6px; margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: 1px;
+    animation: puls-laufend 1.8s ease-in-out infinite;
+  }
+  .aktivitaet-punkt { background: var(--akzent); margin: 0; vertical-align: 0; }
+  @keyframes puls-laufend {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+
+  /* Indeterminate Progress: dünner Streifen, der über die Bahn wandert.
+     Bewusst schmal (2px) und ohne Farb-Verlauf – wir wissen die Dauer nicht,
+     kein Fortschritts-Theater. */
+  .fortschritt {
+    position: relative; height: 2px; overflow: hidden;
+    background: var(--grid); border-radius: 1px;
+  }
+  .fortschritt::before {
+    content: ""; position: absolute; inset: 0 auto 0 0;
+    width: 32%; background: var(--akzent);
+    animation: fortschritt-lauf 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes fortschritt-lauf {
+    0%   { left: -32%; }
+    100% { left: 100%; }
+  }
+
+  /* Aktivitäts-Chip in der Kopfzeile: schrumpft alles Laufende auf ein
+     einzelnes, jederzeit anklickbares Element im Kopf. Rechts angeschlagen
+     per margin-left: auto (wandert bei flex-wrap sauber mit). */
+  .aktivitaet-slot { position: relative; margin-left: auto; }
+  .aktivitaet-slot[hidden] { display: none; }
+  /* button.aktivitaet-chip statt .aktivitaet-chip: die generischen
+     button-Regeln oben (background, hover) haben höhere Spezifität als eine
+     reine Klasse und würden sonst den Chip in Blau umfärben. */
+  button.aktivitaet-chip {
+    padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--akzent); background: transparent;
+    border: 1px solid var(--grid); border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    transition: background-color var(--dauer-schnell) var(--ease-out),
+                border-color var(--dauer-schnell) var(--ease-out);
+  }
+  button.aktivitaet-chip:hover:not(:disabled) {
+    background: var(--surface-hover); border-color: var(--baseline);
+  }
+  button.aktivitaet-chip[aria-expanded="true"] {
+    background: var(--surface-hover); border-color: var(--baseline);
+  }
+  .aktivitaet-liste {
+    position: absolute; right: 0; top: calc(100% + 6px);
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 0;
+    min-width: 260px; max-width: 360px; z-index: 10;
+    transform-origin: top right;
+    animation: aktivitaet-oeffnen var(--dauer-schnell) var(--ease-out);
+  }
+  .aktivitaet-liste[hidden] { display: none; }
+  .aktivitaet-liste ul { list-style: none; margin: 0; padding: 0; }
+  .aktivitaet-liste a { display: flex; align-items: baseline; gap: 8px; padding: 6px 14px; text-decoration: none; color: var(--text-primary); font-size: 13px; }
+  .aktivitaet-liste a:hover { background: var(--surface-hover); text-decoration: none; }
+  .aktivitaet-liste .aktivitaet-titel {
+    display: block; font-size: 11px; font-weight: 600; color: var(--text-muted);
+    padding: 4px 14px 2px; text-transform: uppercase; letter-spacing: 0.04em;
+    margin: 0;
+  }
+  .aktivitaet-liste .aktivitaet-titel + ul { margin-bottom: 4px; }
+  .aktivitaet-liste .aktivitaet-punkt-mini {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--akzent);
+    animation: puls-laufend 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes aktivitaet-oeffnen {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Sanftes Ausblenden vor einem Reload – der harte Cut wirkt sonst als „Ruckler",
+     besonders wenn eine Suche/ein Crawl gerade fertig geworden ist und die Seite
+     sich neu lädt. Wird per JS an body gesetzt, kurz bevor location.reload
+     ausgelöst wird. */
+  body.laufend-fade main {
+    opacity: 0.35; transition: opacity var(--dauer-mittel) var(--ease-out);
+  }
+
+  /* Motion-Reduction: alles, was rein motorisch ist, ausschalten.
+     Zustands-Farbübergänge dürfen bleiben (verletzen kein reduced-motion). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+    }
+    .fortschritt::before { animation: none; width: 100%; opacity: 0.3; }
+    .status-badge.status-laufend::before,
+    .aktivitaet-punkt,
+    .aktivitaet-liste .aktivitaet-punkt-mini { animation: none; opacity: 0.8; }
+  }
 `;
 
 /** Zusätzliches CSS der Formularseiten (Suchformular, Gebiet anlegen). */
@@ -148,11 +281,26 @@ export const FORMULAR_CSS = `
     width: 100%; padding: 8px 10px; font: inherit;
     color: var(--text-primary); background: var(--page);
     border: 1px solid var(--grid); border-radius: 6px;
+    transition: border-color var(--dauer-schnell) var(--ease-out);
   }
+  select:hover:not(:focus), input[type="number"]:hover:not(:focus),
+  input[type="text"]:hover:not(:focus) { border-color: var(--baseline); }
+  select:focus, input[type="number"]:focus, input[type="text"]:focus { border-color: var(--akzent); }
   .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .radios { display: flex; gap: 16px; }
   .radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  #status { color: var(--text-secondary); font-size: 13px; display: none; }
+  /* Absende-Button mit „läuft"-Zustand: der Text wird ausgetauscht, das
+     Puls-Punkt-Element vom Aktivitäts-Chip taucht auf. Kein separater Status-
+     Absatz mehr – die Aktion und ihre Rückmeldung leben in derselben Zeile. */
+  button.laeuft { cursor: wait; }
+  button.laeuft .senden-puls {
+    display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+    border-radius: 50%; background: currentColor; vertical-align: 1px;
+    animation: puls-laufend 1.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button.laeuft .senden-puls { animation: none; opacity: 0.8; }
+  }
 `;
 
 /** Eintrag der Hauptnavigation, der als aktuelle Seite markiert wird. */
@@ -169,11 +317,113 @@ function renderNavbar(aktiv: NavAktiv | undefined): string {
     ([key, href, label]) =>
       `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${label}</a>`,
   ).join('\n  ');
+  // Der Aktivitäts-Slot ist per default versteckt und wird vom Poll-Script
+  // sichtbar, sobald `/api/laufend` etwas Laufendes meldet. Bewusst als kompaktes
+  // Chip im Kopf statt als schwerer Overlay – Werkzeug, nicht Dashboard.
   return `<nav class="hauptnav" aria-label="Hauptnavigation">
   <a class="marke" href="/">immo-radar</a>
   ${links}
+  <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
+    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Aktuell laufende Suchen und Crawls anzeigen">
+      <span class="aktivitaet-punkt" aria-hidden="true"></span>
+      <span class="aktivitaet-text">läuft</span>
+    </button>
+    <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
+  </div>
 </nav>`;
 }
+
+/**
+ * Client-Script für den Aktivitäts-Chip in der Kopfzeile. Wird auf jeder Seite
+ * eingebettet (nur wenn die Seite mit Navbar rendert). Pollt `/api/laufend` alle
+ * 3 Sekunden und aktualisiert Chip + Dropdown. Feuert bei jeder Änderung ein
+ * `aktivitaet-aenderung`-CustomEvent auf `document`, damit seitenspezifische
+ * Skripte (z. B. Badge-Refresh in der Gebiete-Liste) darauf reagieren können,
+ * ohne selbst nochmal zu pollen.
+ */
+export const AKTIVITAET_JS = `
+<script>
+(function () {
+  'use strict';
+  const slot = document.getElementById('aktivitaet-slot');
+  if (!slot) return;
+  const chip = slot.querySelector('.aktivitaet-chip');
+  const text = slot.querySelector('.aktivitaet-text');
+  const liste = slot.querySelector('.aktivitaet-liste');
+  let offen = false;
+  let letzterHash = '';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function schliesseListe() {
+    if (!offen) return;
+    offen = false;
+    liste.hidden = true;
+    chip.setAttribute('aria-expanded', 'false');
+  }
+
+  chip.addEventListener('click', function () {
+    offen = !offen;
+    liste.hidden = !offen;
+    chip.setAttribute('aria-expanded', String(offen));
+  });
+  document.addEventListener('click', function (e) {
+    if (offen && !slot.contains(e.target)) schliesseListe();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && offen) { schliesseListe(); chip.focus(); }
+  });
+
+  function baueListe(data) {
+    let html = '';
+    if (data.suchen.length) {
+      html += '<p class="aktivitaet-titel">Suchen</p><ul>';
+      for (const s of data.suchen) {
+        html += '<li><a href="/suchen/' + s.id + '"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>' + esc(s.beschreibung) + '</span></a></li>';
+      }
+      html += '</ul>';
+    }
+    if (data.crawls.length) {
+      html += '<p class="aktivitaet-titel">Crawls</p><ul>';
+      for (const c of data.crawls) {
+        html += '<li><a href="/gebiete/' + c.gebietId + '"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>' + esc(c.name) + '</span></a></li>';
+      }
+      html += '</ul>';
+    }
+    liste.innerHTML = html;
+  }
+
+  async function tick() {
+    try {
+      const res = await fetch('/api/laufend', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const gesamt = data.suchen.length + data.crawls.length;
+      const hash = gesamt + ':' + data.suchen.map(function (s) { return s.id; }).join(',') + '|' + data.crawls.map(function (c) { return c.gebietId; }).join(',');
+      const geaendert = hash !== letzterHash;
+      letzterHash = hash;
+
+      if (gesamt === 0) {
+        if (!slot.hidden) { slot.hidden = true; schliesseListe(); }
+      } else {
+        if (slot.hidden) slot.hidden = false;
+        text.textContent = gesamt === 1 ? '1 läuft' : gesamt + ' laufen';
+        baueListe(data);
+      }
+      if (geaendert) {
+        document.dispatchEvent(new CustomEvent('aktivitaet-aenderung', { detail: data }));
+      }
+    } catch (_) { /* Server offline – nächster Tick versucht es wieder */ }
+  }
+
+  tick();
+  setInterval(tick, 3000);
+})();
+</script>`;
 
 export interface SeitenOptionen {
   /** Zusätzliche Head-Zeilen (z. B. meta refresh, noscript). */
@@ -189,7 +439,11 @@ export interface SeitenOptionen {
 }
 
 export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}): string {
-  const nav = opts.navbar === false ? '' : `${renderNavbar(opts.aktiv)}\n`;
+  const mitNavbar = opts.navbar !== false;
+  const nav = mitNavbar ? `${renderNavbar(opts.aktiv)}\n` : '';
+  // Aktivitäts-Chip nur auf Seiten mit Navbar – statisch exportierte Reports
+  // haben keinen laufenden Server, dort wäre der Poll ins Leere.
+  const aktivitaetsSkript = mitNavbar ? AKTIVITAET_JS : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -202,6 +456,7 @@ ${opts.kopfExtra ?? ''}</head>
 ${nav}<main${opts.breite === 'breit' ? ' class="breit"' : ''}>
 ${inhalt}
 </main>
+${aktivitaetsSkript}
 </body>
 </html>`;
 }

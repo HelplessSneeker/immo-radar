@@ -130,6 +130,17 @@ export async function laufendeCrawls(): Promise<Set<number>> {
   return new Set(rows.map((r) => r.gebiet_id));
 }
 
+/** Laufende Crawls mit Gebiets-Namen – für den Aktivitäts-Indikator im Kopf. */
+export async function laufendeCrawlsMitNamen(): Promise<Array<{ gebietId: number; name: string }>> {
+  const { rows } = await holePool().query<{ gebiet_id: number; name: string }>(
+    `SELECT DISTINCT c.gebiet_id, g.name
+     FROM crawl_laeufe c JOIN gebiete g ON g.id = c.gebiet_id
+     WHERE c.status = 'laufend'
+     ORDER BY g.name`,
+  );
+  return rows.map((r) => ({ gebietId: r.gebiet_id, name: r.name }));
+}
+
 export async function gebietDeaktivieren(id: number): Promise<void> {
   await holePool().query('UPDATE gebiete SET aktiv = false WHERE id = $1', [id]);
 }
