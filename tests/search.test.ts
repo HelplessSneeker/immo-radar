@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterInserate, parseSuchKriterien, SuchKriterienFehler } from '../src/search.js';
+import { filterInserate, parseGebietForm, parseSuchKriterien, SuchKriterienFehler } from '../src/search.js';
 import type { Inserat } from '../src/types.js';
 
 function params(eintraege: Record<string, string>): URLSearchParams {
@@ -52,6 +52,24 @@ describe('parseSuchKriterien', () => {
     expect(() =>
       parseSuchKriterien(params({ bundesland: 'wien', flaeche_min: '80', flaeche_max: '50' })),
     ).toThrow(SuchKriterienFehler);
+  });
+});
+
+describe('parseGebietForm', () => {
+  it('liefert Name und Kriterien', () => {
+    const { name, kriterien } = parseGebietForm(
+      params({ name: ' Villach Zentrum ', bundesland: 'kaernten', ort: 'Villach' }),
+    );
+    expect(name).toBe('Villach Zentrum');
+    expect(kriterien.bundesland).toBe('kaernten');
+    expect(kriterien.ort).toBe('Villach');
+  });
+
+  it('wirft ohne Namen und bei ungültigen Kriterien', () => {
+    expect(() => parseGebietForm(params({ bundesland: 'kaernten' }))).toThrow('Namen');
+    expect(() => parseGebietForm(params({ name: 'X', bundesland: 'bayern' }))).toThrow(
+      SuchKriterienFehler,
+    );
   });
 });
 

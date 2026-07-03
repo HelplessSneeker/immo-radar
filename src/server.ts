@@ -4,7 +4,19 @@ import { analyze } from './analyze.js';
 import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
+import { bestandLaden, preisHistorieLaden } from './db/bestand-repo.js';
 import { holePool } from './db/client.js';
+import {
+  crawlLaeufeAuflisten,
+  gebietAktivieren,
+  gebietAnlegen,
+  gebietDeaktivieren,
+  gebieteAuflisten,
+  gebietLaden,
+  letzterFertigerLauf,
+  zombieCrawlLaeufeBereinigen,
+  type Gebiet,
+} from './db/gebiete-repo.js';
 import { wendeMigrationenAn } from './db/migrieren.js';
 import {
   inserateLaden,
@@ -14,6 +26,11 @@ import {
   zombieSuchenBereinigen,
   type Suche,
 } from './db/suchen-repo.js';
+import {
+  renderGebieteSeite,
+  renderGebietOhneDatenSeite,
+  renderGebietSeite,
+} from './pages/gebiete-pages.js';
 import { renderFehlerSeite, renderKeineTrefferSeite, renderSearchPage } from './pages/search-page.js';
 import {
   renderFehlgeschlagenSeite,
@@ -21,8 +38,16 @@ import {
   renderLaufendSeite,
 } from './pages/suchen-pages.js';
 import { renderReport } from './report.js';
-import { BUNDESLAENDER, parseSuchKriterien, SuchKriterienFehler } from './search.js';
+import { starteGebietCrawl, starteZeitplan } from './scheduler.js';
+import {
+  BUNDESLAENDER,
+  filterInserate,
+  parseGebietForm,
+  parseSuchKriterien,
+  SuchKriterienFehler,
+} from './search.js';
 import { starteSuchlauf } from './suchlauf.js';
+import { berechneTrend, preisReduktionen, vermarktungsdauer } from './trend.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -46,6 +71,45 @@ function liesBody(req: IncomingMessage): Promise<string> {
     });
     req.on('end', () => resolve(Buffer.concat(teile).toString('utf8')));
     req.on('error', reject);
+  });
+}
+
+/**
+ * Auswertung eines Gebiets aus dem historisierten Bestand: Stichtag ist der
+ * letzte erfolgreiche Crawl-Lauf, aktiv = damals noch gesehen. Der Gebiet-Typ
+ * und die Kriterien filtern erst hier (read-seitig), der Bestand ist roh.
+ */
+async function gebietSeite(gebiet: Gebiet, alsReport: boolean): Promise<string> {
+  const stichtag = await letzterFertigerLauf(gebiet.id);
+  if (!stichtag) return renderGebietOhneDatenSeite(gebiet);
+
+  const bestand = await bestandLaden(gebiet.kriterien.bundesland);
+  const nachTyp =
+    gebiet.kriterien.typ === 'beide'
+      ? bestand
+      : bestand.filter((i) => i.typ === gebiet.kriterien.typ);
+  const inserate = filterInserate(nachTyp, gebiet.kriterien);
+  const aktive = inserate.filter((i) => i.zuletztGesehen >= stichtag);
+
+  if (alsReport) {
+    if (aktive.length === 0) return renderKeineTrefferSeite([`Bestand, Stand ${stichtag}`]);
+    return renderReport(analyze(aktive), {
+      quellen: [`Bestand, Stand ${stichtag} (${aktive.length} aktive Inserate)`],
+      erstellt: stichtag,
+      region: gebiet.name,
+    });
+  }
+
+  const historie = await preisHistorieLaden(gebiet.kriterien.bundesland);
+  const delisted = inserate.filter((i) => i.zuletztGesehen < stichtag);
+  return renderGebietSeite(gebiet, {
+    stichtag,
+    trend: berechneTrend(inserate, historie, stichtag),
+    vermarktung: vermarktungsdauer(delisted),
+    reduktionen: preisReduktionen(aktive, historie),
+    laeufe: await crawlLaeufeAuflisten(gebiet.id, 10),
+    anzahlAktiv: aktive.length,
+    anzahlDelisted: delisted.length,
   });
 }
 
@@ -78,16 +142,48 @@ const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
 
     if (req.method === 'POST') {
-      if (url.pathname !== '/suchen') {
-        sende(res, 404, renderFehlerSeite(404, `Unbekannter Pfad "${url.pathname}".`));
+      if (url.pathname === '/suchen') {
+        const kriterien = parseSuchKriterien(new URLSearchParams(await liesBody(req)));
+        const id = await sucheAnlegen(kriterien);
+        console.log(`Suche ${id} gestartet: ${JSON.stringify(kriterien)}`);
+        starteSuchlauf(id, kriterien, portale);
+        res.writeHead(303, { location: `/suchen/${id}` });
+        res.end();
         return;
       }
-      const kriterien = parseSuchKriterien(new URLSearchParams(await liesBody(req)));
-      const id = await sucheAnlegen(kriterien);
-      console.log(`Suche ${id} gestartet: ${JSON.stringify(kriterien)}`);
-      starteSuchlauf(id, kriterien, portale);
-      res.writeHead(303, { location: `/suchen/${id}` });
-      res.end();
+      if (url.pathname === '/gebiete') {
+        const { name, kriterien } = parseGebietForm(new URLSearchParams(await liesBody(req)));
+        const id = await gebietAnlegen(name, kriterien);
+        console.log(`Gebiet ${id} angelegt: "${name}" ${JSON.stringify(kriterien)}`);
+        res.writeHead(303, { location: '/gebiete' });
+        res.end();
+        return;
+      }
+      const aktion = /^\/gebiete\/(\d+)\/(aktivieren|deaktivieren|aktualisieren)$/.exec(url.pathname);
+      if (aktion) {
+        const id = Number(aktion[1]);
+        const gebiet = await gebietLaden(id);
+        if (!gebiet) {
+          sende(res, 404, renderFehlerSeite(404, `Es gibt kein Gebiet ${aktion[1]}.`));
+          return;
+        }
+        if (aktion[2] === 'aktualisieren') {
+          const gestartet = await starteGebietCrawl(gebiet, portale);
+          console.log(
+            gestartet
+              ? `Gebiet ${id} ("${gebiet.name}"): manueller Crawl gestartet.`
+              : `Gebiet ${id} ("${gebiet.name}"): Crawl läuft bereits.`,
+          );
+          res.writeHead(303, { location: `/gebiete/${id}` });
+          res.end();
+          return;
+        }
+        await (aktion[2] === 'aktivieren' ? gebietAktivieren(id) : gebietDeaktivieren(id));
+        res.writeHead(303, { location: '/gebiete' });
+        res.end();
+        return;
+      }
+      sende(res, 404, renderFehlerSeite(404, `Unbekannter Pfad "${url.pathname}".`));
       return;
     }
 
@@ -102,6 +198,20 @@ const server = createServer((req, res) => {
     }
     if (url.pathname === '/suchen') {
       sende(res, 200, renderHistorieSeite(await suchenAuflisten()));
+      return;
+    }
+    if (url.pathname === '/gebiete') {
+      sende(res, 200, renderGebieteSeite(await gebieteAuflisten()));
+      return;
+    }
+    const gebietTreffer = /^\/gebiete\/(\d+)(\/report)?$/.exec(url.pathname);
+    if (gebietTreffer) {
+      const gebiet = await gebietLaden(Number(gebietTreffer[1]));
+      if (!gebiet) {
+        sende(res, 404, renderFehlerSeite(404, `Es gibt kein Gebiet ${gebietTreffer[1]}.`));
+        return;
+      }
+      sende(res, 200, await gebietSeite(gebiet, Boolean(gebietTreffer[2])));
       return;
     }
     const treffer = /^\/suchen\/(\d+)(\/status)?$/.exec(url.pathname);
@@ -140,6 +250,11 @@ const pool = holePool();
 await wendeMigrationenAn(pool);
 const zombies = await zombieSuchenBereinigen();
 if (zombies > 0) console.log(`${zombies} unterbrochene Suche(n) als fehlgeschlagen markiert.`);
+const zombieLaeufe = await zombieCrawlLaeufeBereinigen();
+if (zombieLaeufe > 0) {
+  console.log(`${zombieLaeufe} unterbrochene(r) Gebiet-Crawl(s) als fehlgeschlagen markiert.`);
+}
+starteZeitplan(portale);
 
 server.listen(PORT, () => {
   console.log(`immo-radar Suche läuft: http://localhost:${PORT}`);

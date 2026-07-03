@@ -18,3 +18,11 @@ export interface Inserat {
   url?: string;
   datum_erfasst: string; // ISO-Datum (YYYY-MM-DD)
 }
+
+/**
+ * Ein live gecrawltes Inserat samt Herkunftsportal (z. B. "willhaben.at").
+ * Datei-Importe haben kein Portal, daher eigener Typ statt Feld auf Inserat.
+ */
+export interface InseratMitPortal extends Inserat {
+  portal: string;
+}

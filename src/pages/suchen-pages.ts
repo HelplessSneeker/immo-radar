@@ -1,5 +1,5 @@
 import type { Suche, SucheStatus } from '../db/suchen-repo.js';
-import { BUNDESLAENDER } from '../search.js';
+import { BUNDESLAENDER, type SuchKriterien } from '../search.js';
 import { escapeHtml, seite } from './layout.js';
 
 /** Seiten des Such-Lifecycles: Polling-Seite, Historie, Fehlseite. */
@@ -15,9 +15,8 @@ function bereich(min: number | undefined, max: number | undefined, einheit: stri
   return undefined;
 }
 
-/** Kurzfassung der Kriterien für die Historie, z. B. "Kärnten · Kauf · ab 50 m² · Villach". */
-export function kriterienZusammenfassung(suche: Suche): string {
-  const k = suche.kriterien;
+/** Kurzfassung der Kriterien für Historie und Gebiete, z. B. "Kärnten · Kauf · ab 50 m² · Villach". */
+export function kriterienZusammenfassung(k: SuchKriterien): string {
   const typ = k.typ === 'beide' ? 'Kauf & Miete' : k.typ === 'kauf' ? 'Kauf' : 'Miete';
   const teile = [
     BUNDESLAENDER[k.bundesland] ?? k.bundesland,
@@ -47,7 +46,7 @@ function historieTabelle(suchen: Suche[]): string {
     .map(
       (s) => `      <tr>
         <td class="meta">${nfZeit.format(s.erstelltAm)}</td>
-        <td><a href="/suchen/${s.id}">${escapeHtml(kriterienZusammenfassung(s))}</a></td>
+        <td><a href="/suchen/${s.id}">${escapeHtml(kriterienZusammenfassung(s.kriterien))}</a></td>
         <td>${statusBadge(s.status)}</td>
         <td>${s.status === 'fertig' ? s.treffer : ''}</td>
       </tr>`,
@@ -94,7 +93,7 @@ export function renderLaufendSeite(suche: Suche): string {
     'Suche läuft',
     `  <header><h1>Suche läuft …</h1></header>
   <section>
-    <p>${escapeHtml(kriterienZusammenfassung(suche))}</p>
+    <p>${escapeHtml(kriterienZusammenfassung(suche.kriterien))}</p>
     <p class="meta" role="status">willhaben.at und immoscout24.at werden durchsucht –
     das dauert ein paar Sekunden. Die Seite aktualisiert sich automatisch.</p>
     <p class="meta"><a href="/">← Zurück zur Suche</a> (der Suchlauf läuft weiter)</p>
@@ -117,7 +116,7 @@ export function renderFehlgeschlagenSeite(suche: Suche): string {
     'Suche fehlgeschlagen',
     `  <header><h1 class="fehler">Suche fehlgeschlagen</h1></header>
   <section>
-    <p>${escapeHtml(kriterienZusammenfassung(suche))}</p>
+    <p>${escapeHtml(kriterienZusammenfassung(suche.kriterien))}</p>
     <p class="fehler">${escapeHtml(suche.fehler ?? 'Unbekannter Fehler.')}</p>
     <p><a href="/">← Neue Suche starten</a></p>
   </section>`,

@@ -81,6 +81,13 @@ const SEITEN_CSS = `
   .status-laufend { color: var(--akzent); }
   .status-fertig { color: var(--status-good); }
   .status-fehlgeschlagen { color: var(--status-critical); }
+  .status-aktiv { color: var(--status-good); }
+  .status-inaktiv { color: var(--text-muted); }
+  button.klein {
+    padding: 4px 10px; font-size: 12px; font-weight: 400;
+    color: var(--akzent); background: transparent; border: 1px solid var(--grid);
+  }
+  .aktionen { display: flex; gap: 6px; }
 `;
 
 export function seite(titel: string, inhalt: string, kopfExtra = ''): string {

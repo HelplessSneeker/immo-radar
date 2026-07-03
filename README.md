@@ -3,7 +3,9 @@
 Immobilienmarkt-Analyse für Anlageobjekte in Österreich. Lädt Kauf- und
 Miet-Inserate (live von willhaben.at und immoscout24.at oder aus
 CSV-/JSON-Dateien), wertet sie pro Gebiet aus und erzeugt einen HTML-Report
-mit Vergleichstabelle, Diagrammen und Brutto-Renditeübersicht.
+mit Vergleichstabelle, Diagrammen und Brutto-Renditeübersicht. Über
+Beobachtungsgebiete baut der Server zusätzlich einen historisierten
+Inseratsbestand auf (Preisentwicklung, Vermarktungsdauer, Preissenkungen).
 
 ## Voraussetzungen
 
@@ -43,6 +45,33 @@ den gefundenen Inseraten in Postgres gespeichert:
 
 Migrationen (nummerierte SQL-Dateien in `migrations/`) laufen beim Serverstart
 automatisch; `pnpm db:migrate` wendet sie manuell an.
+
+### Beobachtungsgebiete & historisierter Bestand
+
+Unter `/gebiete` lassen sich Beobachtungsgebiete anlegen (Name + dieselben
+Kriterien wie die Suche). Aktive Gebiete crawlt der Server **einmal täglich**
+automatisch (Scheduler-Tick alle 30 Minuten, Override per `CRAWL_TICK_MS`;
+pro Gebiet und Tag läuft höchstens ein Crawl — das stellt ein DB-Claim in
+`crawl_laeufe` sicher, auch über Neustarts und mehrere Ticks hinweg).
+Der Button „jetzt crawlen" stößt einen Crawl sofort manuell an — auch wenn
+der heutige Lauf schon fertig ist (praktisch zum Testen); nur ein gerade
+laufender Crawl wird nicht doppelt gestartet.
+
+Die Crawls schreiben **ungefiltert** in einen globalen, historisierten
+Bestand (`inserate_bestand`, Schlüssel Portal + Inserats-ID) mit
+`zuerst_gesehen`/`zuletzt_gesehen` und einer Preishistorie (eine Zeile beim
+ersten Sehen und je Preisänderung). Auch jede Ad-hoc-Suche füttert diesen
+Bestand nebenbei. Gebiet-Typ und Kriterien filtern erst beim Lesen.
+
+`/gebiete/<id>` wertet den Bestand aus: aktive vs. delistete Inserate
+(delistet = im letzten erfolgreichen Lauf nicht mehr gesehen — Proxy für
+verkauft/vermietet), Median-Vermarktungsdauer, Zeitreihe Median €/m²
+(Kauf/Miete, Wochenraster) und die Liste der Preissenkungen.
+`/gebiete/<id>/report` rechnet den gewohnten Marktreport über den aktiven
+Snapshot. **Tipp:** Gebiete eng fassen (Ort/Bezirk statt ganzem Bundesland) —
+die Portal-Caps (~150/~75 Inserate pro Segment) machen große Gebiete zur
+Stichprobe; Preisfenster großzügig wählen, sonst gelten Inserate nach einer
+Preisänderung aus dem Fenster als delistet.
 
 **Hinweise:** Für die Rendite-Berechnung braucht ein Ort sowohl Kauf- als
 auch Mietinserate — Typ „beide" ist daher der Standard. Die Crawler lesen das
@@ -175,17 +204,23 @@ src/
   immoscout24/map.ts        __INITIAL_STATE__-Extraktion, Mapping auf Inserat
   immoscout24/url.ts        Suchkriterien → immoscout24-Such-URLs
   search.ts                 Suchkriterien parsen/validieren + Trefferfilter
+  datum.ts                  Datums-Helfer (YYYY-MM-DD, UTC)
   stats.ts                  Median, Quantile, IQR-Ausreißer, Bruttorendite
   analyze.ts                Gruppierung nach Gebiet, Kennzahlen
+  trend.ts                  Zeitreihen über den Bestand (Median €/m², Vermarktungsdauer, Preissenkungen)
   report.ts                 HTML-Report (Chart.js via CDN)
-  suchlauf.ts               Portal-Crawl + Hintergrund-Ausführung eines Suchlaufs
+  suchlauf.ts               Portal-Crawl, Crawl-Sperre + Hintergrund-Ausführung eines Suchlaufs
+  scheduler.ts              Täglicher Crawl der Beobachtungsgebiete (DB-Claim als Idempotenz-Anker)
   db/client.ts              Lazy Postgres-Pool (braucht DATABASE_URL)
   db/migrieren.ts           Migrations-Runner (migrations/*.sql)
   db/suchen-repo.ts         Persistenz der Suchläufe und Treffer
+  db/bestand-repo.ts        Globaler historisierter Inseratsbestand + Preishistorie
+  db/gebiete-repo.ts        Beobachtungsgebiete + Crawl-Läufe (Claim)
   pages/layout.ts           Gemeinsames Seitengerüst + CSS
   pages/search-page.ts      Suchformular + Fehler-/Keine-Treffer-Seiten
   pages/suchen-pages.ts     Polling-Seite, Historie, Fehlgeschlagen-Seite
-  server.ts                 HTTP-Server (Suchen starten, Status, Historie, Reports)
+  pages/gebiete-pages.ts    Gebiete-Verwaltung + Auswertungsseite (Trends)
+  server.ts                 HTTP-Server (Suchen, Gebiete, Historie, Reports)
   cli.ts                    Kommandozeile (ohne Datenbank lauffähig)
 ```
 

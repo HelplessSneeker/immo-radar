@@ -82,12 +82,22 @@ export function parseSuchKriterien(params: URLSearchParams): SuchKriterien {
   return kriterien;
 }
 
+/** Validiert das Formular der Gebiete-Seite: Pflicht-Name + SuchKriterien. */
+export function parseGebietForm(params: URLSearchParams): {
+  name: string;
+  kriterien: SuchKriterien;
+} {
+  const name = params.get('name')?.trim();
+  if (!name) throw new SuchKriterienFehler('Das Gebiet braucht einen Namen.');
+  return { name, kriterien: parseSuchKriterien(params) };
+}
+
 /**
  * Serverseitiger Filter über die gecrawlten Inserate. Der Preis wird nur auf
  * den Typ angewendet, auf den er sich bezieht (bei "beide" der Kauf) – die
  * willhaben-URL filtert ihn zwar schon, aber wir verlassen uns nicht darauf.
  */
-export function filterInserate(inserate: Inserat[], kriterien: SuchKriterien): Inserat[] {
+export function filterInserate<T extends Inserat>(inserate: T[], kriterien: SuchKriterien): T[] {
   const preisTyp: InseratTyp = kriterien.typ === 'beide' ? 'kauf' : kriterien.typ;
   const ort = kriterien.ort?.toLowerCase();
 

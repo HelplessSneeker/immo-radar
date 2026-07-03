@@ -8,7 +8,8 @@ import { renderHistorieBlock } from './suchen-pages.js';
  * liegen in layout.ts.
  */
 
-export function renderSearchPage(letzteSuchen: Suche[] = []): string {
+/** Die Kriterien-Formularfelder – gemeinsam für Suchseite und Gebiete-Seite. */
+export function kriterienFelder(typHinweis: string): string {
   const optionen = Object.entries(BUNDESLAENDER)
     .map(
       ([slug, name]) =>
@@ -16,16 +17,7 @@ export function renderSearchPage(letzteSuchen: Suche[] = []): string {
     )
     .join('\n        ');
 
-  return seite(
-    'Suche',
-    `  <header>
-    <h1>immo-radar · Suche</h1>
-    <p class="meta">Sucht live auf willhaben.at und immoscout24.at und erstellt die Marktanalyse (€/m², Brutto-Rendite) für die kombinierten Treffer.</p>
-  </header>
-
-  <section>
-    <form action="/suchen" method="post" id="suchform">
-      <fieldset>
+  return `      <fieldset>
         <label class="feld" for="bundesland">Bundesland</label>
         <select id="bundesland" name="bundesland">
         ${optionen}
@@ -39,7 +31,7 @@ export function renderSearchPage(letzteSuchen: Suche[] = []): string {
           <label><input type="radio" name="typ" value="kauf"> nur Kauf</label>
           <label><input type="radio" name="typ" value="miete"> nur Miete</label>
         </div>
-        <p class="hinweis">Für die Rendite-Berechnung werden Kauf- und Mietdaten benötigt.</p>
+        <p class="hinweis">${escapeHtml(typHinweis)}</p>
       </fieldset>
 
       <fieldset>
@@ -69,7 +61,21 @@ export function renderSearchPage(letzteSuchen: Suche[] = []): string {
       <fieldset>
         <label class="feld" for="ort">Ort, PLZ oder Bezirk</label>
         <input type="text" id="ort" name="ort" placeholder="z. B. Villach oder 9500">
-      </fieldset>
+      </fieldset>`;
+}
+
+export function renderSearchPage(letzteSuchen: Suche[] = []): string {
+  return seite(
+    'Suche',
+    `  <header>
+    <h1>immo-radar · Suche</h1>
+    <p class="meta">Sucht live auf willhaben.at und immoscout24.at und erstellt die Marktanalyse (€/m², Brutto-Rendite) für die kombinierten Treffer.</p>
+    <p class="meta"><a href="/gebiete">Beobachtungsgebiete →</a></p>
+  </header>
+
+  <section>
+    <form action="/suchen" method="post" id="suchform">
+${kriterienFelder('Für die Rendite-Berechnung werden Kauf- und Mietdaten benötigt.')}
 
       <button type="submit" id="senden">Suchen &amp; analysieren</button>
       <p id="status" role="status">Suche wird gestartet …</p>

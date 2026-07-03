@@ -3,7 +3,6 @@ import {
   inseratAusZeile,
   sucheAusZeile,
   type InseratZeile,
-  type Suche,
   type SucheZeile,
 } from '../src/db/suchen-repo.js';
 import { migrationsVersion } from '../src/db/migrieren.js';
@@ -89,29 +88,16 @@ describe('inseratAusZeile', () => {
 });
 
 describe('kriterienZusammenfassung', () => {
-  function suche(kriterien: Suche['kriterien']): Suche {
-    return {
-      id: 1,
-      status: 'fertig',
-      kriterien,
-      quellen: [],
-      erstelltAm: new Date(),
-      treffer: 0,
-    };
-  }
-
   it('formatiert alle Kriterien kompakt', () => {
-    const text = kriterienZusammenfassung(
-      suche({
-        bundesland: 'kaernten',
-        typ: 'kauf',
-        preisMin: 100000,
-        preisMax: 300000,
-        flaecheMin: 50,
-        zimmerMax: 4,
-        ort: 'Villach',
-      }),
-    );
+    const text = kriterienZusammenfassung({
+      bundesland: 'kaernten',
+      typ: 'kauf',
+      preisMin: 100000,
+      preisMax: 300000,
+      flaecheMin: 50,
+      zimmerMax: 4,
+      ort: 'Villach',
+    });
     // Tausender-Gruppierung je nach ICU (de-AT: geschütztes Leerzeichen)
     const nf = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 });
     expect(text).toBe(
@@ -120,9 +106,7 @@ describe('kriterienZusammenfassung', () => {
   });
 
   it('lässt fehlende Kriterien weg', () => {
-    expect(kriterienZusammenfassung(suche({ bundesland: 'wien', typ: 'beide' }))).toBe(
-      'Wien · Kauf & Miete',
-    );
+    expect(kriterienZusammenfassung({ bundesland: 'wien', typ: 'beide' })).toBe('Wien · Kauf & Miete');
   });
 });
 
