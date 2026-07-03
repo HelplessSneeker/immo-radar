@@ -200,14 +200,30 @@ export async function crawlLaufFehlgeschlagen(id: number, meldung: string): Prom
   );
 }
 
-/** Datum des letzten erfolgreichen Laufs – der Stichtag für den Aktiv-Snapshot. */
-export async function letzterFertigerLauf(gebietId: number): Promise<string | undefined> {
-  const { rows } = await holePool().query<{ lauf_datum: string }>(
-    `SELECT max(lauf_datum)::text AS lauf_datum
-     FROM crawl_laeufe WHERE gebiet_id = $1 AND status = 'fertig'`,
+export interface FertigerLauf {
+  laufDatum: string; // YYYY-MM-DD, der Stichtag für den Aktiv-Snapshot
+  beendetAm: Date; // präziser Abschluss-Zeitpunkt für „Zuletzt gecrawlt“
+}
+
+/** Jüngster erfolgreicher Lauf eines Gebiets – Stichtag + Abschluss-Zeitpunkt. */
+export async function letzterFertigerLauf(gebietId: number): Promise<FertigerLauf | undefined> {
+  const { rows } = await holePool().query<{ lauf_datum: string; beendet_am: Date }>(
+    `SELECT lauf_datum::text AS lauf_datum, beendet_am
+     FROM crawl_laeufe WHERE gebiet_id = $1 AND status = 'fertig'
+     ORDER BY lauf_datum DESC LIMIT 1`,
     [gebietId],
   );
-  return rows[0]?.lauf_datum ?? undefined;
+  const zeile = rows[0];
+  return zeile ? { laufDatum: zeile.lauf_datum, beendetAm: zeile.beendet_am } : undefined;
+}
+
+/** Abschluss-Zeitpunkt des letzten erfolgreichen Laufs je Gebiet – ein Query für die Liste. */
+export async function letzteFertigeLaeufe(): Promise<Map<number, Date>> {
+  const { rows } = await holePool().query<{ gebiet_id: number; beendet_am: Date }>(
+    `SELECT gebiet_id, max(beendet_am) AS beendet_am
+     FROM crawl_laeufe WHERE status = 'fertig' GROUP BY gebiet_id`,
+  );
+  return new Map(rows.map((r) => [r.gebiet_id, r.beendet_am]));
 }
 
 export async function crawlLaeufeAuflisten(gebietId: number, limit: number): Promise<CrawlLauf[]> {

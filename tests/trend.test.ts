@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BestandInserat, PreisPunkt } from '../src/db/bestand-repo.js';
-import { berechneTrend, preisReduktionen, vermarktungsdauer } from '../src/trend.js';
+import { berechneTrend, letztePreisAenderungen, vermarktungsdauer } from '../src/trend.js';
 import type { InseratTyp } from '../src/types.js';
 
 function inserat(
@@ -104,34 +104,37 @@ describe('vermarktungsdauer', () => {
   });
 });
 
-describe('preisReduktionen', () => {
-  it('meldet Inserate, deren letzte Änderung eine Senkung war – jüngste zuerst', () => {
-    const inserate = [inserat('wh-1'), inserat('wh-2'), inserat('wh-3'), inserat('wh-4')];
+describe('letztePreisAenderungen', () => {
+  it('meldet die letzte Änderung je Inserat, Senkungen wie Erhöhungen', () => {
     const historie = [
-      // wh-1: gesenkt am 15.
+      // wh-1: zweimal geändert → nur die letzte Änderung zählt
       punkt('wh-1', 200000, '2026-06-01'),
+      punkt('wh-1', 190000, '2026-06-10'),
       punkt('wh-1', 185000, '2026-06-15'),
-      // wh-2: gesenkt am 20.
-      punkt('wh-2', 300000, '2026-06-01'),
-      punkt('wh-2', 280000, '2026-06-20'),
-      // wh-3: erhöht → keine Reduktion
-      punkt('wh-3', 100000, '2026-06-01'),
-      punkt('wh-3', 110000, '2026-06-10'),
-      // wh-4: nie geändert
-      punkt('wh-4', 150000, '2026-06-01'),
+      // wh-2: erhöht
+      punkt('wh-2', 100000, '2026-06-01'),
+      punkt('wh-2', 110000, '2026-06-10'),
     ];
 
-    const reduktionen = preisReduktionen(inserate, historie);
-    expect(reduktionen.map((r) => r.inserat.id)).toEqual(['wh-2', 'wh-1']);
-    expect(reduktionen[1]).toMatchObject({
-      alterPreis: 200000,
+    const aenderungen = letztePreisAenderungen(historie);
+    expect(aenderungen.get('willhaben.at wh-1')).toEqual({
+      alterPreis: 190000,
       neuerPreis: 185000,
       geaendertAm: '2026-06-15',
     });
+    expect(aenderungen.get('willhaben.at wh-2')).toEqual({
+      alterPreis: 100000,
+      neuerPreis: 110000,
+      geaendertAm: '2026-06-10',
+    });
   });
 
-  it('ignoriert Historie von nicht übergebenen Inseraten', () => {
-    const historie = [punkt('wh-9', 200000, '2026-06-01'), punkt('wh-9', 100000, '2026-06-10')];
-    expect(preisReduktionen([], historie)).toEqual([]);
+  it('lässt Inserate ohne Änderung (nur Erst-Zeile) weg', () => {
+    const historie = [punkt('wh-4', 150000, '2026-06-01')];
+    expect(letztePreisAenderungen(historie).size).toBe(0);
+  });
+
+  it('liefert eine leere Map ohne Historie', () => {
+    expect(letztePreisAenderungen([]).size).toBe(0);
   });
 });

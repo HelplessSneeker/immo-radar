@@ -162,7 +162,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Navbar (Hauptnavigation)
 - **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 12px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
-- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die drei Einträge **Suche** (`/`), **Beobachtungsgebiete** (`/gebiete`), **Suchhistorie** (`/suchen`) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um.
+- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die drei Einträge **Beobachtungsgebiete** (`/`, die Startseite — das Herzstück der Anwendung steht vorn), **Suche** (`/suche`), **Suchhistorie** (`/suchen`) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um.
 - **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten dürfen ohne Markierung bleiben.
 - **Ausnahme:** Statisch exportierte CLI-Reports rendern ohne Navbar — ihre Links liefen ohne laufenden Server ins Leere.
 - Quelle: `renderNavbar`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Navbar.

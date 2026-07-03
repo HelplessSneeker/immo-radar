@@ -114,7 +114,9 @@ export function renderSearchPage(letzteSuchen: Suche[] = [], fehler?: FormFehler
     'Suche',
     `  <header>
     <h1>Suche</h1>
-    <p class="meta">Sucht live auf willhaben.at und immoscout24.at und erstellt die Marktanalyse (€/m², Brutto-Rendite) für die kombinierten Treffer.</p>
+    <p class="meta">Sucht live auf willhaben.at und immoscout24.at und erstellt die Marktanalyse (€/m², Brutto-Rendite)
+    für die kombinierten Treffer – für die schnelle Markteinschätzung; dauerhafte Beobachtung
+    übernehmen die <a href="/">Beobachtungsgebiete</a>.</p>
   </header>
 
   <section>

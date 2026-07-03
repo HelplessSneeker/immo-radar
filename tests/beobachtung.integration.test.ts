@@ -16,6 +16,7 @@ import {
   gebietDeaktivieren,
   gebieteAuflisten,
   gebietLaden,
+  letzteFertigeLaeufe,
   letzterFertigerLauf,
   zombieCrawlLaeufeBereinigen,
 } from '../src/db/gebiete-repo.js';
@@ -173,7 +174,7 @@ describe.runIf(!!process.env.DATABASE_URL)('beobachtung (Integration)', () => {
       expect(await crawlLaufErzwingen(gebietId, '2026-07-03')).toBeUndefined();
     });
 
-    it('letzterFertigerLauf liefert das jüngste fertige Datum', async () => {
+    it('letzterFertigerLauf liefert Stichtag und Abschluss-Zeitpunkt des jüngsten fertigen Laufs', async () => {
       const gebietId = await gebietAnlegen('Villach', KRITERIEN);
       expect(await letzterFertigerLauf(gebietId)).toBeUndefined();
 
@@ -182,7 +183,23 @@ describe.runIf(!!process.env.DATABASE_URL)('beobachtung (Integration)', () => {
       const b = await crawlLaufBeanspruchen(gebietId, '2026-07-02');
       await crawlLaufFehlgeschlagen(b!, 'Timeout');
 
-      expect(await letzterFertigerLauf(gebietId)).toBe('2026-07-01');
+      const lauf = await letzterFertigerLauf(gebietId);
+      expect(lauf?.laufDatum).toBe('2026-07-01');
+      expect(lauf?.beendetAm).toBeInstanceOf(Date);
+    });
+
+    it('letzteFertigeLaeufe liefert je Gebiet den letzten Abschluss – Gebiete ohne fertigen Lauf fehlen', async () => {
+      const mitLauf = await gebietAnlegen('Villach', KRITERIEN);
+      const ohneLauf = await gebietAnlegen('Klagenfurt', KRITERIEN);
+
+      const a = await crawlLaufBeanspruchen(mitLauf, '2026-07-01');
+      await crawlLaufAbschliessen(a!, [], 10);
+      const laufend = await crawlLaufBeanspruchen(ohneLauf, '2026-07-01');
+      expect(laufend).toBeTypeOf('number'); // bleibt „laufend" → zählt nicht
+
+      const laeufe = await letzteFertigeLaeufe();
+      expect(laeufe.get(mitLauf)).toBeInstanceOf(Date);
+      expect(laeufe.has(ohneLauf)).toBe(false);
     });
 
     it('listet Läufe neueste zuerst mit Limit', async () => {

@@ -4,6 +4,7 @@ import { analyze } from './analyze.js';
 import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
+import { tageZwischen } from './datum.js';
 import { bestandLaden, preisHistorieLaden } from './db/bestand-repo.js';
 import { holePool } from './db/client.js';
 import {
@@ -15,6 +16,7 @@ import {
   gebietLaden,
   gebietLoeschen,
   laufendeCrawls,
+  letzteFertigeLaeufe,
   letzterFertigerLauf,
   zombieCrawlLaeufeBereinigen,
   type Gebiet,
@@ -49,10 +51,13 @@ import {
   SuchKriterienFehler,
 } from './search.js';
 import { starteSuchlauf } from './suchlauf.js';
-import { berechneTrend, preisReduktionen, vermarktungsdauer } from './trend.js';
+import { berechneTrend, letztePreisAenderungen, vermarktungsdauer } from './trend.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
+
+/** Fenster der „Kürzlich delistet"-Tabelle auf der Gebiet-Detailseite. */
+const DELISTET_FENSTER_TAGE = 14;
 
 const portale: PortalAdapter[] = [new WillhabenAdapter(), new ImmoScout24Adapter()];
 
@@ -81,10 +86,15 @@ function liesBody(req: IncomingMessage): Promise<string> {
  * letzte erfolgreiche Crawl-Lauf, aktiv = damals noch gesehen. Der Gebiet-Typ
  * und die Kriterien filtern erst hier (read-seitig), der Bestand ist roh.
  */
-async function gebietSeite(gebiet: Gebiet, alsReport: boolean): Promise<string> {
+async function gebietSeite(
+  gebiet: Gebiet,
+  alsReport: boolean,
+  alleAnzeigen = false,
+): Promise<string> {
   const crawlLaeuft = (await laufendeCrawls()).has(gebiet.id);
-  const stichtag = await letzterFertigerLauf(gebiet.id);
-  if (!stichtag) return renderGebietOhneDatenSeite(gebiet, crawlLaeuft);
+  const lauf = await letzterFertigerLauf(gebiet.id);
+  if (!lauf) return renderGebietOhneDatenSeite(gebiet, crawlLaeuft);
+  const stichtag = lauf.laufDatum;
 
   const bestand = await bestandLaden(gebiet.kriterien.bundesland);
   const nachTyp =
@@ -107,15 +117,22 @@ async function gebietSeite(gebiet: Gebiet, alsReport: boolean): Promise<string> 
 
   const historie = await preisHistorieLaden(gebiet.kriterien.bundesland);
   const delisted = inserate.filter((i) => i.zuletztGesehen < stichtag);
+  const kuerzlichDelistet = delisted.filter(
+    (i) => tageZwischen(i.zuletztGesehen, stichtag) <= DELISTET_FENSTER_TAGE,
+  );
   return renderGebietSeite(
     gebiet,
     {
       stichtag,
+      beendetAm: lauf.beendetAm,
       trend: berechneTrend(inserate, historie, stichtag),
       vermarktung: vermarktungsdauer(delisted),
-      reduktionen: preisReduktionen(aktive, historie),
+      aktive,
+      delistete: kuerzlichDelistet,
+      delistetFensterTage: DELISTET_FENSTER_TAGE,
+      aenderungen: letztePreisAenderungen(historie),
+      alleAnzeigen,
       laeufe: await crawlLaeufeAuflisten(gebiet.id, 10),
-      anzahlAktiv: aktive.length,
       anzahlDelisted: delisted.length,
     },
     crawlLaeuft,
@@ -182,10 +199,12 @@ const server = createServer((req, res) => {
             sende(
               res,
               400,
-              renderGebieteSeite(await gebieteAuflisten(), await laufendeCrawls(), {
-                werte,
-                meldung: err.message,
-              }),
+              renderGebieteSeite(
+                await gebieteAuflisten(),
+                await laufendeCrawls(),
+                await letzteFertigeLaeufe(),
+                { werte, meldung: err.message },
+              ),
             );
             return;
           }
@@ -193,7 +212,7 @@ const server = createServer((req, res) => {
         }
         const id = await gebietAnlegen(form.name, form.kriterien);
         console.log(`Gebiet ${id} angelegt: "${form.name}" ${JSON.stringify(form.kriterien)}`);
-        res.writeHead(303, { location: '/gebiete' });
+        res.writeHead(303, { location: '/' });
         res.end();
         return;
       }
@@ -221,12 +240,12 @@ const server = createServer((req, res) => {
         if (aktion[2] === 'loeschen') {
           await gebietLoeschen(id);
           console.log(`Gebiet ${id} ("${gebiet.name}") gelöscht.`);
-          res.writeHead(303, { location: '/gebiete' });
+          res.writeHead(303, { location: '/' });
           res.end();
           return;
         }
         await (aktion[2] === 'aktivieren' ? gebietAktivieren(id) : gebietDeaktivieren(id));
-        res.writeHead(303, { location: '/gebiete' });
+        res.writeHead(303, { location: '/' });
         res.end();
         return;
       }
@@ -240,6 +259,18 @@ const server = createServer((req, res) => {
     }
 
     if (url.pathname === '/') {
+      sende(
+        res,
+        200,
+        renderGebieteSeite(
+          await gebieteAuflisten(),
+          await laufendeCrawls(),
+          await letzteFertigeLaeufe(),
+        ),
+      );
+      return;
+    }
+    if (url.pathname === '/suche') {
       sende(res, 200, renderSearchPage(await suchenAuflisten(10)));
       return;
     }
@@ -248,7 +279,9 @@ const server = createServer((req, res) => {
       return;
     }
     if (url.pathname === '/gebiete') {
-      sende(res, 200, renderGebieteSeite(await gebieteAuflisten(), await laufendeCrawls()));
+      // Alte Lesezeichen: die Gebiete-Liste ist jetzt die Startseite.
+      res.writeHead(301, { location: '/' });
+      res.end();
       return;
     }
     const gebietTreffer = /^\/gebiete\/(\d+)(\/report)?$/.exec(url.pathname);
@@ -258,7 +291,8 @@ const server = createServer((req, res) => {
         sende(res, 404, renderFehlerSeite(404, `Es gibt kein Gebiet ${gebietTreffer[1]}.`));
         return;
       }
-      sende(res, 200, await gebietSeite(gebiet, Boolean(gebietTreffer[2])));
+      const alleAnzeigen = url.searchParams.get('inserate') === 'alle';
+      sende(res, 200, await gebietSeite(gebiet, Boolean(gebietTreffer[2]), alleAnzeigen));
       return;
     }
     const treffer = /^\/suchen\/(\d+)(\/status)?$/.exec(url.pathname);
@@ -304,5 +338,5 @@ if (zombieLaeufe > 0) {
 starteZeitplan(portale);
 
 server.listen(PORT, () => {
-  console.log(`immo-radar Suche läuft: http://localhost:${PORT}`);
+  console.log(`immo-radar läuft: http://localhost:${PORT}`);
 });

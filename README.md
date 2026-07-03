@@ -24,20 +24,23 @@ pnpm serve            # wendet Migrationen automatisch an
 ```
 
 Dann <http://localhost:8787> im Browser öffnen (Port über die Umgebungsvariable
-`PORT` änderbar). Die Suchseite fragt Bundesland, Kauf/Miete, Preis-, Flächen-
-und Zimmerbereich sowie optional Ort/PLZ/Bezirk ab. Beim Absenden legt der
-Server einen Suchlauf in der Datenbank an und crawlt im Hintergrund live
-willhaben.at und immoscout24.at (nur Wohnungen, max. ≈150 bzw. ≈75 Inserate
-pro Segment, sequentiell mit Pause — die Suche dauert einige Sekunden). Der
-Browser landet sofort auf `/suchen/<id>`, die Seite aktualisiert sich selbst
-und zeigt den Analyse-Report, sobald der Suchlauf fertig ist.
+`PORT` änderbar). Die Startseite ist die Beobachtungsgebiete-Übersicht — das
+Herzstück der Anwendung; die Ad-hoc-Suche liegt unter `/suche` und dient der
+schnellen Markteinschätzung. Die Suchseite fragt Bundesland, Kauf/Miete,
+Preis-, Flächen- und Zimmerbereich sowie optional Ort/PLZ/Bezirk ab. Beim
+Absenden legt der Server einen Suchlauf in der Datenbank an und crawlt im
+Hintergrund live willhaben.at und immoscout24.at (nur Wohnungen, max. ≈150
+bzw. ≈75 Inserate pro Segment, sequentiell mit Pause — die Suche dauert
+einige Sekunden). Der Browser landet sofort auf `/suchen/<id>`, die Seite
+aktualisiert sich selbst und zeigt den Analyse-Report, sobald der Suchlauf
+fertig ist.
 
 ### Suchhistorie
 
 Jede Suche wird mit Kriterien, Status (läuft / fertig / fehlgeschlagen) und
 den gefundenen Inseraten in Postgres gespeichert:
 
-- Die Startseite zeigt die letzten 10 Suchen, `/suchen` die komplette Historie.
+- Die Suchseite (`/suche`) zeigt die letzten 10 Suchen, `/suchen` die komplette Historie.
 - `/suchen/<id>` ist eine dauerhafte URL — der Report wird beim Aufruf aus den
   gespeicherten Inseraten neu berechnet, ohne erneuten Crawl.
 - Wird der Server während eines Suchlaufs neu gestartet, markiert er die
@@ -48,8 +51,10 @@ automatisch; `pnpm db:migrate` wendet sie manuell an.
 
 ### Beobachtungsgebiete & historisierter Bestand
 
-Unter `/gebiete` lassen sich Beobachtungsgebiete anlegen (Name + dieselben
-Kriterien wie die Suche). Aktive Gebiete crawlt der Server **einmal täglich**
+Auf der Startseite (`/`; alte `/gebiete`-Lesezeichen werden umgeleitet)
+lassen sich Beobachtungsgebiete anlegen (Name + dieselben Kriterien wie die
+Suche); die Übersicht zeigt je Gebiet, wann zuletzt erfolgreich gecrawlt
+wurde — überfällige oder nie gecrawlte aktive Gebiete sind markiert. Aktive Gebiete crawlt der Server **einmal täglich**
 automatisch (Scheduler-Tick alle 30 Minuten, Override per `CRAWL_TICK_MS`;
 pro Gebiet und Tag läuft höchstens ein Crawl — das stellt ein DB-Claim in
 `crawl_laeufe` sicher, auch über Neustarts und mehrere Ticks hinweg).
@@ -66,7 +71,10 @@ Bestand nebenbei. Gebiet-Typ und Kriterien filtern erst beim Lesen.
 `/gebiete/<id>` wertet den Bestand aus: aktive vs. delistete Inserate
 (delistet = im letzten erfolgreichen Lauf nicht mehr gesehen — Proxy für
 verkauft/vermietet), Median-Vermarktungsdauer, Zeitreihe Median €/m²
-(Kauf/Miete, Wochenraster) und die Liste der Preissenkungen.
+(Kauf/Miete, Wochenraster) sowie die Inserat-Tabellen: alle aktiven Inserate
+(mit €/m², „zuerst gesehen"/Tage online und letzter Preisänderung aus der
+Preishistorie; ab 50 Zeilen gekürzt, `?inserate=alle` zeigt alles) und die
+kürzlich delisteten Inserate der letzten 14 Tage.
 `/gebiete/<id>/report` rechnet den gewohnten Marktreport über den aktiven
 Snapshot. **Tipp:** Gebiete eng fassen (Ort/Bezirk statt ganzem Bundesland) —
 die Portal-Caps (~150/~75 Inserate pro Segment) machen große Gebiete zur

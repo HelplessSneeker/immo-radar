@@ -159,8 +159,8 @@ export const FORMULAR_CSS = `
 export type NavAktiv = 'suche' | 'gebiete' | 'suchen';
 
 const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
-  ['suche', '/', 'Suche'],
-  ['gebiete', '/gebiete', 'Beobachtungsgebiete'],
+  ['gebiete', '/', 'Beobachtungsgebiete'],
+  ['suche', '/suche', 'Suche'],
   ['suchen', '/suchen', 'Suchhistorie'],
 ];
 

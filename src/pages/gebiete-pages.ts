@@ -1,5 +1,12 @@
+import type { BestandInserat } from '../db/bestand-repo.js';
 import type { CrawlLauf, Gebiet } from '../db/gebiete-repo.js';
-import type { PreisReduktion, TrendPunkt, VermarktungsStatistik } from '../trend.js';
+import { tageZwischen } from '../datum.js';
+import {
+  inseratSchluessel,
+  type PreisAenderung,
+  type TrendPunkt,
+  type VermarktungsStatistik,
+} from '../trend.js';
 import { escapeHtml, FORMULAR_CSS, seite } from './layout.js';
 import { bereichsPruefungJs, formFehlerBlock, kriterienFelder, type FormFehler } from './search-page.js';
 import { kriterienZusammenfassung, STATUS_TEXT } from './suchen-pages.js';
@@ -7,6 +14,22 @@ import { kriterienZusammenfassung, STATUS_TEXT } from './suchen-pages.js';
 /** Verwaltungs- und Auswertungsseiten der Beobachtungsgebiete (Watchlist). */
 
 const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft …</span>';
+
+/**
+ * Ab diesem Alter gilt der letzte Crawl eines aktiven Gebiets als überfällig.
+ * Der Scheduler crawlt einmal pro UTC-Tag (Tick alle 30 min), knapp über 24 h
+ * Abstand sind daher normal – die Schwelle liegt bewusst mit Puffer darüber.
+ */
+const UEBERFAELLIG_MS = 26 * 60 * 60 * 1000;
+
+function istUeberfaellig(beendetAm: Date): boolean {
+  return Date.now() - beendetAm.getTime() > UEBERFAELLIG_MS;
+}
+
+/** Frische-Hinweise („noch nie", „überfällig") auf Liste und Detailseite. */
+const FRISCHE_CSS = `
+  .ueberfaellig { color: var(--status-critical); font-size: 12px; font-weight: 600; white-space: nowrap; }
+`;
 
 /**
  * Auto-Refresh, solange ein Crawl läuft – nur für Seiten ohne Formular-Eingaben
@@ -17,7 +40,38 @@ function refreshBeiCrawl(crawlLaeuft: boolean): string {
   return crawlLaeuft ? '<meta http-equiv="refresh" content="10">\n' : '';
 }
 
-function gebieteTabelle(gebiete: Gebiet[], laufende: Set<number>): string {
+const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
+const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nfTage = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
+const nfPct = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 });
+const nfZeit = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium' });
+const nfZeitpunkt = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' });
+
+/** YYYY-MM-DD als lokales Datum formatieren (T00:00:00 verhindert UTC-Tagessprung). */
+function datumMedium(datum: string): string {
+  return nfZeit.format(new Date(`${datum}T00:00:00`));
+}
+
+function zuletztGecrawltZelle(gebiet: Gebiet, beendetAm: Date | undefined): string {
+  if (!beendetAm) {
+    // Nur bei aktiven Gebieten ist „noch nie" ein Problem – inaktive soll der
+    // Scheduler ja gar nicht crawlen.
+    return gebiet.aktiv
+      ? '<td><span class="ueberfaellig">noch nie</span></td>'
+      : '<td class="meta">noch nie</td>';
+  }
+  const marker =
+    gebiet.aktiv && istUeberfaellig(beendetAm)
+      ? ' <span class="ueberfaellig">· überfällig</span>'
+      : '';
+  return `<td class="meta">${escapeHtml(nfZeitpunkt.format(beendetAm))}${marker}</td>`;
+}
+
+function gebieteTabelle(
+  gebiete: Gebiet[],
+  laufende: Set<number>,
+  letzteLaeufe: Map<number, Date>,
+): string {
   const zeilen = gebiete
     .map((g) => {
       const schalter = g.aktiv
@@ -34,6 +88,7 @@ function gebieteTabelle(gebiete: Gebiet[], laufende: Set<number>): string {
       return `      <tr>
         <td><a href="/gebiete/${g.id}">${escapeHtml(g.name)}</a></td>
         <td class="meta">${escapeHtml(kriterienZusammenfassung(g.kriterien))}</td>
+        ${zuletztGecrawltZelle(g, letzteLaeufe.get(g.id))}
         <td>${status}</td>
         <td><div class="aktionen">${crawlen}${schalter}${loeschen}</div></td>
       </tr>`;
@@ -41,7 +96,7 @@ function gebieteTabelle(gebiete: Gebiet[], laufende: Set<number>): string {
     .join('\n');
   return `    <div class="tabelle-scroll">
     <table class="historie">
-      <thead><tr><th scope="col">Gebiet</th><th scope="col">Kriterien</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
+      <thead><tr><th scope="col">Gebiet</th><th scope="col">Kriterien</th><th scope="col">Zuletzt gecrawlt</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -52,20 +107,22 @@ ${zeilen}
 export function renderGebieteSeite(
   gebiete: Gebiet[],
   laufende: Set<number>,
+  letzteLaeufe: Map<number, Date>,
   fehler?: FormFehler,
 ): string {
   const liste =
     gebiete.length === 0
       ? '    <p class="meta">Noch keine Beobachtungsgebiete – unten das erste anlegen.</p>'
-      : gebieteTabelle(gebiete, laufende);
+      : gebieteTabelle(gebiete, laufende, letzteLaeufe);
   const nameWert = fehler?.werte.get('name')?.trim();
 
   return seite(
     'Beobachtungsgebiete',
     `  <header>
     <h1>Beobachtungsgebiete</h1>
-    <p class="meta">Aktive Gebiete werden einmal täglich gecrawlt und bauen den historisierten
-    Inseratsbestand auf (Preisentwicklung, Vermarktungsdauer, Preissenkungen).</p>
+    <p class="meta">Beobachtungsgebiete verfolgen Kauf- und Mietpreise vergleichbarer Wohnungen
+    über die Zeit – aktive Gebiete werden einmal täglich gecrawlt und bauen den historisierten
+    Inseratsbestand auf (Preisverlauf je Inserat, Vermarktungsdauer, Trends).</p>
   </header>
 
   <section>
@@ -101,7 +158,7 @@ ${bereichsPruefungJs('form')}
       if (!gueltig) e.preventDefault();
     });
   </script>`,
-    { aktiv: 'gebiete', extraCss: FORMULAR_CSS },
+    { aktiv: 'gebiete', extraCss: FORMULAR_CSS + FRISCHE_CSS },
   );
 }
 
@@ -129,20 +186,30 @@ ${stand}
 export interface GebietSeitenDaten {
   /** Datum des letzten erfolgreichen Laufs = Stand des Aktiv-Snapshots. */
   stichtag: string;
+  /** Abschluss-Zeitpunkt dieses Laufs – „Zuletzt gecrawlt" im Kopf. */
+  beendetAm: Date;
   trend: TrendPunkt[];
   vermarktung: { kauf: VermarktungsStatistik | null; miete: VermarktungsStatistik | null };
-  reduktionen: PreisReduktion[];
+  /** Am Stichtag aktive Inserate (Kriterien-gefiltert). */
+  aktive: BestandInserat[];
+  /** Kürzlich delistete Inserate (Fenster siehe Server), jüngste zuerst. */
+  delistete: BestandInserat[];
+  /** Fenster der Delistet-Tabelle in Tagen (für die Überschrift). */
+  delistetFensterTage: number;
+  /** Letzte Preisänderung je Inserat (Schlüssel siehe inseratSchluessel). */
+  aenderungen: Map<string, PreisAenderung>;
+  /** true = ?inserate=alle, Tabellen ohne Zeilen-Cap rendern. */
+  alleAnzeigen: boolean;
   laeufe: CrawlLauf[];
-  anzahlAktiv: number;
+  /** Delistete gesamt (alle Zeiträume) – Kennzahl-Kachel. */
   anzahlDelisted: number;
 }
 
 const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
-const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
-const nfTage = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
-const nfPct = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 });
-const nfZeit = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium' });
+/** Zeilen-Caps: Bestand-Tabellen bleiben lesbar, „alle anzeigen" hebt sie auf. */
+const MAX_AKTIVE_ZEILEN = 50;
+const MAX_DELISTET_ZEILEN = 30;
 
 function vermarktungsWert(s: VermarktungsStatistik | null): string {
   if (!s) return '–';
@@ -154,33 +221,128 @@ function vermarktungsSub(s: VermarktungsStatistik | null): string {
   return `Median aus ${s.anzahl} delisteten Inseraten (Ø ${nfTage.format(s.meanTage)} Tage)`;
 }
 
-function reduktionenTabelle(reduktionen: PreisReduktion[]): string {
-  if (reduktionen.length === 0) {
-    return '    <p class="meta">Keine aktiven Inserate mit gesenktem Preis.</p>';
-  }
-  const zeilen = reduktionen
-    .map((r) => {
-      const i = r.inserat;
-      const titel = `${i.ort} · ${nfEur0.format(i.flaeche_m2)} m² · ${nfEur0.format(i.zimmer)} Zi.`;
-      const link = i.url ? `<a href="${escapeHtml(i.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
-      const delta = (r.neuerPreis - r.alterPreis) / r.alterPreis;
+function inseratZelle(i: BestandInserat): string {
+  const titel = `${i.ort} · ${nfEur0.format(i.zimmer)} Zi.`;
+  const link = i.url ? `<a href="${escapeHtml(i.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
+  return `<td>${link}<span class="sub">${i.typ === 'kauf' ? 'Kauf' : 'Miete'} · ${escapeHtml(i.id)}</span></td>`;
+}
+
+/** €/m² – Kauf ganzzahlig, Miete mit 2 Nachkommastellen (wie die Chart-Achsen). */
+function eurM2Wert(i: BestandInserat): string {
+  if (i.flaeche_m2 <= 0) return '–';
+  const wert = i.preis / i.flaeche_m2;
+  return i.typ === 'kauf' ? nfEur0.format(wert) : nfEur2.format(wert);
+}
+
+function aenderungsZelle(a: PreisAenderung | undefined): string {
+  if (!a || a.neuerPreis === a.alterPreis) return '<td class="num meta">–</td>';
+  const delta = a.neuerPreis - a.alterPreis;
+  const prozent = (Math.abs(delta) / a.alterPreis) * 100;
+  // Käufer-Perspektive: Senkung = Chance (grün), Erhöhung = kritisch. Das
+  // Vorzeichen trägt das Urteil auch ohne Farbe.
+  const klasse = delta < 0 ? 'gesenkt' : 'gestiegen';
+  const zeichen = delta < 0 ? '−' : '+';
+  return `<td class="num"><span class="${klasse}">${zeichen}${nfPct.format(prozent)} % (${zeichen}${nfEur0.format(Math.abs(delta))} €)</span><span class="sub">${escapeHtml(datumMedium(a.geaendertAm))}</span></td>`;
+}
+
+/** Aufsteigend nach €/m² – günstigster Quadratmeterpreis zuerst; ohne Fläche ans Ende. */
+function nachEurM2(inserate: BestandInserat[]): BestandInserat[] {
+  return [...inserate].sort((a, b) => {
+    const ea = a.flaeche_m2 > 0 ? a.preis / a.flaeche_m2 : Infinity;
+    const eb = b.flaeche_m2 > 0 ? b.preis / b.flaeche_m2 : Infinity;
+    return ea - eb;
+  });
+}
+
+function aktiveTabelle(
+  inserate: BestandInserat[],
+  aenderungen: Map<string, PreisAenderung>,
+  stichtag: string,
+): string {
+  const zeilen = inserate
+    .map((i) => {
+      const tageOnline = Math.max(0, tageZwischen(i.zuerstGesehen, stichtag));
       return `      <tr>
-        <td>${link}<span class="sub">${i.typ === 'kauf' ? 'Kauf' : 'Miete'} · ${escapeHtml(i.id)}</span></td>
-        <td class="num">${nfEur0.format(r.alterPreis)} €</td>
-        <td class="num"><strong>${nfEur0.format(r.neuerPreis)} €</strong></td>
-        <td class="num gesenkt">−${nfPct.format(Math.abs(delta) * 100)} %</td>
-        <td class="meta">${escapeHtml(r.geaendertAm)}</td>
+        ${inseratZelle(i)}
+        <td class="num">${nfEur0.format(i.preis)} €</td>
+        <td class="num">${nfEur0.format(i.flaeche_m2)} m²</td>
+        <td class="num">${eurM2Wert(i)}</td>
+        <td>${escapeHtml(datumMedium(i.zuerstGesehen))}<span class="sub">${nfTage.format(tageOnline)} Tage online</span></td>
+        ${aenderungsZelle(aenderungen.get(inseratSchluessel(i.portal, i.id)))}
       </tr>`;
     })
     .join('\n');
   return `    <div class="tabelle-scroll">
     <table>
-      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">alt</th><th scope="col" class="num">neu</th><th scope="col" class="num">Änderung</th><th scope="col">geändert am</th></tr></thead>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col">zuerst gesehen</th><th scope="col" class="num">letzte Preisänderung</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
     </table>
     </div>`;
+}
+
+function aktiveSektion(gebiet: Gebiet, daten: GebietSeitenDaten): string {
+  const gruppen =
+    gebiet.kriterien.typ === 'beide'
+      ? [
+          { titel: 'Kauf', inserate: daten.aktive.filter((i) => i.typ === 'kauf') },
+          { titel: 'Miete', inserate: daten.aktive.filter((i) => i.typ === 'miete') },
+        ]
+      : [{ titel: undefined, inserate: daten.aktive }];
+
+  let gekuerzt = 0;
+  const bloecke = gruppen.map((g) => {
+    const kopf = g.titel ? `    <h3 class="unterkopf">${g.titel}</h3>\n` : '';
+    if (g.inserate.length === 0) {
+      const leer = g.titel
+        ? `Keine aktiven ${g.titel === 'Kauf' ? 'Kauf' : 'Miet'}-Inserate im Bestand.`
+        : 'Keine aktiven Inserate im Bestand.';
+      return `${kopf}    <p class="meta">${leer}</p>`;
+    }
+    const sortiert = nachEurM2(g.inserate);
+    const sichtbar = daten.alleAnzeigen ? sortiert : sortiert.slice(0, MAX_AKTIVE_ZEILEN);
+    gekuerzt += sortiert.length - sichtbar.length;
+    return kopf + aktiveTabelle(sichtbar, daten.aenderungen, daten.stichtag);
+  });
+
+  const mehr =
+    gekuerzt > 0
+      ? `\n    <p class="meta"><a href="/gebiete/${gebiet.id}?inserate=alle">Alle ${daten.aktive.length} Inserate anzeigen →</a></p>`
+      : '';
+  return bloecke.join('\n') + mehr;
+}
+
+function delisteteSektion(daten: GebietSeitenDaten): string {
+  if (daten.delistete.length === 0) {
+    return `    <p class="meta">Keine Delistings in den letzten ${daten.delistetFensterTage} Tagen.</p>`;
+  }
+  const sortiert = [...daten.delistete].sort((a, b) =>
+    b.zuletztGesehen.localeCompare(a.zuletztGesehen),
+  );
+  const sichtbar = daten.alleAnzeigen ? sortiert : sortiert.slice(0, MAX_DELISTET_ZEILEN);
+  const zeilen = sichtbar
+    .map(
+      (i) => `      <tr>
+        ${inseratZelle(i)}
+        <td class="num">${nfEur0.format(i.preis)} €</td>
+        <td class="num">${eurM2Wert(i)}</td>
+        <td>${escapeHtml(datumMedium(i.zuerstGesehen))} – ${escapeHtml(datumMedium(i.zuletztGesehen))}</td>
+        <td class="num">${nfTage.format(tageZwischen(i.zuerstGesehen, i.zuletztGesehen))}</td>
+      </tr>`,
+    )
+    .join('\n');
+  const rest = sortiert.length - sichtbar.length;
+  const hinweis =
+    rest > 0 ? `\n    <p class="meta">… und ${rest} weitere in diesem Zeitraum.</p>` : '';
+  return `    <div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">letzter Preis</th><th scope="col" class="num">€/m²</th><th scope="col">online von–bis</th><th scope="col" class="num">Tage</th></tr></thead>
+      <tbody>
+${zeilen}
+      </tbody>
+    </table>
+    </div>${hinweis}`;
 }
 
 function laeufeTabelle(laeufe: CrawlLauf[]): string {
@@ -233,11 +395,13 @@ const GEBIET_CSS = `
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }
   .gesenkt { color: var(--status-good); font-weight: 600; }
+  .gestiegen { color: var(--status-critical); font-weight: 600; }
+  .unterkopf { font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
   .kopf-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .kopf-aktionen p { margin: 0; }
 `;
 
-/** Auswertungsseite eines Gebiets: Kacheln, Trend-Charts, Reduktionen, Läufe. */
+/** Auswertungsseite eines Gebiets: Kacheln, Trend-Charts, Inseratsbestand, Läufe. */
 export function renderGebietSeite(
   gebiet: Gebiet,
   daten: GebietSeitenDaten,
@@ -245,9 +409,15 @@ export function renderGebietSeite(
 ): string {
   const trendJson = JSON.stringify(daten.trend).replace(/</g, '\\u003c'); // "</script>"-sicher
 
+  const ueberfaelligMarker =
+    gebiet.aktiv && istUeberfaellig(daten.beendetAm)
+      ? ' <span class="ueberfaellig">· überfällig</span>'
+      : '';
+
   const inhalt = `  <header>
     <h1>${escapeHtml(gebiet.name)}</h1>
-    <p class="meta">${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))} · Bestand, Stand ${escapeHtml(daten.stichtag)}</p>
+    <p class="meta">${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))} ·
+    Zuletzt gecrawlt: ${escapeHtml(nfZeitpunkt.format(daten.beendetAm))}${ueberfaelligMarker}</p>
     <div class="kopf-aktionen">
       <p class="meta"><a href="/gebiete/${gebiet.id}/report">Aktueller Marktreport →</a></p>
       <form method="post" action="/gebiete/${gebiet.id}/aktualisieren">
@@ -261,7 +431,7 @@ export function renderGebietSeite(
     <div class="tiles">
       <div class="tile">
         <div class="tile-label">Aktive Inserate</div>
-        <div class="tile-value">${daten.anzahlAktiv}</div>
+        <div class="tile-value">${daten.aktive.length}</div>
         <div class="tile-sub">zuletzt gesehen am Stichtag</div>
       </div>
       <div class="tile">
@@ -288,8 +458,13 @@ ${trendSektion(daten.trend)}
   </section>
 
   <section>
-    <h2>Preissenkungen (aktive Inserate)</h2>
-${reduktionenTabelle(daten.reduktionen)}
+    <h2>Aktive Inserate</h2>
+${aktiveSektion(gebiet, daten)}
+  </section>
+
+  <section>
+    <h2>Kürzlich delistet (letzte ${daten.delistetFensterTage} Tage)</h2>
+${delisteteSektion(daten)}
   </section>
 
   <section>
@@ -298,12 +473,13 @@ ${laeufeTabelle(daten.laeufe)}
   </section>
 
   <footer>
-    <p><strong>Methodik:</strong> Aktiv = im letzten erfolgreichen Crawl-Lauf gesehen; Delisting ist nur
+    <p><strong>Methodik:</strong> Aktiv = im letzten erfolgreichen Crawl-Lauf gesehen
+      (Bestand, Stand ${escapeHtml(daten.stichtag)}); Delisting ist nur
       ein Proxy für verkauft/vermietet (Inserate können auch zurückgezogen worden sein).
       Vermarktungsdauer = zuletzt − zuerst gesehen; Inserate aus dem allerersten Crawl sind dabei
       nur begrenzt aussagekräftig („links-zensiert“: sie waren evtl. schon vor dem ersten Crawl online).
       Trend: Median €/m² der am Stichtag aktiven Inserate, Wochenraster, Preise aus der
-      Preishistorie rekonstruiert.</p>
+      Preishistorie rekonstruiert. Preisänderungen: letzte Änderung laut Preishistorie (tagesgenau).</p>
     <p>Erstellt ${escapeHtml(nfZeit.format(new Date()))} · Datenbasis: willhaben.at + immoscout24.at,
       ohne portal-übergreifende Deduplizierung.</p>
   </footer>
@@ -383,7 +559,7 @@ ${laeufeTabelle(daten.laeufe)}
   return seite(gebiet.name, inhalt, {
     breite: 'breit',
     aktiv: 'gebiete',
-    extraCss: GEBIET_CSS,
+    extraCss: GEBIET_CSS + FRISCHE_CSS,
     kopfExtra: refreshBeiCrawl(crawlLaeuft),
   });
 }

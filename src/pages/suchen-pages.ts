@@ -76,7 +76,7 @@ ${historieTabelle(suchen)}
 export function renderHistorieSeite(suchen: Suche[]): string {
   const inhalt =
     suchen.length === 0
-      ? '    <p>Noch keine Suchen. <a href="/">Erste Suche starten →</a></p>'
+      ? '    <p>Noch keine Suchen. <a href="/suche">Erste Suche starten →</a></p>'
       : historieTabelle(suchen);
   return seite(
     'Suchhistorie',
@@ -126,7 +126,7 @@ export function renderFehlgeschlagenSeite(suche: Suche): string {
   <section>
     <p>${escapeHtml(kriterienZusammenfassung(suche.kriterien))}</p>
     <p class="fehler">${escapeHtml(suche.fehler ?? 'Unbekannter Fehler.')}</p>
-    <p><a href="/">← Neue Suche starten</a></p>
+    <p><a href="/suche">← Neue Suche starten</a></p>
   </section>`,
     { aktiv: 'suchen' },
   );
