@@ -1,47 +1,71 @@
 import type { CrawlLauf, Gebiet } from '../db/gebiete-repo.js';
 import type { PreisReduktion, TrendPunkt, VermarktungsStatistik } from '../trend.js';
-import { escapeHtml, seite } from './layout.js';
-import { kriterienFelder } from './search-page.js';
-import { kriterienZusammenfassung } from './suchen-pages.js';
+import { escapeHtml, FORMULAR_CSS, seite } from './layout.js';
+import { bereichsPruefungJs, formFehlerBlock, kriterienFelder, type FormFehler } from './search-page.js';
+import { kriterienZusammenfassung, STATUS_TEXT } from './suchen-pages.js';
 
 /** Verwaltungs- und Auswertungsseiten der Beobachtungsgebiete (Watchlist). */
 
-function gebieteTabelle(gebiete: Gebiet[]): string {
+const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft …</span>';
+
+/**
+ * Auto-Refresh, solange ein Crawl läuft – nur für Seiten ohne Formular-Eingaben
+ * (Gebiet-Detail/Platzhalter). Auf der Listen-Seite mit dem Anlege-Formular wäre
+ * ein Reload Datenverlust: dort zeigt nur das Badge den Zustand.
+ */
+function refreshBeiCrawl(crawlLaeuft: boolean): string {
+  return crawlLaeuft ? '<meta http-equiv="refresh" content="10">\n' : '';
+}
+
+function gebieteTabelle(gebiete: Gebiet[], laufende: Set<number>): string {
   const zeilen = gebiete
     .map((g) => {
       const schalter = g.aktiv
         ? `<form method="post" action="/gebiete/${g.id}/deaktivieren"><button class="klein">deaktivieren</button></form>`
         : `<form method="post" action="/gebiete/${g.id}/aktivieren"><button class="klein">aktivieren</button></form>`;
-      const crawlen = `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein">jetzt crawlen</button></form>`;
+      const crawlen = laufende.has(g.id)
+        ? `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein" disabled>jetzt crawlen</button></form>`
+        : `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein">jetzt crawlen</button></form>`;
+      const loeschen = `<form method="post" action="/gebiete/${g.id}/loeschen" data-name="${escapeHtml(g.name)}"
+          onsubmit="return confirm('Gebiet „' + this.dataset.name + '“ endgültig löschen? Die Crawl-Historie des Gebiets geht dabei verloren.')"><button class="klein kritisch">löschen</button></form>`;
+      const status = laufende.has(g.id)
+        ? CRAWL_BADGE
+        : `<span class="status-badge status-${g.aktiv ? 'aktiv' : 'inaktiv'}">${g.aktiv ? 'aktiv' : 'inaktiv'}</span>`;
       return `      <tr>
         <td><a href="/gebiete/${g.id}">${escapeHtml(g.name)}</a></td>
         <td class="meta">${escapeHtml(kriterienZusammenfassung(g.kriterien))}</td>
-        <td><span class="status-badge status-${g.aktiv ? 'aktiv' : 'inaktiv'}">${g.aktiv ? 'aktiv' : 'inaktiv'}</span></td>
-        <td><div class="aktionen">${crawlen}${schalter}</div></td>
+        <td>${status}</td>
+        <td><div class="aktionen">${crawlen}${schalter}${loeschen}</div></td>
       </tr>`;
     })
     .join('\n');
-  return `    <table class="historie">
-      <thead><tr><th>Gebiet</th><th>Kriterien</th><th>Status</th><th></th></tr></thead>
+  return `    <div class="tabelle-scroll">
+    <table class="historie">
+      <thead><tr><th scope="col">Gebiet</th><th scope="col">Kriterien</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
-export function renderGebieteSeite(gebiete: Gebiet[]): string {
+export function renderGebieteSeite(
+  gebiete: Gebiet[],
+  laufende: Set<number>,
+  fehler?: FormFehler,
+): string {
   const liste =
     gebiete.length === 0
       ? '    <p class="meta">Noch keine Beobachtungsgebiete – unten das erste anlegen.</p>'
-      : gebieteTabelle(gebiete);
+      : gebieteTabelle(gebiete, laufende);
+  const nameWert = fehler?.werte.get('name')?.trim();
 
   return seite(
     'Beobachtungsgebiete',
     `  <header>
-    <h1>immo-radar · Beobachtungsgebiete</h1>
+    <h1>Beobachtungsgebiete</h1>
     <p class="meta">Aktive Gebiete werden einmal täglich gecrawlt und bauen den historisierten
     Inseratsbestand auf (Preisentwicklung, Vermarktungsdauer, Preissenkungen).</p>
-    <p class="meta"><a href="/">← Zurück zur Suche</a></p>
   </header>
 
   <section>
@@ -51,15 +75,15 @@ ${liste}
 
   <section>
     <h2>Neues Gebiet anlegen</h2>
-    <form action="/gebiete" method="post">
+    <form action="/gebiete" method="post" id="gebietform">
       <fieldset>
         <label class="feld" for="name">Name</label>
-        <input type="text" id="name" name="name" required placeholder="z. B. Villach Zentrum">
+        <input type="text" id="name" name="name" required placeholder="z. B. Villach Zentrum"${nameWert ? ` value="${escapeHtml(nameWert)}"` : ''}>
       </fieldset>
 
-${kriterienFelder('Gecrawlt wird immer Kauf & Miete – der Typ filtert nur die Auswertung.')}
+${kriterienFelder('Gecrawlt wird immer Kauf & Miete – der Typ filtert nur die Auswertung.', fehler?.werte)}
 
-      <button type="submit">Gebiet anlegen</button>
+${formFehlerBlock(fehler)}      <button type="submit">Gebiet anlegen</button>
     </form>
   </section>
 
@@ -67,24 +91,38 @@ ${kriterienFelder('Gecrawlt wird immer Kauf & Miete – der Typ filtert nur die 
     <p>Tipp: Gebiete eng fassen (Ort/Bezirk statt ganzem Bundesland) – die Portale liefern
     max. ≈150 bzw. ≈75 Inserate pro Segment, große Gebiete sind daher nur eine Stichprobe.
     Preisfenster großzügig wählen: Inserate, die es per Preisänderung verlassen, gelten als delistet.</p>
-  </footer>`,
+  </footer>
+
+  <script>
+    document.getElementById('gebietform').addEventListener('submit', function (e) {
+      const gueltig = (function (form) {
+${bereichsPruefungJs('form')}
+      })(this);
+      if (!gueltig) e.preventDefault();
+    });
+  </script>`,
+    { aktiv: 'gebiete', extraCss: FORMULAR_CSS },
   );
 }
 
 /** Platzhalter, solange noch kein Crawl-Lauf des Gebiets fertig ist. */
-export function renderGebietOhneDatenSeite(gebiet: Gebiet): string {
-  return seite(
-    escapeHtml(gebiet.name),
-    `  <header><h1>${escapeHtml(gebiet.name)}</h1></header>
-  <section>
-    <p>${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))}</p>
-    <p class="meta">Noch keine Daten – der erste Crawl-Lauf dieses Gebiets steht aus
+export function renderGebietOhneDatenSeite(gebiet: Gebiet, crawlLaeuft: boolean): string {
+  const stand = crawlLaeuft
+    ? `    <p class="meta" role="status">${CRAWL_BADGE} Der erste Crawl-Lauf ist gestartet –
+    das dauert ein paar Sekunden. Die Seite aktualisiert sich automatisch.</p>`
+    : `    <p class="meta">Noch keine Daten – der erste Crawl-Lauf dieses Gebiets steht aus
     (der Scheduler crawlt aktive Gebiete einmal täglich, spätestens beim nächsten Tick).</p>
     <form method="post" action="/gebiete/${gebiet.id}/aktualisieren">
       <button>Jetzt crawlen</button>
-    </form>
-    <p><a href="/gebiete">← Zurück zu den Gebieten</a></p>
+    </form>`;
+  return seite(
+    gebiet.name,
+    `  <header><h1>${escapeHtml(gebiet.name)}</h1></header>
+  <section>
+    <p>${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))}</p>
+${stand}
   </section>`,
+    { aktiv: 'gebiete', kopfExtra: refreshBeiCrawl(crawlLaeuft) },
   );
 }
 
@@ -135,12 +173,14 @@ function reduktionenTabelle(reduktionen: PreisReduktion[]): string {
       </tr>`;
     })
     .join('\n');
-  return `    <table>
-      <thead><tr><th>Inserat</th><th class="num">alt</th><th class="num">neu</th><th class="num">Δ</th><th>geändert am</th></tr></thead>
+  return `    <div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">alt</th><th scope="col" class="num">neu</th><th scope="col" class="num">Änderung</th><th scope="col">geändert am</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 function laeufeTabelle(laeufe: CrawlLauf[]): string {
@@ -148,116 +188,72 @@ function laeufeTabelle(laeufe: CrawlLauf[]): string {
     .map(
       (l) => `      <tr>
         <td>${escapeHtml(l.laufDatum)}</td>
-        <td><span class="status-badge status-${l.status}">${l.status}</span></td>
+        <td><span class="status-badge status-${l.status}">${STATUS_TEXT[l.status]}</span></td>
         <td class="num">${l.inserateGesehen ?? ''}</td>
         <td class="meta">${l.fehler ? escapeHtml(l.fehler) : escapeHtml(l.quellen.join(' · '))}</td>
       </tr>`,
     )
     .join('\n');
-  return `    <table>
-      <thead><tr><th>Tag</th><th>Status</th><th class="num">Inserate</th><th>Quellen / Fehler</th></tr></thead>
+  return `    <div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Tag</th><th scope="col">Status</th><th scope="col" class="num">Inserate</th><th scope="col">Quellen / Fehler</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
-/** Auswertungsseite eines Gebiets: Kacheln, Trend-Charts, Reduktionen, Läufe. */
-export function renderGebietSeite(gebiet: Gebiet, daten: GebietSeitenDaten): string {
-  const trendJson = JSON.stringify(daten.trend).replace(/</g, '\\u003c'); // "</script>"-sicher
+function trendSektion(trend: TrendPunkt[]): string {
+  if (trend.length === 0) {
+    return `    <p class="meta">Noch zu wenige Crawl-Läufe für einen Trend – nach den nächsten
+    Läufen entsteht hier die Zeitreihe des Median-€/m².</p>`;
+  }
+  return `    <div class="charts-2">
+      <div class="chart-box">
+        <div class="chart-title">Kauf (€/m²)</div>
+        <div class="chart-wrap"><canvas id="trend-kauf" role="img" aria-label="Liniendiagramm: Median-Kaufpreis in Euro pro Quadratmeter über die Zeit."></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Miete kalt (€/m²)</div>
+        <div class="chart-wrap"><canvas id="trend-miete" role="img" aria-label="Liniendiagramm: Median-Kaltmiete in Euro pro Quadratmeter über die Zeit."></canvas></div>
+      </div>
+    </div>`;
+}
 
-  return `<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>immo-radar · ${escapeHtml(gebiet.name)}</title>
-<style>
-  :root {
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #898781;
-    --grid: #e1e0d9;
-    --baseline: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
-    --series-kauf: #2a78d6;
-    --series-miete: #1baf7a;
-    --status-critical: #d03b3b;
-    --status-good: #2e7d43;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --page: #0d0d0d;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted: #898781;
-      --grid: #2c2c2a;
-      --baseline: #383835;
-      --border: rgba(255,255,255,0.10);
-      --series-kauf: #3987e5;
-      --series-miete: #199e70;
-      --status-critical: #d03b3b;
-      --status-good: #58b06f;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 24px;
-    background: var(--page); color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
-  .meta { color: var(--text-secondary); font-size: 13px; }
-  section {
-    background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px;
-  }
+/** Seitenspezifisches CSS der Gebiets-Auswertung (Tiles, Charts, Kopf-Aktionen). */
+const GEBIET_CSS = `
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
   .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
   .tile-label { color: var(--text-secondary); font-size: 13px; }
   .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
-  .tile-sub { font-size: 12px; color: var(--text-muted); }
+  .tile-sub { font-size: 12px; color: var(--text-secondary); }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); }
-  thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  td .sub { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); }
   .gesenkt { color: var(--status-good); font-weight: 600; }
-  .status-badge { font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .status-laufend { color: var(--series-kauf); }
-  .status-fertig { color: var(--status-good); }
-  .status-fehlgeschlagen { color: var(--status-critical); }
-  a { color: var(--series-kauf); }
   .kopf-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .kopf-aktionen p { margin: 0; }
-  button.klein {
-    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
-    color: var(--series-kauf); background: transparent;
-    border: 1px solid var(--grid); border-radius: 6px;
-  }
-  footer { color: var(--text-muted); font-size: 12px; }
-  footer p { margin: 4px 0; }
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <h1>immo-radar · ${escapeHtml(gebiet.name)}</h1>
+`;
+
+/** Auswertungsseite eines Gebiets: Kacheln, Trend-Charts, Reduktionen, Läufe. */
+export function renderGebietSeite(
+  gebiet: Gebiet,
+  daten: GebietSeitenDaten,
+  crawlLaeuft = false,
+): string {
+  const trendJson = JSON.stringify(daten.trend).replace(/</g, '\\u003c'); // "</script>"-sicher
+
+  const inhalt = `  <header>
+    <h1>${escapeHtml(gebiet.name)}</h1>
     <p class="meta">${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))} · Bestand, Stand ${escapeHtml(daten.stichtag)}</p>
     <div class="kopf-aktionen">
-      <p class="meta"><a href="/gebiete">← Alle Gebiete</a> · <a href="/gebiete/${gebiet.id}/report">Aktueller Marktreport →</a></p>
+      <p class="meta"><a href="/gebiete/${gebiet.id}/report">Aktueller Marktreport →</a></p>
       <form method="post" action="/gebiete/${gebiet.id}/aktualisieren">
-        <button class="klein">Jetzt crawlen</button>
+        <button class="klein"${crawlLaeuft ? ' disabled' : ''}>Jetzt crawlen</button>
       </form>
+      ${crawlLaeuft ? `<p role="status">${CRAWL_BADGE}</p>` : ''}
     </div>
   </header>
 
@@ -288,16 +284,7 @@ export function renderGebietSeite(gebiet: Gebiet, daten: GebietSeitenDaten): str
 
   <section>
     <h2>Median €/m² über die Zeit</h2>
-    <div class="charts-2">
-      <div class="chart-box">
-        <div class="chart-title">Kauf (€/m²)</div>
-        <div class="chart-wrap"><canvas id="trend-kauf" role="img" aria-label="Liniendiagramm: Median-Kaufpreis in Euro pro Quadratmeter über die Zeit."></canvas></div>
-      </div>
-      <div class="chart-box">
-        <div class="chart-title">Miete kalt (€/m²)</div>
-        <div class="chart-wrap"><canvas id="trend-miete" role="img" aria-label="Liniendiagramm: Median-Kaltmiete in Euro pro Quadratmeter über die Zeit."></canvas></div>
-      </div>
-    </div>
+${trendSektion(daten.trend)}
   </section>
 
   <section>
@@ -313,22 +300,23 @@ ${laeufeTabelle(daten.laeufe)}
   <footer>
     <p><strong>Methodik:</strong> Aktiv = im letzten erfolgreichen Crawl-Lauf gesehen; Delisting ist nur
       ein Proxy für verkauft/vermietet (Inserate können auch zurückgezogen worden sein).
-      Vermarktungsdauer = zuletzt − zuerst gesehen; Inserate aus dem allerersten Crawl sind
-      links-zensiert (waren evtl. schon länger online). Trend: Median €/m² der am Stichtag
-      aktiven Inserate, Wochenraster, Preise aus der Preishistorie rekonstruiert.</p>
+      Vermarktungsdauer = zuletzt − zuerst gesehen; Inserate aus dem allerersten Crawl sind dabei
+      nur begrenzt aussagekräftig („links-zensiert“: sie waren evtl. schon vor dem ersten Crawl online).
+      Trend: Median €/m² der am Stichtag aktiven Inserate, Wochenraster, Preise aus der
+      Preishistorie rekonstruiert.</p>
     <p>Erstellt ${escapeHtml(nfZeit.format(new Date()))} · Datenbasis: willhaben.at + immoscout24.at,
       ohne portal-übergreifende Deduplizierung.</p>
   </footer>
-</main>
 
-<script>const TREND = ${trendJson};</script>
+  <script>const TREND = ${trendJson};</script>
 <script src="${CHART_JS_CDN}"></script>
 <script>
 (function () {
   'use strict';
+  if (TREND.length === 0) return; // Empty-State steht im Markup, keine Charts nötig
   if (typeof Chart === 'undefined') {
     document.querySelectorAll('.chart-wrap').forEach((el) => {
-      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Diagramm nicht verfügbar '
+      el.innerHTML = '<p style="color:var(--text-secondary);font-size:13px">Diagramm nicht verfügbar '
         + '(Chart.js-CDN nicht erreichbar – Internetverbindung nötig).</p>';
     });
     return;
@@ -390,8 +378,12 @@ ${laeufeTabelle(daten.laeufe)}
   renderAll();
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 })();
-</script>
-</body>
-</html>
-`;
+</script>`;
+
+  return seite(gebiet.name, inhalt, {
+    breite: 'breit',
+    aktiv: 'gebiete',
+    extraCss: GEBIET_CSS,
+    kopfExtra: refreshBeiCrawl(crawlLaeuft),
+  });
 }

@@ -13,6 +13,8 @@ import {
   gebietDeaktivieren,
   gebieteAuflisten,
   gebietLaden,
+  gebietLoeschen,
+  laufendeCrawls,
   letzterFertigerLauf,
   zombieCrawlLaeufeBereinigen,
   type Gebiet,
@@ -80,8 +82,9 @@ function liesBody(req: IncomingMessage): Promise<string> {
  * und die Kriterien filtern erst hier (read-seitig), der Bestand ist roh.
  */
 async function gebietSeite(gebiet: Gebiet, alsReport: boolean): Promise<string> {
+  const crawlLaeuft = (await laufendeCrawls()).has(gebiet.id);
   const stichtag = await letzterFertigerLauf(gebiet.id);
-  if (!stichtag) return renderGebietOhneDatenSeite(gebiet);
+  if (!stichtag) return renderGebietOhneDatenSeite(gebiet, crawlLaeuft);
 
   const bestand = await bestandLaden(gebiet.kriterien.bundesland);
   const nachTyp =
@@ -97,20 +100,26 @@ async function gebietSeite(gebiet: Gebiet, alsReport: boolean): Promise<string> 
       quellen: [`Bestand, Stand ${stichtag} (${aktive.length} aktive Inserate)`],
       erstellt: stichtag,
       region: gebiet.name,
+      navAktiv: 'gebiete',
+      zurueck: { href: `/gebiete/${gebiet.id}`, label: `← Zurück zum Gebiet „${gebiet.name}“` },
     });
   }
 
   const historie = await preisHistorieLaden(gebiet.kriterien.bundesland);
   const delisted = inserate.filter((i) => i.zuletztGesehen < stichtag);
-  return renderGebietSeite(gebiet, {
-    stichtag,
-    trend: berechneTrend(inserate, historie, stichtag),
-    vermarktung: vermarktungsdauer(delisted),
-    reduktionen: preisReduktionen(aktive, historie),
-    laeufe: await crawlLaeufeAuflisten(gebiet.id, 10),
-    anzahlAktiv: aktive.length,
-    anzahlDelisted: delisted.length,
-  });
+  return renderGebietSeite(
+    gebiet,
+    {
+      stichtag,
+      trend: berechneTrend(inserate, historie, stichtag),
+      vermarktung: vermarktungsdauer(delisted),
+      reduktionen: preisReduktionen(aktive, historie),
+      laeufe: await crawlLaeufeAuflisten(gebiet.id, 10),
+      anzahlAktiv: aktive.length,
+      anzahlDelisted: delisted.length,
+    },
+    crawlLaeuft,
+  );
 }
 
 /** Rendert eine gespeicherte Suche je nach Lifecycle-Status. */
@@ -124,7 +133,7 @@ async function sucheSeite(suche: Suche): Promise<string> {
   const ergebnis = analyze(inserate);
   const erstellt = (suche.beendetAm ?? suche.erstelltAm).toISOString().slice(0, 10);
   const region = BUNDESLAENDER[suche.kriterien.bundesland] ?? suche.kriterien.bundesland;
-  return renderReport(ergebnis, { quellen: suche.quellen, erstellt, region });
+  return renderReport(ergebnis, { quellen: suche.quellen, erstellt, region, navAktiv: 'suchen' });
 }
 
 function sende(res: ServerResponse, status: number, html: string): void {
@@ -143,7 +152,19 @@ const server = createServer((req, res) => {
 
     if (req.method === 'POST') {
       if (url.pathname === '/suchen') {
-        const kriterien = parseSuchKriterien(new URLSearchParams(await liesBody(req)));
+        // Bei ungültigen Kriterien das Formular mit den Eingaben re-rendern,
+        // statt sie auf einer generischen Fehlerseite zu verlieren.
+        const werte = new URLSearchParams(await liesBody(req));
+        let kriterien;
+        try {
+          kriterien = parseSuchKriterien(werte);
+        } catch (err) {
+          if (err instanceof SuchKriterienFehler) {
+            sende(res, 400, renderSearchPage(await suchenAuflisten(10), { werte, meldung: err.message }));
+            return;
+          }
+          throw err;
+        }
         const id = await sucheAnlegen(kriterien);
         console.log(`Suche ${id} gestartet: ${JSON.stringify(kriterien)}`);
         starteSuchlauf(id, kriterien, portale);
@@ -152,14 +173,33 @@ const server = createServer((req, res) => {
         return;
       }
       if (url.pathname === '/gebiete') {
-        const { name, kriterien } = parseGebietForm(new URLSearchParams(await liesBody(req)));
-        const id = await gebietAnlegen(name, kriterien);
-        console.log(`Gebiet ${id} angelegt: "${name}" ${JSON.stringify(kriterien)}`);
+        const werte = new URLSearchParams(await liesBody(req));
+        let form;
+        try {
+          form = parseGebietForm(werte);
+        } catch (err) {
+          if (err instanceof SuchKriterienFehler) {
+            sende(
+              res,
+              400,
+              renderGebieteSeite(await gebieteAuflisten(), await laufendeCrawls(), {
+                werte,
+                meldung: err.message,
+              }),
+            );
+            return;
+          }
+          throw err;
+        }
+        const id = await gebietAnlegen(form.name, form.kriterien);
+        console.log(`Gebiet ${id} angelegt: "${form.name}" ${JSON.stringify(form.kriterien)}`);
         res.writeHead(303, { location: '/gebiete' });
         res.end();
         return;
       }
-      const aktion = /^\/gebiete\/(\d+)\/(aktivieren|deaktivieren|aktualisieren)$/.exec(url.pathname);
+      const aktion = /^\/gebiete\/(\d+)\/(aktivieren|deaktivieren|aktualisieren|loeschen)$/.exec(
+        url.pathname,
+      );
       if (aktion) {
         const id = Number(aktion[1]);
         const gebiet = await gebietLaden(id);
@@ -175,6 +215,13 @@ const server = createServer((req, res) => {
               : `Gebiet ${id} ("${gebiet.name}"): Crawl läuft bereits.`,
           );
           res.writeHead(303, { location: `/gebiete/${id}` });
+          res.end();
+          return;
+        }
+        if (aktion[2] === 'loeschen') {
+          await gebietLoeschen(id);
+          console.log(`Gebiet ${id} ("${gebiet.name}") gelöscht.`);
+          res.writeHead(303, { location: '/gebiete' });
           res.end();
           return;
         }
@@ -201,7 +248,7 @@ const server = createServer((req, res) => {
       return;
     }
     if (url.pathname === '/gebiete') {
-      sende(res, 200, renderGebieteSeite(await gebieteAuflisten()));
+      sende(res, 200, renderGebieteSeite(await gebieteAuflisten(), await laufendeCrawls()));
       return;
     }
     const gebietTreffer = /^\/gebiete\/(\d+)(\/report)?$/.exec(url.pathname);

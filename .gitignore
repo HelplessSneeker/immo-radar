@@ -2,3 +2,5 @@ node_modules/
 dist/
 report.html
 .env
+.impeccable/config.local.json
+.impeccable/hook.cache.json

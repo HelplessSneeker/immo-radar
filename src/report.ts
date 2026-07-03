@@ -1,10 +1,19 @@
 import type { AnalyseErgebnis, GebietStatistik, InseratAnalyse } from './analyze.js';
+import { escapeHtml, seite } from './pages/layout.js';
 
 export interface ReportMeta {
   quellen: string[];
   erstellt: string; // ISO-Datum
   /** Region für die Überschrift (Standard: Kärnten, das V1-Beispielgebiet). */
   region?: string;
+  /**
+   * Aktiver Navbar-Eintrag: 'suchen' für Such-Ergebnisse, 'gebiete' für
+   * Gebiets-Reports. Weglassen = ohne Navbar (statisch exportierter Report
+   * aus dem CLI, dort liefen die Links ins Leere).
+   */
+  navAktiv?: 'suchen' | 'gebiete';
+  /** Kontextueller Rücksprung, z. B. zum Gebiet des Reports. */
+  zurueck?: { href: string; label: string };
 }
 
 /** Ziel-Bruttorendite, ab der ein Gebiet im Report hervorgehoben wird. */
@@ -15,10 +24,6 @@ const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd
 const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
 const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const nfPct = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function fmtEurM2(wert: number, typ: 'kauf' | 'miete'): string {
   return typ === 'kauf' ? nfEur0.format(Math.round(wert)) : nfEur2.format(wert);
@@ -39,23 +44,58 @@ function segmentZellen(g: GebietStatistik, typ: 'kauf' | 'miete'): string {
   );
 }
 
+function renditeBadge(g: GebietStatistik): string {
+  const erreicht = g.bruttoRendite !== null && g.bruttoRendite >= ZIEL_RENDITE;
+  if (erreicht) return '<span class="badge badge-good">✓ Ziel ≥ 4 % erreicht</span>';
+  if (g.bruttoRendite === null) return '<span class="badge badge-muted">keine Miet- oder Kaufdaten</span>';
+  return '<span class="badge badge-muted">unter 4 %-Ziel</span>';
+}
+
+/** Beste Rendite zuerst – der Leser soll nicht suchen müssen. */
+function nachRendite(gebiete: GebietStatistik[]): GebietStatistik[] {
+  return [...gebiete].sort((a, b) => (b.bruttoRendite ?? -1) - (a.bruttoRendite ?? -1));
+}
+
 function renditeTiles(gebiete: GebietStatistik[]): string {
   return gebiete
     .map((g) => {
       const erreicht = g.bruttoRendite !== null && g.bruttoRendite >= ZIEL_RENDITE;
       const wert = g.bruttoRendite === null ? '–' : fmtRendite(g.bruttoRendite);
-      const badge = erreicht
-        ? '<span class="badge badge-good">✓ Ziel ≥ 4 % erreicht</span>'
-        : g.bruttoRendite === null
-          ? '<span class="badge badge-muted">keine Miet- oder Kaufdaten</span>'
-          : '<span class="badge badge-muted">unter 4 %-Ziel</span>';
       return `<div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">${escapeHtml(g.gebiet)}</div>
         <div class="tile-value">${wert}</div>
-        ${badge}
+        ${renditeBadge(g)}
       </div>`;
     })
     .join('\n');
+}
+
+/**
+ * Ab mehr als 8 Gebieten kippen die Kacheln in eine unlesbare Wand –
+ * dann trägt eine kompakte Tabelle dasselbe Urteil besser.
+ */
+function renditeUebersicht(gebiete: GebietStatistik[]): string {
+  const sortiert = nachRendite(gebiete);
+  if (sortiert.length <= 8) {
+    return `<div class="tiles">\n${renditeTiles(sortiert)}\n    </div>`;
+  }
+  const zeilen = sortiert
+    .map(
+      (g) => `      <tr>
+        <th scope="row">${escapeHtml(g.gebiet)}</th>
+        <td class="num">${g.bruttoRendite === null ? '–' : fmtRendite(g.bruttoRendite)}</td>
+        <td>${renditeBadge(g)}</td>
+      </tr>`,
+    )
+    .join('\n');
+  return `<div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Gebiet</th><th scope="col" class="num">Brutto-Rendite</th><th scope="col"><span class="sr-nur">Urteil</span></th></tr></thead>
+      <tbody>
+${zeilen}
+      </tbody>
+    </table>
+    </div>`;
 }
 
 function vergleichsTabelle(gebiete: GebietStatistik[]): string {
@@ -77,7 +117,8 @@ function vergleichsTabelle(gebiete: GebietStatistik[]): string {
     })
     .join('\n');
 
-  return `<table>
+  return `<div class="tabelle-scroll">
+    <table>
     <thead>
       <tr>
         <th rowspan="2" scope="col">Gebiet</th>
@@ -91,7 +132,8 @@ function vergleichsTabelle(gebiete: GebietStatistik[]): string {
       </tr>
     </thead>
     <tbody>${zeilen}</tbody>
-  </table>`;
+    </table>
+    </div>`;
 }
 
 function inserateTabelle(inserate: InseratAnalyse[]): string {
@@ -114,15 +156,35 @@ function inserateTabelle(inserate: InseratAnalyse[]): string {
     })
     .join('\n');
 
-  return `<table>
+  return `<div class="tabelle-scroll">
+    <table>
     <thead><tr>
       <th scope="col">Inserat</th><th scope="col">Typ</th><th scope="col">Ort</th>
       <th scope="col">Preis</th><th scope="col">m²</th><th scope="col">€/m²</th>
-      <th scope="col">Zustand</th><th scope="col"></th>
+      <th scope="col">Zustand</th><th scope="col"><span class="sr-nur">Auffälligkeit</span></th>
     </tr></thead>
     <tbody>${zeilen}</tbody>
-  </table>`;
+    </table>
+    </div>`;
 }
+
+/** Seitenspezifisches CSS des Marktreports (Tiles, Badges, Charts, Ausreißer-Zeilen). */
+const REPORT_CSS = `
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .tile-good { background: var(--good-bg); }
+  .tile-label { color: var(--text-secondary); font-size: 13px; }
+  .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
+  .badge { font-size: 12px; color: var(--text-secondary); }
+  .badge-good { color: var(--good-text); font-weight: 600; }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .good { color: var(--good-text); }
+  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .chart-box { min-width: 0; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .chart-wrap { position: relative; height: 260px; }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+`;
 
 export function renderReport(ergebnis: AnalyseErgebnis, meta: ReportMeta): string {
   const { gebiete, inserate } = ergebnis;
@@ -148,99 +210,19 @@ export function renderReport(ergebnis: AnalyseErgebnis, meta: ReportMeta): strin
   const anzahlKauf = inserate.filter((i) => i.typ === 'kauf').length;
   const anzahlMiete = inserate.length - anzahlKauf;
 
-  return `<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>immo-radar · Marktanalyse ${escapeHtml(meta.erstellt)}</title>
-<style>
-  :root {
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #898781;
-    --grid: #e1e0d9;
-    --baseline: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
-    --series-kauf: #2a78d6;   /* categorical slot 1 (blau) */
-    --series-miete: #1baf7a;  /* categorical slot 2 (aqua) */
-    --series-3: #eda100;      /* categorical slot 3 (gelb) */
-    --status-critical: #d03b3b;
-    --good-text: #006300;
-    --good-bg: rgba(12,163,12,0.08);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --page: #0d0d0d;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted: #898781;
-      --grid: #2c2c2a;
-      --baseline: #383835;
-      --border: rgba(255,255,255,0.10);
-      --series-kauf: #3987e5;
-      --series-miete: #199e70;
-      --series-3: #c98500;
-      --status-critical: #d03b3b;
-      --good-text: #0ca30c;
-      --good-bg: rgba(12,163,12,0.14);
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 24px;
-    background: var(--page); color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
-  .meta { color: var(--text-secondary); font-size: 13px; }
-  section {
-    background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px;
-  }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-  .tile-good { background: var(--good-bg); }
-  .tile-label { color: var(--text-secondary); font-size: 13px; }
-  .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
-  .badge { font-size: 12px; color: var(--text-muted); }
-  .badge-good { color: var(--good-text); font-weight: 600; }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .good { color: var(--good-text); }
-  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
-  .chart-box { min-width: 0; }
-  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-  .chart-wrap { position: relative; height: 260px; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); }
-  thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody th { font-weight: 600; }
-  tbody th .sub { display: block; font-weight: 400; font-size: 12px; color: var(--text-muted); }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
-  a { color: var(--series-kauf); }
-  footer { color: var(--text-muted); font-size: 12px; }
-  footer p { margin: 4px 0; }
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <h1>immo-radar · Marktanalyse ${escapeHtml(meta.region ?? 'Kärnten')}</h1>
+  const zurueck = meta.zurueck
+    ? `\n    <p class="meta"><a href="${escapeHtml(meta.zurueck.href)}">${escapeHtml(meta.zurueck.label)}</a></p>`
+    : '';
+
+  const inhalt = `  <header>
+    <h1>Marktanalyse ${escapeHtml(meta.region ?? 'Kärnten')}</h1>
     <p class="meta">Erstellt am ${escapeHtml(meta.erstellt)} · ${inserate.length} Inserate
-      (${anzahlKauf} Kauf, ${anzahlMiete} Miete) · Quellen: ${meta.quellen.map(escapeHtml).join(', ')}</p>
+      (${anzahlKauf} Kauf, ${anzahlMiete} Miete) · Quellen: ${meta.quellen.map(escapeHtml).join(', ')}</p>${zurueck}
   </header>
 
   <section>
     <h2>Brutto-Mietrendite pro Gebiet</h2>
-    <div class="tiles">
-${renditeTiles(gebiete)}
-    </div>
+    ${renditeUebersicht(gebiete)}
   </section>
 
   <section>
@@ -282,15 +264,16 @@ ${inserateTabelle(inserate)}
   </section>
 
   <footer>
-    <p><strong>Methodik:</strong> Median/Quartile mit linearer Interpolation (R-7). Ausreißer: €/m² außerhalb
-      von Q1 − 1,5×IQR bzw. Q3 + 1,5×IQR, je Gebiet und Typ (erst ab 4 Inseraten bewertet).
+    <p><strong>Methodik:</strong> Median/Quartile mit linearer Interpolation (R-7). Als Ausreißer gilt ein
+      Inserat, dessen €/m² weit außerhalb des üblichen Bereichs seines Gebiets liegt (mehr als das
+      1,5-Fache des Interquartilsabstands unter dem unteren bzw. über dem oberen Viertel — die
+      übliche 1,5×IQR-Regel; je Gebiet und Typ, erst ab 4 Inseraten bewertet).
       Brutto-Mietrendite = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis €/m² — ohne Nebenkosten,
       Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).</p>
     <p>Datenbasis: manuell erfasste Inserate — kein Anspruch auf Marktvollständigkeit.</p>
   </footer>
-</main>
 
-<script>const DATA = ${datenJson};</script>
+  <script>const DATA = ${datenJson};</script>
 <script src="${CHART_JS_CDN}"></script>
 <script>
 (function () {
@@ -298,7 +281,7 @@ ${inserateTabelle(inserate)}
   if (typeof Chart === 'undefined') {
     // CDN nicht erreichbar (offline): Hinweis statt leerer Flächen; Tabellen tragen die Werte.
     document.querySelectorAll('.chart-wrap').forEach((el) => {
-      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Diagramm nicht verfügbar '
+      el.innerHTML = '<p style="color:var(--text-secondary);font-size:13px">Diagramm nicht verfügbar '
         + '(Chart.js-CDN nicht erreichbar – Internetverbindung nötig). '
         + 'Alle Werte stehen in den Tabellen.</p>';
     });
@@ -446,8 +429,12 @@ ${inserateTabelle(inserate)}
   // Dark-Mode-Wechsel: Charts mit den Farben des neuen Modus neu aufbauen
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
 })();
-</script>
-</body>
-</html>
-`;
+</script>`;
+
+  return seite(`Marktanalyse ${meta.erstellt}`, inhalt, {
+    breite: 'breit',
+    extraCss: REPORT_CSS,
+    aktiv: meta.navAktiv,
+    navbar: meta.navAktiv !== undefined,
+  });
 }

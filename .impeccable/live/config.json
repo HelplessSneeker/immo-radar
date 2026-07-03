@@ -1,0 +1,6 @@
+{
+  "files": ["src/pages/layout.ts", "src/pages/gebiete-pages.ts", "src/report.ts"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

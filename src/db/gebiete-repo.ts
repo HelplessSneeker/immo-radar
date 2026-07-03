@@ -114,6 +114,22 @@ export async function gebieteAuflisten(nurAktive = false): Promise<Gebiet[]> {
   return rows.map(gebietAusZeile);
 }
 
+/**
+ * Löscht ein Gebiet endgültig; die Crawl-Läufe hängen per ON DELETE CASCADE
+ * daran. Der Inseratsbestand ist bundesland-weit und bleibt unberührt.
+ */
+export async function gebietLoeschen(id: number): Promise<void> {
+  await holePool().query('DELETE FROM gebiete WHERE id = $1', [id]);
+}
+
+/** IDs aller Gebiete mit gerade laufendem Crawl – für „läuft"-Badges. */
+export async function laufendeCrawls(): Promise<Set<number>> {
+  const { rows } = await holePool().query<{ gebiet_id: number }>(
+    "SELECT DISTINCT gebiet_id FROM crawl_laeufe WHERE status = 'laufend'",
+  );
+  return new Set(rows.map((r) => r.gebiet_id));
+}
+
 export async function gebietDeaktivieren(id: number): Promise<void> {
   await holePool().query('UPDATE gebiete SET aktiv = false WHERE id = $1', [id]);
 }

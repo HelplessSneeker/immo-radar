@@ -29,7 +29,8 @@ export function kriterienZusammenfassung(k: SuchKriterien): string {
   return teile.filter((t): t is string => t !== undefined).join(' · ');
 }
 
-const STATUS_TEXT: Record<SucheStatus, string> = {
+/** Freundlicher Status-Wortlaut – gilt auch für Crawl-Läufe (gleiche Zustände). */
+export const STATUS_TEXT: Record<SucheStatus, string> = {
   laufend: 'läuft …',
   fertig: 'fertig',
   fehlgeschlagen: 'fehlgeschlagen',
@@ -52,12 +53,14 @@ function historieTabelle(suchen: Suche[]): string {
       </tr>`,
     )
     .join('\n');
-  return `    <table class="historie">
-      <thead><tr><th>Zeitpunkt</th><th>Suche</th><th>Status</th><th>Treffer</th></tr></thead>
+  return `    <div class="tabelle-scroll">
+    <table class="historie">
+      <thead><tr><th scope="col">Zeitpunkt</th><th scope="col">Suche</th><th scope="col">Status</th><th scope="col">Treffer</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 /** Historie-Block für die Startseite (ohne eigenes Seitengerüst). */
@@ -76,15 +79,15 @@ export function renderHistorieSeite(suchen: Suche[]): string {
       ? '    <p>Noch keine Suchen. <a href="/">Erste Suche starten →</a></p>'
       : historieTabelle(suchen);
   return seite(
-    'Historie',
+    'Suchhistorie',
     `  <header>
-    <h1>immo-radar · Suchhistorie</h1>
+    <h1>Suchhistorie</h1>
     <p class="meta">Alle bisherigen Suchläufe, neueste zuerst.</p>
   </header>
   <section>
 ${inhalt}
-  </section>
-  <footer class="meta"><p><a href="/">← Neue Suche</a></p></footer>`,
+  </section>`,
+    { aktiv: 'suchen' },
   );
 }
 
@@ -94,20 +97,25 @@ export function renderLaufendSeite(suche: Suche): string {
     `  <header><h1>Suche läuft …</h1></header>
   <section>
     <p>${escapeHtml(kriterienZusammenfassung(suche.kriterien))}</p>
-    <p class="meta" role="status">willhaben.at und immoscout24.at werden durchsucht –
+    <p class="meta" id="poll-status" role="status">willhaben.at und immoscout24.at werden durchsucht –
     das dauert ein paar Sekunden. Die Seite aktualisiert sich automatisch.</p>
-    <p class="meta"><a href="/">← Zurück zur Suche</a> (der Suchlauf läuft weiter)</p>
+    <p class="meta">Die Seite kann verlassen werden – der Suchlauf läuft im Hintergrund weiter.</p>
   </section>
   <script>
     const timer = setInterval(async () => {
       try {
         const res = await fetch('/suchen/${suche.id}/status');
         const { status } = await res.json();
-        if (status !== 'laufend') { clearInterval(timer); location.reload(); }
+        if (status !== 'laufend') {
+          clearInterval(timer);
+          // Screenreader-Ankündigung, bevor die Seite neu lädt
+          document.getElementById('poll-status').textContent = 'Fertig – das Ergebnis wird geladen.';
+          location.reload();
+        }
       } catch { /* Server kurz nicht erreichbar – weiter pollen */ }
     }, 2000);
   </script>`,
-    '<noscript><meta http-equiv="refresh" content="4"></noscript>\n',
+    { aktiv: 'suchen', kopfExtra: '<noscript><meta http-equiv="refresh" content="4"></noscript>\n' },
   );
 }
 
@@ -120,5 +128,6 @@ export function renderFehlgeschlagenSeite(suche: Suche): string {
     <p class="fehler">${escapeHtml(suche.fehler ?? 'Unbekannter Fehler.')}</p>
     <p><a href="/">← Neue Suche starten</a></p>
   </section>`,
+    { aktiv: 'suchen' },
   );
 }
