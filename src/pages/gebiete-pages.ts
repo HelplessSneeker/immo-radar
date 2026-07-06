@@ -1,7 +1,8 @@
+import { analyze } from '../analyze.js';
 import type { BestandInserat } from '../db/bestand-repo.js';
 import type { CrawlLauf, FertigerLauf, Gebiet } from '../db/gebiete-repo.js';
 import { tageZwischen } from '../datum.js';
-import { ZIEL_RENDITE } from '../report.js';
+import { renderReport, ZIEL_RENDITE } from '../report.js';
 import {
   inseratSchluessel,
   type PreisAenderung,
@@ -203,6 +204,7 @@ export function renderGebieteSeite(
     <p class="meta">Beobachtungsgebiete verfolgen Kauf- und Mietpreise vergleichbarer Wohnungen
     über die Zeit – aktive Gebiete werden einmal täglich gecrawlt und bauen den historisierten
     Inseratsbestand auf (Preisverlauf je Inserat, Vermarktungsdauer, Trends).</p>
+    <p class="meta"><a href="/gebiete/report">Portfolio-Marktreport →</a></p>
   </header>
 
   <section>
@@ -288,6 +290,78 @@ export function renderGebietOhneDatenSeite(gebiet: Gebiet, crawlLaeuft: boolean)
 ${stand}
   </section>`,
     { aktiv: 'gebiete', kopfExtra: refreshBeiCrawl(crawlLaeuft, gebiet.id) },
+  );
+}
+
+/** Datengrundlage eines Gebiets für den Portfolio-Marktreport. */
+export interface PortfolioGebietDaten {
+  gebiet: Gebiet;
+  /** laufDatum des letzten fertigen Laufs; undefined = noch keiner. */
+  stichtag?: string;
+  /** Am Stichtag aktive Inserate (Kriterien-gefiltert); leer ohne Lauf. */
+  aktive: BestandInserat[];
+}
+
+/**
+ * Marktreport über alle aktiven Gebiete: ein Report, gruppiert nach
+ * Gebiet-Name statt Ort – so mischt ein Bundesland-Gebiet seine Orte nicht
+ * mit dem Einzelort-Gebiet daneben. Jedes Gebiet hat seinen eigenen Stichtag
+ * (letzter fertiger Lauf); die Quellen-Zeilen machen das transparent.
+ */
+export function renderPortfolioReport(teile: PortfolioGebietDaten[]): string {
+  // Namenskollisionen eindeutig machen – sonst verschmelzen zwei Gebiete zu
+  // einer Gruppe (bzw. wirft analyze bei überlappenden Inseraten).
+  const namensZaehler = new Map<string, number>();
+  for (const t of teile) {
+    namensZaehler.set(t.gebiet.name, (namensZaehler.get(t.gebiet.name) ?? 0) + 1);
+  }
+  const label = (gebiet: Gebiet) =>
+    (namensZaehler.get(gebiet.name) ?? 0) > 1 ? `${gebiet.name} (Gebiet ${gebiet.id})` : gebiet.name;
+
+  const quellen = teile.map((t) =>
+    t.stichtag === undefined
+      ? `${label(t.gebiet)}: noch kein fertiger Crawl-Lauf`
+      : `${label(t.gebiet)}: Bestand, Stand ${t.stichtag} (${t.aktive.length} aktive Inserate)`,
+  );
+
+  type PortfolioInserat = BestandInserat & { gebietName: string };
+  const getaggt: PortfolioInserat[] = teile.flatMap((t) =>
+    t.aktive.map((i) => ({ ...i, gebietName: label(t.gebiet) })),
+  );
+  if (getaggt.length === 0) return renderPortfolioLeerSeite(quellen);
+
+  const stichtage = teile.map((t) => t.stichtag).filter((s): s is string => s !== undefined);
+  return renderReport(
+    analyze(getaggt, (i) => i.gebietName),
+    {
+      quellen,
+      erstellt: stichtage.reduce((a, b) => (a >= b ? a : b)),
+      region: 'Portfolio',
+      navAktiv: 'gebiete',
+      zurueck: { href: '/', label: '← Zurück zu den Beobachtungsgebieten' },
+    },
+  );
+}
+
+/** Leerzustand des Portfolio-Reports – freundlicher Hinweis statt 404. */
+function renderPortfolioLeerSeite(hinweise: string[]): string {
+  const stand =
+    hinweise.length === 0
+      ? `    <p class="meta">Noch keine Daten – lege ein Beobachtungsgebiet an und warte auf
+    den ersten Crawl.</p>`
+      : `    <p class="meta">Noch keine auswertbaren Inserate – die Gebiete warten auf ihren
+    ersten fertigen Crawl-Lauf.</p>
+    <ul class="meta">
+${hinweise.map((h) => `      <li>${escapeHtml(h)}</li>`).join('\n')}
+    </ul>`;
+  return seite(
+    'Portfolio-Marktreport',
+    `  <header><h1>Portfolio-Marktreport</h1></header>
+  <section>
+${stand}
+    <p class="meta"><a href="/">Zur Gebiete-Übersicht →</a></p>
+  </section>`,
+    { aktiv: 'gebiete' },
   );
 }
 
@@ -382,19 +456,26 @@ function aktiveTabelle(
   const zeilen = inserate
     .map((i) => {
       const tageOnline = Math.max(0, tageZwischen(i.zuerstGesehen, stichtag));
+      // Bei aktiven Inseraten ist zuletztGesehen normalerweise der Stichtag –
+      // die Sonderdarstellung hält die Spalte informativ statt redundant.
+      const zuletzt =
+        i.zuletztGesehen === stichtag
+          ? 'heute (Stichtag)'
+          : escapeHtml(datumMedium(i.zuletztGesehen));
       return `      <tr>
         ${inseratZelle(i)}
         <td class="num">${nfEur0.format(i.preis)} €</td>
         <td class="num">${nfEur0.format(i.flaeche_m2)} m²</td>
         <td class="num">${eurM2Wert(i)}</td>
         <td>${escapeHtml(datumMedium(i.zuerstGesehen))}<span class="sub">${nfTage.format(tageOnline)} Tage online</span></td>
+        <td>${zuletzt}</td>
         ${aenderungsZelle(aenderungen.get(inseratSchluessel(i.portal, i.id)))}
       </tr>`;
     })
     .join('\n');
   return `    <div class="tabelle-scroll">
     <table>
-      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col">zuerst gesehen</th><th scope="col" class="num">letzte Preisänderung</th></tr></thead>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col">zuerst gesehen</th><th scope="col">zuletzt gesehen</th><th scope="col" class="num">letzte Preisänderung</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -552,6 +633,12 @@ const GEBIET_CSS = `
   .unterkopf { font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
   .kopf-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .kopf-aktionen p { margin: 0; }
+  .klapp-sektion > summary { cursor: pointer; }
+  .klapp-sektion > summary h2 { display: inline; margin: 0; }
+  .klapp-sektion[open] > summary { margin-bottom: 12px; }
+  /* Druck: zugeklappte Sektionen best-effort aufklappen (Chromium 131+);
+     ältere Engines drucken zugeklappt – ?inserate=alle rendert offen. */
+  @media print { .klapp-sektion::details-content { content-visibility: visible; } }
 `;
 
 /** Auswertungsseite eines Gebiets: Kacheln, Trend-Charts, Inseratsbestand, Läufe. */
@@ -572,7 +659,6 @@ export function renderGebietSeite(
     <p class="meta">${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))} ·
     Zuletzt gecrawlt: ${escapeHtml(nfZeitpunkt.format(daten.beendetAm))}${ueberfaelligMarker}</p>
     <div class="kopf-aktionen">
-      <p class="meta"><a href="/gebiete/${gebiet.id}/report">Aktueller Marktreport →</a></p>
       <form method="post" action="/gebiete/${gebiet.id}/aktualisieren">
         <button class="klein"${crawlLaeuft ? ' disabled' : ''}>Jetzt crawlen</button>
       </form>
@@ -615,17 +701,22 @@ ${trendSektion(daten.trend)}
   </section>
 
   <section>
-    <h2>Aktive Inserate</h2>
+    <details class="klapp-sektion"${daten.alleAnzeigen ? ' open' : ''}>
+    <summary><h2>Aktive Inserate (${daten.aktive.length})</h2></summary>
     <p class="meta">Aktiv = im letzten erfolgreichen Lauf gesehen; €/m² = Preis ÷ Wohnfläche.
     <a href="/methodik#aktive-inserate">Details</a></p>
 ${aktiveSektion(gebiet, daten)}
+    </details>
   </section>
 
   <section>
-    <h2>Kürzlich delistet (letzte ${daten.delistetFensterTage} Tage)</h2>
-    <p class="meta">Delisting ist ein Näherungswert für verkauft/vermietet – Inserate können
+    <details class="klapp-sektion"${daten.alleAnzeigen ? ' open' : ''}>
+    <summary><h2>Kürzlich delistet (${daten.delistete.length})</h2></summary>
+    <p class="meta">Delistings der letzten ${daten.delistetFensterTage} Tage. Delisting ist ein
+    Näherungswert für verkauft/vermietet – Inserate können
     auch zurückgezogen worden sein. <a href="/methodik#delistet">Details</a></p>
 ${delisteteSektion(daten)}
+    </details>
   </section>
 
   <section>

@@ -47,8 +47,10 @@ import {
   renderGebieteSeite,
   renderGebietOhneDatenSeite,
   renderGebietSeite,
+  renderPortfolioReport,
   type GebietKennzahlen,
   type LaufVeraenderungen,
+  type PortfolioGebietDaten,
 } from './pages/gebiete-pages.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
 import {
@@ -130,6 +132,11 @@ function gebietInserate(gebiet: Gebiet, bestand: BestandInserat[]): BestandInser
   return filterInserate(nachTyp, gebiet.kriterien);
 }
 
+/** Am Stichtag aktive Inserate: im letzten fertigen Lauf noch gesehen. */
+function aktiveAmStichtag(inserate: BestandInserat[], stichtag: string): BestandInserat[] {
+  return inserate.filter((i) => i.zuletztGesehen >= stichtag);
+}
+
 /**
  * Veränderungs-Zähler je sichtbarem fertigen Lauf für die Läufe-Tabelle.
  * Der Vorgänger-Lauf wird nur im geladenen Fenster gesucht: Ist die Liste
@@ -189,7 +196,7 @@ async function gebieteKennzahlen(
     const daten = jeLand.get(gebiet.kriterien.bundesland)!;
     const stichtag = letzteLaeufe.get(gebiet.id)!.laufDatum;
     const inserate = gebietInserate(gebiet, daten.bestand);
-    const aktive = inserate.filter((i) => i.zuletztGesehen >= stichtag);
+    const aktive = aktiveAmStichtag(inserate, stichtag);
 
     // Leit-Serie der Tendenz: die Miete nur, wenn das Gebiet ein reines
     // Miet-Gebiet ist – sonst ist der Kaufmarkt die Anlage-Perspektive.
@@ -232,11 +239,7 @@ async function gebieteSeite(fehler?: FormFehler): Promise<string> {
  * letzte erfolgreiche Crawl-Lauf, aktiv = damals noch gesehen. Der Gebiet-Typ
  * und die Kriterien filtern erst hier (read-seitig), der Bestand ist roh.
  */
-async function gebietSeite(
-  gebiet: Gebiet,
-  alsReport: boolean,
-  alleAnzeigen = false,
-): Promise<string> {
+async function gebietSeite(gebiet: Gebiet, alleAnzeigen = false): Promise<string> {
   const crawlLaeuft = (await laufendeCrawls()).has(gebiet.id);
   const lauf = await letzterFertigerLauf(gebiet.id);
   if (!lauf) return renderGebietOhneDatenSeite(gebiet, crawlLaeuft);
@@ -244,18 +247,7 @@ async function gebietSeite(
 
   const bestand = await bestandLaden(gebiet.kriterien.bundesland);
   const inserate = gebietInserate(gebiet, bestand);
-  const aktive = inserate.filter((i) => i.zuletztGesehen >= stichtag);
-
-  if (alsReport) {
-    if (aktive.length === 0) return renderKeineTrefferSeite([`Bestand, Stand ${stichtag}`]);
-    return renderReport(analyze(aktive), {
-      quellen: [`Bestand, Stand ${stichtag} (${aktive.length} aktive Inserate)`],
-      erstellt: stichtag,
-      region: gebiet.name,
-      navAktiv: 'gebiete',
-      zurueck: { href: `/gebiete/${gebiet.id}`, label: `← Zurück zum Gebiet „${gebiet.name}“` },
-    });
-  }
+  const aktive = aktiveAmStichtag(inserate, stichtag);
 
   const historie = await preisHistorieLaden(gebiet.kriterien.bundesland);
   const delisted = inserate.filter((i) => i.zuletztGesehen < stichtag);
@@ -291,6 +283,35 @@ async function gebietSeite(
     },
     crawlLaeuft,
   );
+}
+
+/**
+ * Portfolio-Marktreport über alle aktiven Gebiete: je Gebiet der aktive
+ * Snapshot des letzten fertigen Laufs (eigener Stichtag), Bestand je
+ * Bundesland genau einmal geladen. Gruppiert wird nach Gebiet-Name.
+ */
+async function portfolioReportSeite(): Promise<string> {
+  const gebiete = await gebieteAuflisten(true);
+  const bestaende = new Map<string, BestandInserat[]>();
+  const teile: PortfolioGebietDaten[] = [];
+  for (const gebiet of gebiete) {
+    const lauf = await letzterFertigerLauf(gebiet.id);
+    if (!lauf) {
+      teile.push({ gebiet, aktive: [] });
+      continue;
+    }
+    let bestand = bestaende.get(gebiet.kriterien.bundesland);
+    if (!bestand) {
+      bestand = await bestandLaden(gebiet.kriterien.bundesland);
+      bestaende.set(gebiet.kriterien.bundesland, bestand);
+    }
+    teile.push({
+      gebiet,
+      stichtag: lauf.laufDatum,
+      aktive: aktiveAmStichtag(gebietInserate(gebiet, bestand), lauf.laufDatum),
+    });
+  }
+  return renderPortfolioReport(teile);
 }
 
 /**
@@ -486,6 +507,16 @@ const server = createServer((req, res) => {
       res.end();
       return;
     }
+    if (url.pathname === '/gebiete/report') {
+      sende(res, 200, await portfolioReportSeite());
+      return;
+    }
+    if (/^\/gebiete\/\d+\/report$/.test(url.pathname)) {
+      // Alte Lesezeichen: der Einzelgebiet-Report ist im Portfolio-Report aufgegangen.
+      res.writeHead(301, { location: '/gebiete/report' });
+      res.end();
+      return;
+    }
     const laufTreffer = /^\/gebiete\/(\d+)\/laeufe\/(\d+)$/.exec(url.pathname);
     if (laufTreffer) {
       const gebiet = await gebietLaden(Number(laufTreffer[1]));
@@ -505,7 +536,7 @@ const server = createServer((req, res) => {
       sende(res, 200, await laufSeite(gebiet, lauf));
       return;
     }
-    const gebietTreffer = /^\/gebiete\/(\d+)(\/report)?$/.exec(url.pathname);
+    const gebietTreffer = /^\/gebiete\/(\d+)$/.exec(url.pathname);
     if (gebietTreffer) {
       const gebiet = await gebietLaden(Number(gebietTreffer[1]));
       if (!gebiet) {
@@ -513,7 +544,7 @@ const server = createServer((req, res) => {
         return;
       }
       const alleAnzeigen = url.searchParams.get('inserate') === 'alle';
-      sende(res, 200, await gebietSeite(gebiet, Boolean(gebietTreffer[2]), alleAnzeigen));
+      sende(res, 200, await gebietSeite(gebiet, alleAnzeigen));
       return;
     }
     const treffer = /^\/suchen\/(\d+)(\/status)?$/.exec(url.pathname);

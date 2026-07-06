@@ -104,8 +104,10 @@ function vergleichsTabelle(gebiete: GebietStatistik[]): string {
           : erreicht
             ? `<strong class="good">✓ ${fmtRendite(g.bruttoRendite)}</strong>`
             : fmtRendite(g.bruttoRendite);
+      const subTeile = [g.plz, g.bezirk].filter((t) => t !== '').map(escapeHtml);
+      const sub = subTeile.length > 0 ? `<span class="sub">${subTeile.join(' · ')}</span>` : '';
       return `<tr>
-        <th scope="row">${escapeHtml(g.gebiet)}<span class="sub">${escapeHtml(g.plz)} · ${escapeHtml(g.bezirk)}</span></th>
+        <th scope="row">${escapeHtml(g.gebiet)}${sub}</th>
         ${segmentZellen(g, 'kauf')}
         ${segmentZellen(g, 'miete')}
         <td class="num">${rendite}</td>
