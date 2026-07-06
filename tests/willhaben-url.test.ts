@@ -70,6 +70,22 @@ describe('buildSearchUrls', () => {
     expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual([]);
   });
 
+  it('hängt einen bekannten Ort an den Pfad', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: 'Villach' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/villach');
+  });
+
+  it('fällt bei unbekanntem Ort auf den Bundesland-Pfad zurück', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: 'Irgendwo' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten');
+  });
+
+  it('setzt den Ort bei typ=beide auf beide URLs', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'beide', ort: '9020' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/klagenfurt');
+    expect(new URL(urls[1]!.url).pathname).toBe('/iad/immobilien/mietwohnungen/kaernten/klagenfurt');
+  });
+
   it('kennt alle 9 Bundesländer und wirft bei unbekanntem Slug', () => {
     expect(Object.keys(BUNDESLAENDER)).toHaveLength(9);
     for (const slug of Object.keys(BUNDESLAENDER)) {

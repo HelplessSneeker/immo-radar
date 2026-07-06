@@ -59,6 +59,22 @@ describe('buildSearchUrls (immoscout24)', () => {
     expect(u.searchParams.get('numberOfRoomsTo')).toBeNull();
   });
 
+  it('hängt einen bekannten Ort zwischen Bundesland und Kategorie', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: '9020' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/regional/kaernten/klagenfurt-am-woerthersee/wohnung-kaufen');
+  });
+
+  it('fällt bei unbekanntem Ort auf den Bundesland-Pfad zurück', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: 'Irgendwo' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/regional/kaernten/wohnung-kaufen');
+  });
+
+  it('setzt den Ort bei typ=beide auf beide URLs', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'beide', ort: 'Villach' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/regional/kaernten/villach/wohnung-kaufen');
+    expect(new URL(urls[1]!.url).pathname).toBe('/regional/kaernten/villach/wohnung-mieten');
+  });
+
   it('kennt alle 9 Bundesländer und wirft bei unbekanntem Slug', () => {
     for (const slug of Object.keys(BUNDESLAENDER)) {
       expect(buildSearchUrls({ bundesland: slug, typ: 'kauf' })[0]!.url).toContain(`/${slug}/`);

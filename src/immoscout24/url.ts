@@ -2,6 +2,7 @@ import type { InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
 import type { SuchUrl } from '../adapters/portal-adapter.js';
 import { BUNDESLAENDER } from '../search.js';
+import { ortSlug } from '../ort-slugs.js';
 
 const BASIS = 'https://www.immoscout24.at/regional';
 
@@ -31,9 +32,12 @@ export function buildSearchUrls(kriterien: SuchKriterien): SuchUrl[] {
   }
   const typen: InseratTyp[] = kriterien.typ === 'beide' ? ['kauf', 'miete'] : [kriterien.typ];
   const preisTyp: InseratTyp = kriterien.typ === 'beide' ? 'kauf' : kriterien.typ;
+  // Ort liegt im Pfad zwischen Bundesland und Kategorie; die Pagination
+  // (/seite-N) hängt der Adapter hinter die Kategorie, das bleibt kompatibel.
+  const ort = ortSlug(kriterien, 'immoscout24');
 
   return typen.map((typ) => {
-    const url = new URL(`${BASIS}/${slug}/${KATEGORIE[typ]}`);
+    const url = new URL(`${BASIS}/${slug}${ort ? `/${ort}` : ''}/${KATEGORIE[typ]}`);
     if (typ === preisTyp) {
       if (kriterien.preisMin !== undefined) url.searchParams.set('primaryPriceFrom', String(kriterien.preisMin));
       if (kriterien.preisMax !== undefined) url.searchParams.set('primaryPriceTo', String(kriterien.preisMax));

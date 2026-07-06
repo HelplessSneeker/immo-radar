@@ -88,6 +88,20 @@ describe('ImmoScout24Adapter', () => {
     expect(ergebnis.inserate[0]!.bezirk).toBe('Kärnten');
   });
 
+  it('paginiert Ort-URLs hinter dem Kategorie-Segment und behält das Bundesland als Bezirk', async () => {
+    const aufrufe: string[] = [];
+    const adapter = new ImmoScout24Adapter(
+      fakeFetch({ '1': macheSeite(ids(15, 0), 20), '2': macheSeite(ids(5, 15), 20) }, aufrufe),
+      0,
+    );
+    const ergebnis = await adapter.fetchMitStatistik(
+      'https://www.immoscout24.at/regional/kaernten/villach/wohnung-kaufen?primaryAreaFrom=60',
+    );
+    expect(new URL(aufrufe[1]!).pathname).toBe('/regional/kaernten/villach/wohnung-kaufen/seite-2');
+    expect(new URL(aufrufe[1]!).searchParams.get('primaryAreaFrom')).toBe('60');
+    expect(ergebnis.inserate[0]!.bezirk).toBe('Kärnten');
+  });
+
   it('leitet den Inserat-Typ aus dem URL-Pfad ab', async () => {
     const adapter = new ImmoScout24Adapter(fakeFetch({ '1': macheSeite(ids(3, 0), 3) }), 0);
     const miete = await adapter.fetch(MIETE_URL);
