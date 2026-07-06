@@ -30,6 +30,62 @@ describe('buildSearchUrls', () => {
     expect(miete.searchParams.get('PRICE_TO')).toBeNull();
   });
 
+  it('baut Fläche- und Zimmer-Filter in die URL', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', flaecheMin: 60, flaecheMax: 100, zimmerMin: 3 });
+    const u = new URL(urls[0]!.url);
+    expect(u.searchParams.get('ESTATE_SIZE/LIVING_AREA_FROM')).toBe('60');
+    expect(u.searchParams.get('ESTATE_SIZE/LIVING_AREA_TO')).toBe('100');
+    // Zimmer nur als Buckets; 5X5 heißt beim Portal "5+".
+    expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual(['3X3', '4X4', '5X5']);
+  });
+
+  it('begrenzt Zimmer-Buckets auf den Bereich min-max', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', zimmerMin: 2, zimmerMax: 3 });
+    const u = new URL(urls[0]!.url);
+    expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual(['2X2', '3X3']);
+  });
+
+  it('lässt Zimmer-Buckets weg, wenn der Bereich alles abdeckt', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', zimmerMin: 1 });
+    const u = new URL(urls[0]!.url);
+    expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual([]);
+  });
+
+  it('hängt Fläche/Zimmer an beide URLs bei typ=beide, Preis weiter nur am Kauf', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'beide', preisMax: 250000, flaecheMax: 40, zimmerMax: 2 });
+    const kauf = new URL(urls[0]!.url);
+    const miete = new URL(urls[1]!.url);
+    expect(kauf.searchParams.get('PRICE_TO')).toBe('250000');
+    expect(miete.searchParams.get('PRICE_TO')).toBeNull();
+    for (const u of [kauf, miete]) {
+      expect(u.searchParams.get('ESTATE_SIZE/LIVING_AREA_TO')).toBe('40');
+      expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual(['1X1', '2X2']);
+    }
+  });
+
+  it('lässt Fläche/Zimmer weg, wenn nicht gesetzt', () => {
+    const u = new URL(buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf' })[0]!.url);
+    expect(u.searchParams.get('ESTATE_SIZE/LIVING_AREA_FROM')).toBeNull();
+    expect(u.searchParams.get('ESTATE_SIZE/LIVING_AREA_TO')).toBeNull();
+    expect(u.searchParams.getAll('NO_OF_ROOMS_BUCKET')).toEqual([]);
+  });
+
+  it('hängt einen bekannten Ort an den Pfad', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: 'Villach' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/villach');
+  });
+
+  it('fällt bei unbekanntem Ort auf den Bundesland-Pfad zurück', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', ort: 'Irgendwo' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten');
+  });
+
+  it('setzt den Ort bei typ=beide auf beide URLs', () => {
+    const urls = buildSearchUrls({ bundesland: 'kaernten', typ: 'beide', ort: '9020' });
+    expect(new URL(urls[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/klagenfurt');
+    expect(new URL(urls[1]!.url).pathname).toBe('/iad/immobilien/mietwohnungen/kaernten/klagenfurt');
+  });
+
   it('kennt alle 9 Bundesländer und wirft bei unbekanntem Slug', () => {
     expect(Object.keys(BUNDESLAENDER)).toHaveLength(9);
     for (const slug of Object.keys(BUNDESLAENDER)) {
