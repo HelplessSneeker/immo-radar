@@ -479,6 +479,15 @@ function veraenderungsZelle(v: LaufVeraenderungen | undefined): string {
   return `<td>${teile.join(' · ')}</td>`;
 }
 
+/**
+ * Fertiger Lauf, bei dem mindestens ein Portal ausgefallen ist – der Lauf
+ * bleibt dann "fertig", die Zahlen sind aber unvollständig. Erkennt die
+ * Quellen-Zeile aus crawlePortale (suchlauf.ts, "… nicht abfragbar (…)").
+ */
+export function hatPortalAusfall(lauf: Pick<CrawlLauf, 'status' | 'quellen'>): boolean {
+  return lauf.status === 'fertig' && lauf.quellen.some((q) => q.includes('nicht abfragbar'));
+}
+
 function laeufeTabelle(
   gebiet: Gebiet,
   laeufe: CrawlLauf[],
@@ -488,7 +497,11 @@ function laeufeTabelle(
     .map(
       (l) => `      <tr>
         <td><a href="/gebiete/${gebiet.id}/laeufe/${l.id}">${escapeHtml(datumMedium(l.laufDatum))}</a></td>
-        <td><span class="status-badge status-${l.status}">${STATUS_TEXT[l.status]}</span></td>
+        <td><span class="status-badge status-${l.status}">${STATUS_TEXT[l.status]}</span>${
+          hatPortalAusfall(l)
+            ? ' <span class="ueberfaellig" title="Mindestens ein Portal war nicht abfragbar – die Zahlen dieses Laufs sind unvollständig.">· Portal-Ausfall</span>'
+            : ''
+        }</td>
         <td class="num">${l.inserateGesehen ?? ''}</td>
         ${veraenderungsZelle(veraenderungen.get(l.id))}
         <td class="meta">${l.fehler ? escapeHtml(l.fehler) : escapeHtml(l.quellen.join(' · '))}</td>
