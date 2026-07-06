@@ -123,8 +123,8 @@ export function renderSearchPage(letzteSuchen: Suche[] = [], fehler?: FormFehler
     <form action="/suchen" method="post" id="suchform">
 ${kriterienFelder('Für die Rendite-Berechnung werden Kauf- und Mietdaten benötigt.', fehler?.werte, standardBundesland)}
 
-${formFehlerBlock(fehler)}      <button type="submit" id="senden">Suchen &amp; analysieren</button>
-      <p id="status" role="status">Suche wird gestartet …</p>
+${formFehlerBlock(fehler)}      <button type="submit" id="senden"><span class="senden-inhalt">Suchen &amp; analysieren</span></button>
+      <p class="sr-nur" id="senden-status" role="status" aria-live="polite"></p>
     </form>
   </section>
 
@@ -140,8 +140,11 @@ ${renderHistorieBlock(letzteSuchen)}
 ${bereichsPruefungJs('form')}
       })(this);
       if (!gueltig) { e.preventDefault(); return; }
-      document.getElementById('senden').disabled = true;
-      document.getElementById('status').style.display = 'block';
+      const senden = document.getElementById('senden');
+      senden.disabled = true;
+      senden.classList.add('laeuft');
+      senden.querySelector('.senden-inhalt').innerHTML = '<span class="senden-puls" aria-hidden="true"></span>Suche wird gestartet …';
+      document.getElementById('senden-status').textContent = 'Suche wird gestartet, gleich geht es weiter.';
     });
   </script>`,
     { aktiv: 'suche', extraCss: FORMULAR_CSS },

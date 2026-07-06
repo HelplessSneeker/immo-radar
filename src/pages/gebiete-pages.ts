@@ -13,7 +13,7 @@ import { kriterienZusammenfassung, STATUS_TEXT } from './suchen-pages.js';
 
 /** Verwaltungs- und Auswertungsseiten der Beobachtungsgebiete (Watchlist). */
 
-const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft …</span>';
+const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft</span>';
 
 /**
  * Ab diesem Alter gilt der letzte Crawl eines aktiven Gebiets als überfällig.
@@ -35,9 +35,32 @@ const FRISCHE_CSS = `
  * Auto-Refresh, solange ein Crawl läuft – nur für Seiten ohne Formular-Eingaben
  * (Gebiet-Detail/Platzhalter). Auf der Listen-Seite mit dem Anlege-Formular wäre
  * ein Reload Datenverlust: dort zeigt nur das Badge den Zustand.
+ *
+ * Ohne JS: klassischer Meta-Refresh (großzügig, damit lange Crawls nicht ständig
+ * neu laden). Mit JS: Skript hört auf `aktivitaet-aenderung` und lädt genau
+ * dann neu, wenn dieses Gebiet in der Aktivität nicht mehr auftaucht – kein
+ * sichtbares Flackern durch periodische Reloads.
  */
-function refreshBeiCrawl(crawlLaeuft: boolean): string {
-  return crawlLaeuft ? '<meta http-equiv="refresh" content="10">\n' : '';
+function refreshBeiCrawl(crawlLaeuft: boolean, gebietId: number): string {
+  if (!crawlLaeuft) return '';
+  return `<noscript><meta http-equiv="refresh" content="15"></noscript>
+<script>
+  (function () {
+    const meineId = ${gebietId};
+    // Wenn wir einmal gesehen haben, dass unser Gebiet läuft, und es danach
+    // aus der Aktivität verschwindet, ist der Crawl fertig – dann sanft neu laden.
+    let gesehenLaufend = true;
+    document.addEventListener('aktivitaet-aenderung', function (e) {
+      const laeuft = e.detail.crawls.some(function (c) { return c.gebietId === meineId; });
+      if (laeuft) { gesehenLaufend = true; return; }
+      if (gesehenLaufend) {
+        document.body.classList.add('laufend-fade');
+        setTimeout(function () { location.reload(); }, 240);
+      }
+    });
+  })();
+</script>
+`;
 }
 
 const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
@@ -78,24 +101,24 @@ function gebieteTabelle(
         ? `<form method="post" action="/gebiete/${g.id}/deaktivieren"><button class="klein">deaktivieren</button></form>`
         : `<form method="post" action="/gebiete/${g.id}/aktivieren"><button class="klein">aktivieren</button></form>`;
       const crawlen = laufende.has(g.id)
-        ? `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein" disabled>jetzt crawlen</button></form>`
-        : `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein">jetzt crawlen</button></form>`;
+        ? `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein" disabled data-crawlen="${g.id}">jetzt crawlen</button></form>`
+        : `<form method="post" action="/gebiete/${g.id}/aktualisieren"><button class="klein" data-crawlen="${g.id}">jetzt crawlen</button></form>`;
       const loeschen = `<form method="post" action="/gebiete/${g.id}/loeschen" data-name="${escapeHtml(g.name)}"
           onsubmit="return confirm('Gebiet „' + this.dataset.name + '“ endgültig löschen? Die Crawl-Historie des Gebiets geht dabei verloren.')"><button class="klein kritisch">löschen</button></form>`;
       const status = laufende.has(g.id)
         ? CRAWL_BADGE
         : `<span class="status-badge status-${g.aktiv ? 'aktiv' : 'inaktiv'}">${g.aktiv ? 'aktiv' : 'inaktiv'}</span>`;
-      return `      <tr>
+      return `      <tr data-gebiet-id="${g.id}" data-aktiv="${g.aktiv ? '1' : '0'}">
         <td><a href="/gebiete/${g.id}">${escapeHtml(g.name)}</a></td>
         <td class="meta">${escapeHtml(kriterienZusammenfassung(g.kriterien))}</td>
         ${zuletztGecrawltZelle(g, letzteLaeufe.get(g.id))}
-        <td>${status}</td>
+        <td class="status-zelle">${status}</td>
         <td><div class="aktionen">${crawlen}${schalter}${loeschen}</div></td>
       </tr>`;
     })
     .join('\n');
   return `    <div class="tabelle-scroll">
-    <table class="historie">
+    <table class="historie" id="gebiete-tabelle">
       <thead><tr><th scope="col">Gebiet</th><th scope="col">Kriterien</th><th scope="col">Zuletzt gecrawlt</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
       <tbody>
 ${zeilen}
@@ -157,6 +180,33 @@ ${bereichsPruefungJs('form')}
       })(this);
       if (!gueltig) e.preventDefault();
     });
+
+    // Live-Update der Zeilen-Badges bei laufenden Crawls: statt Meta-Refresh
+    // (der das Formular oben leeren würde) hört die Seite auf den globalen
+    // Aktivitäts-Poll und tauscht in-place die Status-Zelle und den Zustand
+    // des „jetzt crawlen"-Buttons je Gebiet aus.
+    (function () {
+      const tabelle = document.getElementById('gebiete-tabelle');
+      if (!tabelle) return;
+      // Beim ersten Poll ist die Aktivität die Wahrheit – auch Zeilen, die
+      // server-seitig als „aktiv" gerendert wurden, können jetzt schon laufen.
+      document.addEventListener('aktivitaet-aenderung', function (e) {
+        const laufend = new Set(e.detail.crawls.map(function (c) { return c.gebietId; }));
+        tabelle.querySelectorAll('tr[data-gebiet-id]').forEach(function (tr) {
+          const id = Number(tr.dataset.gebietId);
+          const aktiv = tr.dataset.aktiv === '1';
+          const zelle = tr.querySelector('.status-zelle');
+          const knopf = tr.querySelector('button[data-crawlen]');
+          if (laufend.has(id)) {
+            zelle.innerHTML = '<span class="status-badge status-laufend">Crawl läuft</span>';
+            if (knopf) knopf.disabled = true;
+          } else {
+            zelle.innerHTML = '<span class="status-badge status-' + (aktiv ? 'aktiv' : 'inaktiv') + '">' + (aktiv ? 'aktiv' : 'inaktiv') + '</span>';
+            if (knopf) knopf.disabled = false;
+          }
+        });
+      });
+    })();
   </script>`,
     { aktiv: 'gebiete', extraCss: FORMULAR_CSS + FRISCHE_CSS },
   );
@@ -165,8 +215,9 @@ ${bereichsPruefungJs('form')}
 /** Platzhalter, solange noch kein Crawl-Lauf des Gebiets fertig ist. */
 export function renderGebietOhneDatenSeite(gebiet: Gebiet, crawlLaeuft: boolean): string {
   const stand = crawlLaeuft
-    ? `    <p class="meta" role="status">${CRAWL_BADGE} Der erste Crawl-Lauf ist gestartet –
-    das dauert ein paar Sekunden. Die Seite aktualisiert sich automatisch.</p>`
+    ? `    <div class="fortschritt" role="progressbar" aria-label="Crawl läuft" aria-valuetext="unbestimmt" style="margin-bottom: 12px;"></div>
+    <p class="meta" role="status">${CRAWL_BADGE} · Der erste Crawl-Lauf ist gestartet.
+    Die Seite aktualisiert sich automatisch, sobald er fertig ist.</p>`
     : `    <p class="meta">Noch keine Daten – der erste Crawl-Lauf dieses Gebiets steht aus
     (der Scheduler crawlt aktive Gebiete einmal täglich, spätestens beim nächsten Tick).</p>
     <form method="post" action="/gebiete/${gebiet.id}/aktualisieren">
@@ -179,7 +230,7 @@ export function renderGebietOhneDatenSeite(gebiet: Gebiet, crawlLaeuft: boolean)
     <p>${escapeHtml(kriterienZusammenfassung(gebiet.kriterien))}</p>
 ${stand}
   </section>`,
-    { aktiv: 'gebiete', kopfExtra: refreshBeiCrawl(crawlLaeuft) },
+    { aktiv: 'gebiete', kopfExtra: refreshBeiCrawl(crawlLaeuft, gebiet.id) },
   );
 }
 
@@ -425,6 +476,7 @@ export function renderGebietSeite(
       </form>
       ${crawlLaeuft ? `<p role="status">${CRAWL_BADGE}</p>` : ''}
     </div>
+    ${crawlLaeuft ? '<div class="fortschritt" role="progressbar" aria-label="Crawl läuft" aria-valuetext="unbestimmt" style="margin-top: 8px;"></div>' : ''}
   </header>
 
   <section>
@@ -501,7 +553,14 @@ ${laeufeTabelle(daten.laeufe)}
   const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  // Reduzierte Bewegung → keine Chart-Einblend-Animation. Sonst ein kurzer,
+  // ruhiger Fade (300 ms ease-out) beim ersten Zeichnen – lang genug, dass die
+  // Linie „gefunden" wirkt, kurz genug, dass niemand darauf wartet. Beim
+  // Theme-Wechsel (renderAll erneut) wird die Animation unterdrückt, sonst
+  // würde jedes Umschalten Licht/Dunkel eine neue Animation auslösen.
+  const reduziert = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let charts = [];
+  let ersterZeichnung = true;
 
   function linie(canvasId, werte, anzahlen, farbeVar, format) {
     return new Chart(document.getElementById(canvasId), {
@@ -519,7 +578,7 @@ ${laeufeTabelle(daten.laeufe)}
         }],
       },
       options: {
-        animation: false,
+        animation: reduziert || !ersterZeichnung ? false : { duration: 300, easing: 'easeOutQuart' },
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false }, // eine Serie: Panel-Titel benennt sie
@@ -549,6 +608,7 @@ ${laeufeTabelle(daten.laeufe)}
       linie('trend-miete', TREND.map((t) => t.medianMieteEurM2), TREND.map((t) => t.anzahlMiete),
         '--series-miete', (v) => nfEur2.format(v)),
     ];
+    ersterZeichnung = false;
   }
 
   renderAll();
@@ -560,6 +620,6 @@ ${laeufeTabelle(daten.laeufe)}
     breite: 'breit',
     aktiv: 'gebiete',
     extraCss: GEBIET_CSS + FRISCHE_CSS,
-    kopfExtra: refreshBeiCrawl(crawlLaeuft),
+    kopfExtra: refreshBeiCrawl(crawlLaeuft, gebiet.id),
   });
 }

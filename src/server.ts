@@ -16,6 +16,7 @@ import {
   gebietLaden,
   gebietLoeschen,
   laufendeCrawls,
+  laufendeCrawlsMitNamen,
   letzteFertigeLaeufe,
   letzterFertigerLauf,
   zombieCrawlLaeufeBereinigen,
@@ -24,6 +25,7 @@ import {
 import { wendeMigrationenAn } from './db/migrieren.js';
 import {
   inserateLaden,
+  laufendeSuchen,
   sucheAnlegen,
   sucheLaden,
   suchenAuflisten,
@@ -37,6 +39,7 @@ import {
 } from './pages/gebiete-pages.js';
 import { renderFehlerSeite, renderKeineTrefferSeite, renderSearchPage } from './pages/search-page.js';
 import {
+  kriterienZusammenfassung,
   renderFehlgeschlagenSeite,
   renderHistorieSeite,
   renderLaufendSeite,
@@ -255,6 +258,17 @@ const server = createServer((req, res) => {
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       sende(res, 405, renderFehlerSeite(405, 'Diese Methode wird nicht unterstützt.'));
+      return;
+    }
+
+    if (url.pathname === '/api/laufend') {
+      // Kompakte Antwort für den Aktivitäts-Indikator im Kopf: welche Suchen
+      // und welche Gebiets-Crawls laufen gerade? Client pollt alle paar Sekunden.
+      const [suchen, crawls] = await Promise.all([laufendeSuchen(), laufendeCrawlsMitNamen()]);
+      sendeJson(res, 200, {
+        suchen: suchen.map((s) => ({ id: s.id, beschreibung: kriterienZusammenfassung(s.kriterien) })),
+        crawls,
+      });
       return;
     }
 
