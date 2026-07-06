@@ -76,4 +76,58 @@ describe('analyze', () => {
     const a = inserat({ typ: 'kauf', preis: 150000, flaeche_m2: 50 });
     expect(() => analyze([a, { ...a }])).toThrow(/Doppelte Inserats-ID/);
   });
+
+  describe('mit externer Gruppen-Zuordnung (gruppeVon)', () => {
+    type Getaggt = Inserat & { gebietName: string };
+    const getaggt = (
+      gebietName: string,
+      overrides: Partial<Inserat> & Pick<Inserat, 'typ' | 'preis' | 'flaeche_m2'>,
+    ): Getaggt => ({ ...inserat(overrides), gebietName });
+
+    it('gruppiert nach der Zuordnung statt nach Ort', () => {
+      const ergebnis = analyze(
+        [
+          getaggt('Kärnten gesamt', { ort: 'Villach', typ: 'kauf', preis: 150000, flaeche_m2: 50 }),
+          getaggt('Kärnten gesamt', { ort: 'Feldkirchen', typ: 'kauf', preis: 110000, flaeche_m2: 50 }),
+          getaggt('Klagenfurt Zentrum', { ort: 'Klagenfurt', typ: 'kauf', preis: 200000, flaeche_m2: 50 }),
+        ],
+        (i) => i.gebietName,
+      );
+      expect(ergebnis.gebiete.map((g) => g.gebiet)).toEqual(['Kärnten gesamt', 'Klagenfurt Zentrum']);
+      expect(ergebnis.gebiete[0]!.kauf!.anzahl).toBe(2);
+    });
+
+    it('erlaubt dieselbe ID in zwei Gruppen (überlappende Gebiete)', () => {
+      const a = inserat({ id: 'DOPPELT', typ: 'kauf', preis: 150000, flaeche_m2: 50 });
+      const ergebnis = analyze(
+        [
+          { ...a, gebietName: 'Gebiet A' },
+          { ...a, gebietName: 'Gebiet B' },
+        ],
+        (i) => i.gebietName,
+      );
+      expect(ergebnis.gebiete.map((g) => g.gebiet)).toEqual(['Gebiet A', 'Gebiet B']);
+      expect(ergebnis.gebiete[0]!.kauf!.anzahl).toBe(1);
+      expect(ergebnis.gebiete[1]!.kauf!.anzahl).toBe(1);
+      expect(ergebnis.inserate.filter((i) => i.id === 'DOPPELT')).toHaveLength(2);
+    });
+
+    it('wirft weiterhin bei doppelter ID innerhalb einer Gruppe', () => {
+      const a = getaggt('Gebiet A', { typ: 'kauf', preis: 150000, flaeche_m2: 50 });
+      expect(() => analyze([a, { ...a }], (i) => i.gebietName)).toThrow(/Doppelte Inserats-ID/);
+    });
+
+    it('setzt PLZ und Bezirk nur, wenn sie in der Gruppe einheitlich sind', () => {
+      const ergebnis = analyze(
+        [
+          getaggt('Gemischt', { ort: 'Villach', plz: '9500', bezirk: 'Villach Stadt', typ: 'kauf', preis: 150000, flaeche_m2: 50 }),
+          getaggt('Gemischt', { ort: 'Feldkirchen', plz: '9560', bezirk: 'Feldkirchen', typ: 'kauf', preis: 110000, flaeche_m2: 50 }),
+          getaggt('Einheitlich', { ort: 'Klagenfurt', plz: '9020', bezirk: 'Klagenfurt Stadt', typ: 'kauf', preis: 200000, flaeche_m2: 50 }),
+        ],
+        (i) => i.gebietName,
+      );
+      expect(ergebnis.gebiete[1]!).toMatchObject({ gebiet: 'Gemischt', plz: '', bezirk: '' });
+      expect(ergebnis.gebiete[0]!).toMatchObject({ gebiet: 'Einheitlich', plz: '9020', bezirk: 'Klagenfurt Stadt' });
+    });
+  });
 });
