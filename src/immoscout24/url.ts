@@ -11,6 +11,14 @@ const KATEGORIE: Record<InseratTyp, string> = {
   miete: 'wohnung-mieten',
 };
 
+// Am 2026-07-06 gegen die Live-Suche verifiziert: livingSpaceFrom/To antwortet
+// mit HTTP 404 – wirksam sind primaryArea* und numberOfRooms* (Trefferzahl
+// sinkt entsprechend, Filter überleben die /seite-N-Pagination).
+const PARAM_FLAECHE_VON = 'primaryAreaFrom';
+const PARAM_FLAECHE_BIS = 'primaryAreaTo';
+const PARAM_ZIMMER_VON = 'numberOfRoomsFrom';
+const PARAM_ZIMMER_BIS = 'numberOfRoomsTo';
+
 /**
  * Baut die immoscout24-Such-URLs zu den Kriterien: eine pro Typ (bei "beide"
  * also zwei). Der Preisfilter (primaryPriceFrom/To) wird wie bei willhaben
@@ -30,6 +38,11 @@ export function buildSearchUrls(kriterien: SuchKriterien): SuchUrl[] {
       if (kriterien.preisMin !== undefined) url.searchParams.set('primaryPriceFrom', String(kriterien.preisMin));
       if (kriterien.preisMax !== undefined) url.searchParams.set('primaryPriceTo', String(kriterien.preisMax));
     }
+    // Fläche/Zimmer gelten anders als der Preis für Kauf und Miete gleichermaßen.
+    if (kriterien.flaecheMin !== undefined) url.searchParams.set(PARAM_FLAECHE_VON, String(kriterien.flaecheMin));
+    if (kriterien.flaecheMax !== undefined) url.searchParams.set(PARAM_FLAECHE_BIS, String(kriterien.flaecheMax));
+    if (kriterien.zimmerMin !== undefined) url.searchParams.set(PARAM_ZIMMER_VON, String(kriterien.zimmerMin));
+    if (kriterien.zimmerMax !== undefined) url.searchParams.set(PARAM_ZIMMER_BIS, String(kriterien.zimmerMax));
     return { url: url.toString(), typ };
   });
 }
