@@ -1,19 +1,34 @@
 import type { BestandInserat } from '../db/bestand-repo.js';
-import type { CrawlLauf, Gebiet } from '../db/gebiete-repo.js';
+import type { CrawlLauf, FertigerLauf, Gebiet } from '../db/gebiete-repo.js';
 import { tageZwischen } from '../datum.js';
+import { ZIEL_RENDITE } from '../report.js';
 import {
   inseratSchluessel,
   type PreisAenderung,
+  type RenditeKennzahl,
   type TrendPunkt,
   type VermarktungsStatistik,
 } from '../trend.js';
+import {
+  aenderungsZelle,
+  datumMedium,
+  eurM2Wert,
+  fmtRendite,
+  inseratZelle,
+  nachEurM2,
+  nfEur0,
+  nfPct,
+  nfTage,
+  nfZeit,
+  nfZeitpunkt,
+} from './format.js';
 import { escapeHtml, FORMULAR_CSS, seite } from './layout.js';
 import { bereichsPruefungJs, formFehlerBlock, kriterienFelder, type FormFehler } from './search-page.js';
 import { kriterienZusammenfassung, STATUS_TEXT } from './suchen-pages.js';
 
 /** Verwaltungs- und Auswertungsseiten der Beobachtungsgebiete (Watchlist). */
 
-const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft</span>';
+export const CRAWL_BADGE = '<span class="status-badge status-laufend">Crawl läuft</span>';
 
 /**
  * Ab diesem Alter gilt der letzte Crawl eines aktiven Gebiets als überfällig.
@@ -32,6 +47,16 @@ const FRISCHE_CSS = `
 `;
 
 /**
+ * Die Übersicht rendert breit (die Tabelle trägt inzwischen sechs Spalten),
+ * aber das Anlege-Formular bleibt in Lesebreite – Formularfelder über 1080px
+ * wären unbedienbar lang.
+ */
+const UEBERSICHT_CSS = `
+  #gebietform { max-width: 560px; }
+  #gebiete-tabelle td:first-child { min-width: 180px; }
+`;
+
+/**
  * Auto-Refresh, solange ein Crawl läuft – nur für Seiten ohne Formular-Eingaben
  * (Gebiet-Detail/Platzhalter). Auf der Listen-Seite mit dem Anlege-Formular wäre
  * ein Reload Datenverlust: dort zeigt nur das Badge den Zustand.
@@ -41,7 +66,7 @@ const FRISCHE_CSS = `
  * dann neu, wenn dieses Gebiet in der Aktivität nicht mehr auftaucht – kein
  * sichtbares Flackern durch periodische Reloads.
  */
-function refreshBeiCrawl(crawlLaeuft: boolean, gebietId: number): string {
+export function refreshBeiCrawl(crawlLaeuft: boolean, gebietId: number): string {
   if (!crawlLaeuft) return '';
   return `<noscript><meta http-equiv="refresh" content="15"></noscript>
 <script>
@@ -63,18 +88,6 @@ function refreshBeiCrawl(crawlLaeuft: boolean, gebietId: number): string {
 `;
 }
 
-const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
-const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const nfTage = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
-const nfPct = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 });
-const nfZeit = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium' });
-const nfZeitpunkt = new Intl.DateTimeFormat('de-AT', { dateStyle: 'medium', timeStyle: 'short' });
-
-/** YYYY-MM-DD als lokales Datum formatieren (T00:00:00 verhindert UTC-Tagessprung). */
-function datumMedium(datum: string): string {
-  return nfZeit.format(new Date(`${datum}T00:00:00`));
-}
-
 function zuletztGecrawltZelle(gebiet: Gebiet, beendetAm: Date | undefined): string {
   if (!beendetAm) {
     // Nur bei aktiven Gebieten ist „noch nie" ein Problem – inaktive soll der
@@ -90,10 +103,49 @@ function zuletztGecrawltZelle(gebiet: Gebiet, beendetAm: Date | undefined): stri
   return `<td class="meta">${escapeHtml(nfZeitpunkt.format(beendetAm))}${marker}</td>`;
 }
 
+/** Kennzahlen eines Gebiets für die Übersichts-Tabelle (fehlt ohne fertigen Lauf). */
+export interface GebietKennzahlen {
+  aktive: number;
+  aktiveKauf: number;
+  aktiveMiete: number;
+  /** Median-€/m²-Bewegung der Leit-Serie ggü. der Vorwoche; null bei < 2 Trendpunkten. */
+  tendenz: { serie: 'kauf' | 'miete'; deltaProzent: number } | null;
+}
+
+/** Unterhalb dieser Bewegung (±%) gilt der Wochen-Median als stabil. */
+const TENDENZ_STABIL_PROZENT = 0.5;
+
+function aktiveZelle(g: Gebiet, k: GebietKennzahlen | undefined): string {
+  if (!k) return '<td class="num meta">–</td>';
+  const sub =
+    g.kriterien.typ === 'beide'
+      ? `<span class="sub">${k.aktiveKauf} Kauf · ${k.aktiveMiete} Miete</span>`
+      : '';
+  return `<td class="num">${k.aktive}${sub}</td>`;
+}
+
+/**
+ * Marktrichtung ist ein neutraler Fakt, kein Urteil – deshalb Tintenfarbe
+ * (Urteils-Regel); Pfeil und Vorzeichen tragen die Richtung auch ohne Farbe.
+ */
+function tendenzZelle(k: GebietKennzahlen | undefined): string {
+  if (!k || !k.tendenz) return '<td class="num meta">–</td>';
+  const { serie, deltaProzent } = k.tendenz;
+  const serieName = serie === 'kauf' ? 'Kauf' : 'Miete';
+  const sub = `<span class="sub">${serieName}, ggü. Vorwoche</span>`;
+  if (Math.abs(deltaProzent) < TENDENZ_STABIL_PROZENT) {
+    return `<td class="num">→ stabil${sub}</td>`;
+  }
+  const pfeil = deltaProzent > 0 ? '▲' : '▼';
+  const zeichen = deltaProzent > 0 ? '+' : '−';
+  return `<td class="num">${pfeil} ${zeichen}${nfPct.format(Math.abs(deltaProzent))} %${sub}</td>`;
+}
+
 function gebieteTabelle(
   gebiete: Gebiet[],
   laufende: Set<number>,
-  letzteLaeufe: Map<number, Date>,
+  letzteLaeufe: Map<number, FertigerLauf>,
+  kennzahlen: Map<number, GebietKennzahlen>,
 ): string {
   const zeilen = gebiete
     .map((g) => {
@@ -109,9 +161,10 @@ function gebieteTabelle(
         ? CRAWL_BADGE
         : `<span class="status-badge status-${g.aktiv ? 'aktiv' : 'inaktiv'}">${g.aktiv ? 'aktiv' : 'inaktiv'}</span>`;
       return `      <tr data-gebiet-id="${g.id}" data-aktiv="${g.aktiv ? '1' : '0'}">
-        <td><a href="/gebiete/${g.id}">${escapeHtml(g.name)}</a></td>
-        <td class="meta">${escapeHtml(kriterienZusammenfassung(g.kriterien))}</td>
-        ${zuletztGecrawltZelle(g, letzteLaeufe.get(g.id))}
+        <td><a href="/gebiete/${g.id}">${escapeHtml(g.name)}</a><span class="sub">${escapeHtml(kriterienZusammenfassung(g.kriterien))}</span></td>
+        ${aktiveZelle(g, kennzahlen.get(g.id))}
+        ${tendenzZelle(kennzahlen.get(g.id))}
+        ${zuletztGecrawltZelle(g, letzteLaeufe.get(g.id)?.beendetAm)}
         <td class="status-zelle">${status}</td>
         <td><div class="aktionen">${crawlen}${schalter}${loeschen}</div></td>
       </tr>`;
@@ -119,7 +172,7 @@ function gebieteTabelle(
     .join('\n');
   return `    <div class="tabelle-scroll">
     <table class="historie" id="gebiete-tabelle">
-      <thead><tr><th scope="col">Gebiet</th><th scope="col">Kriterien</th><th scope="col">Zuletzt gecrawlt</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
+      <thead><tr><th scope="col">Gebiet</th><th scope="col" class="num">Aktive Inserate</th><th scope="col" class="num">Tendenz €/m²</th><th scope="col">Zuletzt gecrawlt</th><th scope="col">Status</th><th scope="col"><span class="sr-nur">Aktionen</span></th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -130,13 +183,17 @@ ${zeilen}
 export function renderGebieteSeite(
   gebiete: Gebiet[],
   laufende: Set<number>,
-  letzteLaeufe: Map<number, Date>,
+  letzteLaeufe: Map<number, FertigerLauf>,
+  kennzahlen: Map<number, GebietKennzahlen>,
   fehler?: FormFehler,
 ): string {
   const liste =
     gebiete.length === 0
-      ? '    <p class="meta">Noch keine Beobachtungsgebiete – unten das erste anlegen.</p>'
-      : gebieteTabelle(gebiete, laufende, letzteLaeufe);
+      ? `    <p><strong>So funktioniert es:</strong> 1. Unten ein Gebiet mit Kriterien anlegen.
+    2. immo-radar crawlt es einmal täglich auf willhaben.at und immoscout24.at.
+    3. Nach den ersten Läufen entstehen Preisverlauf, Vermarktungsdauer und Bruttorendite –
+    je Gebiet auf seiner Detailseite.</p>`
+      : gebieteTabelle(gebiete, laufende, letzteLaeufe, kennzahlen);
   const nameWert = fehler?.werte.get('name')?.trim();
 
   return seite(
@@ -208,7 +265,7 @@ ${bereichsPruefungJs('form')}
       });
     })();
   </script>`,
-    { aktiv: 'gebiete', extraCss: FORMULAR_CSS + FRISCHE_CSS },
+    { aktiv: 'gebiete', breite: 'breit', extraCss: FORMULAR_CSS + FRISCHE_CSS + UEBERSICHT_CSS },
   );
 }
 
@@ -234,6 +291,13 @@ ${stand}
   );
 }
 
+/** Veränderungs-Zähler eines fertigen Laufs für die Läufe-Tabelle. */
+export interface LaufVeraenderungen {
+  neu: number;
+  delistet: number;
+  preise: number;
+}
+
 export interface GebietSeitenDaten {
   /** Datum des letzten erfolgreichen Laufs = Stand des Aktiv-Snapshots. */
   stichtag: string;
@@ -241,6 +305,8 @@ export interface GebietSeitenDaten {
   beendetAm: Date;
   trend: TrendPunkt[];
   vermarktung: { kauf: VermarktungsStatistik | null; miete: VermarktungsStatistik | null };
+  /** Bruttorendite der aktiven Inserate; null, wenn ein Typ fehlt. */
+  rendite: RenditeKennzahl | null;
   /** Am Stichtag aktive Inserate (Kriterien-gefiltert). */
   aktive: BestandInserat[];
   /** Kürzlich delistete Inserate (Fenster siehe Server), jüngste zuerst. */
@@ -252,6 +318,11 @@ export interface GebietSeitenDaten {
   /** true = ?inserate=alle, Tabellen ohne Zeilen-Cap rendern. */
   alleAnzeigen: boolean;
   laeufe: CrawlLauf[];
+  /**
+   * Veränderungs-Zähler je Lauf-ID (nur fertige Läufe mit bekanntem
+   * Vorgänger-Fenster – fehlende Einträge rendern als „–").
+   */
+  laufVeraenderungen: Map<number, LaufVeraenderungen>;
   /** Delistete gesamt (alle Zeiträume) – Kennzahl-Kachel. */
   anzahlDelisted: number;
 }
@@ -262,6 +333,37 @@ const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd
 const MAX_AKTIVE_ZEILEN = 50;
 const MAX_DELISTET_ZEILEN = 30;
 
+/**
+ * Bruttorendite-Kachel – das Urteil zuerst (Kachel-Reihenfolge). Nur für
+ * Gebiete mit typ=beide: die Kennzahl vergleicht Miet- und Kauf-Markt und
+ * ist ohne eine der beiden Seiten nicht anwendbar (dann keine Kachel statt
+ * Dauerstrich). Fehlen bei typ=beide die Daten eines Typs, sagt die Kachel
+ * das ehrlich, statt still zu verschwinden.
+ */
+function renditeKachel(gebiet: Gebiet, rendite: RenditeKennzahl | null): string {
+  if (gebiet.kriterien.typ !== 'beide') return '';
+  if (!rendite) {
+    return `      <div class="tile">
+        <div class="tile-label">Bruttorendite</div>
+        <div class="tile-value">–</div>
+        <div class="tile-sub">keine Kauf- oder Miet-Daten im aktiven Bestand</div>
+      </div>
+`;
+  }
+  const erreicht = rendite.brutto >= ZIEL_RENDITE;
+  const badge = erreicht
+    ? '<div class="tile-badge tile-badge-good">✓ Ziel ≥ 4 % erreicht</div>'
+    : '<div class="tile-badge">unter 4 %-Ziel</div>';
+  return `      <div class="tile${erreicht ? ' tile-good' : ''}">
+        <div class="tile-label">Bruttorendite</div>
+        <div class="tile-value">${escapeHtml(fmtRendite(rendite.brutto))}</div>
+        ${badge}
+        <div class="tile-sub">Median-Miete ×12 ÷ Median-Kaufpreis, je €/m²
+        (${rendite.anzahlKauf} Kauf-, ${rendite.anzahlMiete} Miet-Inserate)</div>
+      </div>
+`;
+}
+
 function vermarktungsWert(s: VermarktungsStatistik | null): string {
   if (!s) return '–';
   return `${nfTage.format(s.medianTage)} Tage`;
@@ -270,39 +372,6 @@ function vermarktungsWert(s: VermarktungsStatistik | null): string {
 function vermarktungsSub(s: VermarktungsStatistik | null): string {
   if (!s) return 'noch keine delisteten Inserate';
   return `Median aus ${s.anzahl} delisteten Inseraten (Ø ${nfTage.format(s.meanTage)} Tage)`;
-}
-
-function inseratZelle(i: BestandInserat): string {
-  const titel = `${i.ort} · ${nfEur0.format(i.zimmer)} Zi.`;
-  const link = i.url ? `<a href="${escapeHtml(i.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
-  return `<td>${link}<span class="sub">${i.typ === 'kauf' ? 'Kauf' : 'Miete'} · ${escapeHtml(i.id)}</span></td>`;
-}
-
-/** €/m² – Kauf ganzzahlig, Miete mit 2 Nachkommastellen (wie die Chart-Achsen). */
-function eurM2Wert(i: BestandInserat): string {
-  if (i.flaeche_m2 <= 0) return '–';
-  const wert = i.preis / i.flaeche_m2;
-  return i.typ === 'kauf' ? nfEur0.format(wert) : nfEur2.format(wert);
-}
-
-function aenderungsZelle(a: PreisAenderung | undefined): string {
-  if (!a || a.neuerPreis === a.alterPreis) return '<td class="num meta">–</td>';
-  const delta = a.neuerPreis - a.alterPreis;
-  const prozent = (Math.abs(delta) / a.alterPreis) * 100;
-  // Käufer-Perspektive: Senkung = Chance (grün), Erhöhung = kritisch. Das
-  // Vorzeichen trägt das Urteil auch ohne Farbe.
-  const klasse = delta < 0 ? 'gesenkt' : 'gestiegen';
-  const zeichen = delta < 0 ? '−' : '+';
-  return `<td class="num"><span class="${klasse}">${zeichen}${nfPct.format(prozent)} % (${zeichen}${nfEur0.format(Math.abs(delta))} €)</span><span class="sub">${escapeHtml(datumMedium(a.geaendertAm))}</span></td>`;
-}
-
-/** Aufsteigend nach €/m² – günstigster Quadratmeterpreis zuerst; ohne Fläche ans Ende. */
-function nachEurM2(inserate: BestandInserat[]): BestandInserat[] {
-  return [...inserate].sort((a, b) => {
-    const ea = a.flaeche_m2 > 0 ? a.preis / a.flaeche_m2 : Infinity;
-    const eb = b.flaeche_m2 > 0 ? b.preis / b.flaeche_m2 : Infinity;
-    return ea - eb;
-  });
 }
 
 function aktiveTabelle(
@@ -396,20 +465,39 @@ ${zeilen}
     </div>${hinweis}`;
 }
 
-function laeufeTabelle(laeufe: CrawlLauf[]): string {
+/** Kompakter Veränderungs-Text einer Lauf-Zeile, z. B. „5 neu · 2 delistet · 1 Preis". */
+function veraenderungsZelle(v: LaufVeraenderungen | undefined): string {
+  if (!v) return '<td class="meta">–</td>';
+  if (v.neu === 0 && v.delistet === 0 && v.preise === 0) {
+    return '<td class="meta">keine</td>';
+  }
+  const teile = [
+    `${v.neu} neu`,
+    `${v.delistet} delistet`,
+    `${v.preise} ${v.preise === 1 ? 'Preis' : 'Preise'}`,
+  ];
+  return `<td>${teile.join(' · ')}</td>`;
+}
+
+function laeufeTabelle(
+  gebiet: Gebiet,
+  laeufe: CrawlLauf[],
+  veraenderungen: Map<number, LaufVeraenderungen>,
+): string {
   const zeilen = laeufe
     .map(
       (l) => `      <tr>
-        <td>${escapeHtml(l.laufDatum)}</td>
+        <td><a href="/gebiete/${gebiet.id}/laeufe/${l.id}">${escapeHtml(datumMedium(l.laufDatum))}</a></td>
         <td><span class="status-badge status-${l.status}">${STATUS_TEXT[l.status]}</span></td>
         <td class="num">${l.inserateGesehen ?? ''}</td>
+        ${veraenderungsZelle(veraenderungen.get(l.id))}
         <td class="meta">${l.fehler ? escapeHtml(l.fehler) : escapeHtml(l.quellen.join(' · '))}</td>
       </tr>`,
     )
     .join('\n');
   return `    <div class="tabelle-scroll">
     <table>
-      <thead><tr><th scope="col">Tag</th><th scope="col">Status</th><th scope="col" class="num">Inserate</th><th scope="col">Quellen / Fehler</th></tr></thead>
+      <thead><tr><th scope="col">Tag</th><th scope="col">Status</th><th scope="col" class="num">Inserate</th><th scope="col">Veränderungen</th><th scope="col">Quellen / Fehler</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -436,17 +524,18 @@ function trendSektion(trend: TrendPunkt[]): string {
 
 /** Seitenspezifisches CSS der Gebiets-Auswertung (Tiles, Charts, Kopf-Aktionen). */
 const GEBIET_CSS = `
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
   .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; }
   .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
+  .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .tile-badge-good { color: var(--good-text); font-weight: 600; }
   .tile-sub { font-size: 12px; color: var(--text-secondary); }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }
-  .gesenkt { color: var(--status-good); font-weight: 600; }
-  .gestiegen { color: var(--status-critical); font-weight: 600; }
   .unterkopf { font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
   .kopf-aktionen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .kopf-aktionen p { margin: 0; }
@@ -481,15 +570,15 @@ export function renderGebietSeite(
 
   <section>
     <div class="tiles">
-      <div class="tile">
+${renditeKachel(gebiet, daten.rendite)}      <div class="tile">
         <div class="tile-label">Aktive Inserate</div>
         <div class="tile-value">${daten.aktive.length}</div>
-        <div class="tile-sub">zuletzt gesehen am Stichtag</div>
+        <div class="tile-sub">im letzten Crawl gesehen (Stand ${escapeHtml(datumMedium(daten.stichtag))})</div>
       </div>
       <div class="tile">
         <div class="tile-label">Delistet</div>
         <div class="tile-value">${daten.anzahlDelisted}</div>
-        <div class="tile-sub">vermutlich verkauft/vermietet</div>
+        <div class="tile-sub">vermutlich verkauft/vermietet – ein Näherungswert</div>
       </div>
       <div class="tile">
         <div class="tile-label">Vermarktungsdauer Kauf</div>
@@ -502,36 +591,41 @@ export function renderGebietSeite(
         <div class="tile-sub">${vermarktungsSub(daten.vermarktung.miete)}</div>
       </div>
     </div>
+    <p class="meta" style="margin-bottom: 0;">Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a></p>
   </section>
 
   <section>
     <h2>Median €/m² über die Zeit</h2>
+    <p class="meta">Wochenraster; Median der am Stichtag aktiven Inserate, Preise aus der
+    Preishistorie. <a href="/methodik#median-trend">Details</a></p>
 ${trendSektion(daten.trend)}
   </section>
 
   <section>
     <h2>Aktive Inserate</h2>
+    <p class="meta">Aktiv = im letzten erfolgreichen Lauf gesehen; €/m² = Preis ÷ Wohnfläche.
+    <a href="/methodik#aktive-inserate">Details</a></p>
 ${aktiveSektion(gebiet, daten)}
   </section>
 
   <section>
     <h2>Kürzlich delistet (letzte ${daten.delistetFensterTage} Tage)</h2>
+    <p class="meta">Delisting ist ein Näherungswert für verkauft/vermietet – Inserate können
+    auch zurückgezogen worden sein. <a href="/methodik#delistet">Details</a></p>
 ${delisteteSektion(daten)}
   </section>
 
   <section>
     <h2>Letzte Crawl-Läufe</h2>
-${laeufeTabelle(daten.laeufe)}
+    <p class="meta">Jeder Tag verlinkt seine Veränderungen: neue Inserate, Delistings,
+    Preisänderungen.</p>
+${laeufeTabelle(gebiet, daten.laeufe, daten.laufVeraenderungen)}
   </section>
 
   <footer>
-    <p><strong>Methodik:</strong> Aktiv = im letzten erfolgreichen Crawl-Lauf gesehen
-      (Bestand, Stand ${escapeHtml(daten.stichtag)}); Delisting ist nur
-      ein Proxy für verkauft/vermietet (Inserate können auch zurückgezogen worden sein).
-      Vermarktungsdauer = zuletzt − zuerst gesehen; Inserate aus dem allerersten Crawl sind dabei
-      nur begrenzt aussagekräftig („links-zensiert“: sie waren evtl. schon vor dem ersten Crawl online).
-      Trend: Median €/m² der am Stichtag aktiven Inserate, Wochenraster, Preise aus der
-      Preishistorie rekonstruiert. Preisänderungen: letzte Änderung laut Preishistorie (tagesgenau).</p>
+    <p><strong>Methodik:</strong> Stichtag aller Kennzahlen ist der letzte erfolgreiche
+      Crawl-Lauf (${escapeHtml(datumMedium(daten.stichtag))}). Delisting bleibt ein Näherungswert –
+      alle Formeln und Grenzen: <a href="/methodik">Methodik</a>.</p>
     <p>Erstellt ${escapeHtml(nfZeit.format(new Date()))} · Datenbasis: willhaben.at + immoscout24.at,
       ohne portal-übergreifende Deduplizierung.</p>
   </footer>

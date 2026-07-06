@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   bestandLaden,
+  bestandSeiteLaden,
   bestandUpsert,
+  preisHistorieFuerInserate,
   preisHistorieLaden,
 } from '../src/db/bestand-repo.js';
 import { holePool, schliessePool } from '../src/db/client.js';
@@ -11,6 +13,7 @@ import {
   crawlLaufBeanspruchen,
   crawlLaufErzwingen,
   crawlLaufFehlgeschlagen,
+  crawlLaufLaden,
   gebietAktivieren,
   gebietAnlegen,
   gebietDeaktivieren,
@@ -18,6 +21,7 @@ import {
   gebietLaden,
   letzteFertigeLaeufe,
   letzterFertigerLauf,
+  letzterFertigerLaufVor,
   zombieCrawlLaeufeBereinigen,
 } from '../src/db/gebiete-repo.js';
 import { wendeMigrationenAn } from '../src/db/migrieren.js';
@@ -125,6 +129,116 @@ describe.runIf(!!process.env.DATABASE_URL)('beobachtung (Integration)', () => {
     });
   });
 
+  describe('bestandSeiteLaden', () => {
+    it('paginiert stabil ohne Doppler oder Lücken', async () => {
+      await bestandUpsert(
+        // gleicher Preis + gleiches Datum überall → nur der Tiebreaker ordnet
+        ['a', 'b', 'c', 'd', 'e'].map((id) => inserat(`wh-${id}`)),
+        'kaernten',
+        '2026-07-01',
+      );
+
+      const seite1 = await bestandSeiteLaden({}, 'zuletzt_gesehen', 2, 0);
+      const seite2 = await bestandSeiteLaden({}, 'zuletzt_gesehen', 2, 2);
+      const seite3 = await bestandSeiteLaden({}, 'zuletzt_gesehen', 2, 4);
+      const ids = [...seite1.inserate, ...seite2.inserate, ...seite3.inserate].map((i) => i.id);
+      expect(ids).toEqual(['wh-a', 'wh-b', 'wh-c', 'wh-d', 'wh-e']);
+      expect(seite1.gesamt).toBe(5);
+    });
+
+    it('markiert aktiv je Bundesland-Stichtag und filtert danach', async () => {
+      await bestandUpsert([inserat('wh-alt')], 'kaernten', '2026-07-01');
+      await bestandUpsert([inserat('wh-neu')], 'kaernten', '2026-07-03');
+      // Wien hat einen älteren Stichtag – dort ist der 01.07. trotzdem aktiv
+      await bestandUpsert([inserat('wh-wien')], 'wien', '2026-07-01');
+
+      const alle = await bestandSeiteLaden({}, 'zuletzt_gesehen', 10, 0);
+      expect(
+        Object.fromEntries(alle.inserate.map((i) => [i.id, i.aktiv])),
+      ).toEqual({ 'wh-alt': false, 'wh-neu': true, 'wh-wien': true });
+
+      const aktive = await bestandSeiteLaden({ status: 'aktiv' }, 'zuletzt_gesehen', 10, 0);
+      expect(aktive.inserate.map((i) => i.id).sort()).toEqual(['wh-neu', 'wh-wien']);
+      expect(aktive.gesamt).toBe(2);
+
+      const delistete = await bestandSeiteLaden({ status: 'delistet' }, 'zuletzt_gesehen', 10, 0);
+      expect(delistete.inserate.map((i) => i.id)).toEqual(['wh-alt']);
+    });
+
+    it('filtert Bundesland, Typ und Ort (case-insensitiv über Ort/PLZ/Bezirk)', async () => {
+      await bestandUpsert(
+        [
+          inserat('wh-1'),
+          { ...inserat('wh-2'), typ: 'miete' as const, preis: 900 },
+          { ...inserat('wh-3'), ort: 'Seeboden', plz: '9871', bezirk: 'Spittal' },
+        ],
+        'kaernten',
+        '2026-07-01',
+      );
+      await bestandUpsert([inserat('wh-4')], 'wien', '2026-07-01');
+
+      const kaernten = await bestandSeiteLaden({ bundesland: 'kaernten' }, 'preis', 10, 0);
+      expect(kaernten.gesamt).toBe(3);
+      expect(kaernten.inserate[0]?.bundesland).toBe('kaernten');
+
+      const miete = await bestandSeiteLaden({ typ: 'miete' }, 'preis', 10, 0);
+      expect(miete.inserate.map((i) => i.id)).toEqual(['wh-2']);
+
+      const spittal = await bestandSeiteLaden({ ort: 'spittal' }, 'preis', 10, 0);
+      expect(spittal.inserate.map((i) => i.id)).toEqual(['wh-3']);
+    });
+
+    it('escapet ILIKE-Sonderzeichen in der Ort-Suche', async () => {
+      await bestandUpsert(
+        [{ ...inserat('wh-1'), ort: 'Villach 100%' }, { ...inserat('wh-2'), ort: 'Villach' }],
+        'kaernten',
+        '2026-07-01',
+      );
+      const treffer = await bestandSeiteLaden({ ort: '100%' }, 'preis', 10, 0);
+      expect(treffer.inserate.map((i) => i.id)).toEqual(['wh-1']);
+      // „_" darf nicht als Wildcard wirken
+      expect((await bestandSeiteLaden({ ort: 'V_llach' }, 'preis', 10, 0)).gesamt).toBe(0);
+    });
+
+    it('sortiert nach €/m² mit flächenlosen Inseraten am Ende', async () => {
+      await bestandUpsert(
+        [
+          { ...inserat('wh-teuer', 300000), flaeche_m2: 50 }, // 6000 €/m²
+          { ...inserat('wh-billig', 200000), flaeche_m2: 100 }, // 2000 €/m²
+          { ...inserat('wh-ohne', 100000), flaeche_m2: 0 },
+        ],
+        'kaernten',
+        '2026-07-01',
+      );
+      const seite = await bestandSeiteLaden({}, 'eur_m2', 10, 0);
+      expect(seite.inserate.map((i) => i.id)).toEqual(['wh-billig', 'wh-teuer', 'wh-ohne']);
+    });
+
+    it('liefert jenseits der letzten Seite eine leere Liste mit korrektem gesamt', async () => {
+      await bestandUpsert([inserat('wh-1')], 'kaernten', '2026-07-01');
+      const seite = await bestandSeiteLaden({}, 'zuletzt_gesehen', 50, 100);
+      expect(seite.inserate).toEqual([]);
+      expect(seite.gesamt).toBe(1);
+    });
+  });
+
+  describe('preisHistorieFuerInserate', () => {
+    it('liefert nur die Historie der übergebenen Inserate, chronologisch', async () => {
+      await bestandUpsert([inserat('wh-1', 200000), inserat('wh-2', 100000)], 'kaernten', '2026-07-01');
+      await bestandUpsert([inserat('wh-1', 190000), inserat('wh-2', 90000)], 'kaernten', '2026-07-05');
+
+      const historie = await preisHistorieFuerInserate([{ portal: 'willhaben.at', id: 'wh-1' }]);
+      expect(historie.map((p) => [p.inseratId, p.preis])).toEqual([
+        ['wh-1', 200000],
+        ['wh-1', 190000],
+      ]);
+    });
+
+    it('liefert für eine leere Liste sofort ein leeres Array', async () => {
+      expect(await preisHistorieFuerInserate([])).toEqual([]);
+    });
+  });
+
   describe('gebiete-repo', () => {
     it('anlegen → laden → deaktivieren/aktivieren Roundtrip', async () => {
       const id = await gebietAnlegen('Villach Zentrum', KRITERIEN);
@@ -198,7 +312,8 @@ describe.runIf(!!process.env.DATABASE_URL)('beobachtung (Integration)', () => {
       expect(laufend).toBeTypeOf('number'); // bleibt „laufend" → zählt nicht
 
       const laeufe = await letzteFertigeLaeufe();
-      expect(laeufe.get(mitLauf)).toBeInstanceOf(Date);
+      expect(laeufe.get(mitLauf)?.laufDatum).toBe('2026-07-01');
+      expect(laeufe.get(mitLauf)?.beendetAm).toBeInstanceOf(Date);
       expect(laeufe.has(ohneLauf)).toBe(false);
     });
 
@@ -212,6 +327,39 @@ describe.runIf(!!process.env.DATABASE_URL)('beobachtung (Integration)', () => {
       const laeufe = await crawlLaeufeAuflisten(gebietId, 2);
       expect(laeufe.map((l) => l.laufDatum)).toEqual(['2026-07-03', '2026-07-02']);
       expect(laeufe[0]).toMatchObject({ status: 'fertig', inserateGesehen: 1 });
+    });
+
+    it('crawlLaufLaden liefert den Lauf nur im eigenen Gebiet – fremde IDs ⇒ undefined', async () => {
+      const meins = await gebietAnlegen('Villach', KRITERIEN);
+      const fremd = await gebietAnlegen('Klagenfurt', KRITERIEN);
+      const laufId = await crawlLaufBeanspruchen(meins, '2026-07-03');
+      await crawlLaufAbschliessen(laufId!, ['quelle A'], 5);
+
+      const lauf = await crawlLaufLaden(meins, laufId!);
+      expect(lauf).toMatchObject({
+        id: laufId,
+        gebietId: meins,
+        laufDatum: '2026-07-03',
+        status: 'fertig',
+        quellen: ['quelle A'],
+        inserateGesehen: 5,
+      });
+      expect(await crawlLaufLaden(fremd, laufId!)).toBeUndefined();
+      expect(await crawlLaufLaden(meins, 99999)).toBeUndefined();
+    });
+
+    it('letzterFertigerLaufVor findet den jüngsten fertigen Lauf strikt vor dem Datum', async () => {
+      const gebietId = await gebietAnlegen('Villach', KRITERIEN);
+      for (const tag of ['2026-07-01', '2026-07-03']) {
+        const id = await crawlLaufBeanspruchen(gebietId, tag);
+        await crawlLaufAbschliessen(id!, [], 1);
+      }
+      const fehlgeschlagen = await crawlLaufBeanspruchen(gebietId, '2026-07-02');
+      await crawlLaufFehlgeschlagen(fehlgeschlagen!, 'Timeout');
+
+      // Der fehlgeschlagene 02.07. zählt nicht, der 03.07. liegt nicht strikt davor.
+      expect((await letzterFertigerLaufVor(gebietId, '2026-07-03'))?.laufDatum).toBe('2026-07-01');
+      expect(await letzterFertigerLaufVor(gebietId, '2026-07-01')).toBeUndefined();
     });
 
     it('räumt laufende Zombie-Läufe beim Start ab', async () => {

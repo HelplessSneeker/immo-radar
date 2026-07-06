@@ -228,13 +228,52 @@ export async function letzterFertigerLauf(gebietId: number): Promise<FertigerLau
   return zeile ? { laufDatum: zeile.lauf_datum, beendetAm: zeile.beendet_am } : undefined;
 }
 
-/** Abschluss-Zeitpunkt des letzten erfolgreichen Laufs je Gebiet – ein Query für die Liste. */
-export async function letzteFertigeLaeufe(): Promise<Map<number, Date>> {
-  const { rows } = await holePool().query<{ gebiet_id: number; beendet_am: Date }>(
-    `SELECT gebiet_id, max(beendet_am) AS beendet_am
-     FROM crawl_laeufe WHERE status = 'fertig' GROUP BY gebiet_id`,
+/**
+ * Jüngster erfolgreicher Lauf STRIKT VOR einem Datum – die Vergleichsbasis
+ * für den Tages-Diff eines Laufs (was war beim vorigen Crawl noch da?).
+ */
+export async function letzterFertigerLaufVor(
+  gebietId: number,
+  datum: string,
+): Promise<FertigerLauf | undefined> {
+  const { rows } = await holePool().query<{ lauf_datum: string; beendet_am: Date }>(
+    `SELECT lauf_datum::text AS lauf_datum, beendet_am
+     FROM crawl_laeufe WHERE gebiet_id = $1 AND status = 'fertig' AND lauf_datum < $2
+     ORDER BY lauf_datum DESC LIMIT 1`,
+    [gebietId, datum],
   );
-  return new Map(rows.map((r) => [r.gebiet_id, r.beendet_am]));
+  const zeile = rows[0];
+  return zeile ? { laufDatum: zeile.lauf_datum, beendetAm: zeile.beendet_am } : undefined;
+}
+
+/** Letzter erfolgreicher Lauf je Gebiet (Stichtag + Abschluss) – ein Query für die Liste. */
+export async function letzteFertigeLaeufe(): Promise<Map<number, FertigerLauf>> {
+  const { rows } = await holePool().query<{
+    gebiet_id: number;
+    lauf_datum: string;
+    beendet_am: Date;
+  }>(
+    `SELECT DISTINCT ON (gebiet_id) gebiet_id, lauf_datum::text AS lauf_datum, beendet_am
+     FROM crawl_laeufe WHERE status = 'fertig'
+     ORDER BY gebiet_id, lauf_datum DESC`,
+  );
+  return new Map(
+    rows.map((r) => [r.gebiet_id, { laufDatum: r.lauf_datum, beendetAm: r.beendet_am }]),
+  );
+}
+
+/** Ein einzelner Lauf, scoped auf sein Gebiet – fremde Lauf-IDs liefern undefined (404). */
+export async function crawlLaufLaden(
+  gebietId: number,
+  laufId: number,
+): Promise<CrawlLauf | undefined> {
+  const { rows } = await holePool().query<CrawlLaufZeile>(
+    `SELECT id, gebiet_id, lauf_datum::text AS lauf_datum, status, quellen, fehler,
+            inserate_gesehen, gestartet_am, beendet_am
+     FROM crawl_laeufe WHERE id = $1 AND gebiet_id = $2`,
+    [laufId, gebietId],
+  );
+  return rows[0] ? crawlLaufAusZeile(rows[0]) : undefined;
 }
 
 export async function crawlLaeufeAuflisten(gebietId: number, limit: number): Promise<CrawlLauf[]> {

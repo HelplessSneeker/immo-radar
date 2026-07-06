@@ -162,8 +162,8 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Navbar (Hauptnavigation)
 - **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 12px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
-- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die drei Einträge **Beobachtungsgebiete** (`/`, die Startseite — das Herzstück der Anwendung steht vorn), **Suche** (`/suche`), **Suchhistorie** (`/suchen`) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um.
-- **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten dürfen ohne Markierung bleiben.
+- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die vier Einträge **Beobachtungsgebiete** (`/`, die Startseite — das Herzstück der Anwendung steht vorn), **Inserate** (`/inserate`, der Bestand entsteht aus den Gebieten und steht direkt dahinter), **Suche** (`/suche`), **Suchhistorie** (`/suchen`) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Vier Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
+- **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`) dürfen ohne Markierung bleiben.
 - **Ausnahme:** Statisch exportierte CLI-Reports rendern ohne Navbar — ihre Links liefen ohne laufenden Server ins Leere.
 - Quelle: `renderNavbar`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Navbar.
 
@@ -191,7 +191,18 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 - **Overflow:** Jede Tabelle liegt in einem `.tabelle-scroll`-Container (`overflow-x: auto`) — auf schmalen Viewports scrollt die Tabelle, nie die Seite.
 
 ### Status-Badges
-- **Style:** Reiner Text, 12px/600, kein Hintergrund, keine Pille. Farbe + Wortlaut tragen den Zustand gemeinsam: „läuft" (Blau), „fertig" (Grün), „fehlgeschlagen" (Rot), „inaktiv" (Tinte-leise).
+- **Style:** Reiner Text, 12px/600, kein Hintergrund, keine Pille. Farbe + Wortlaut tragen den Zustand gemeinsam: „läuft" (Blau), „fertig" (Grün), „fehlgeschlagen" (Rot), „inaktiv" und „delistet" (Tinte-leise — delistet ist kein Fehler, sondern ein neutraler Lebenszyklus-Zustand).
+
+### Seiten-Navigation (Blättern)
+- **Style:** `.seiten-nav` — reine Textlinks „← Zurück" / „Weiter →" (Akzent) links und rechts, dazwischen der Zähler „Seite 3 von 12 · 583 Inserate" als Meta-Text mit Tabellenziffern. Unter der Tabelle; bei mehreren Seiten zusätzlich eine Meta-Zähl-Zeile über der Tabelle.
+- **Regeln:** Keine Buttons, keine Seitenzahlenreihe. Am Rand (erste/letzte Seite) entfällt der jeweilige Link ersatzlos — kein ausgegrauter Disabled-Fake. Der Seitenstand lebt im Query-Parameter (`?seite=3`), Links bleiben teilbar.
+
+### Filterleiste
+- **Style:** `.filterleiste` — inline GET-Formular über Auswertungstabellen: Selects/Textfeld mit 600/13px-Labels darüber, abgeschlossen mit einem Ghost-Button „Filtern". Bricht per `flex-wrap` um.
+- **Regeln:** Filter sind GET-Parameter und funktionieren ohne JS; gesetzte Filter zeigen einen Textlink „Filter zurücksetzen". Eine Auswertungsseite hat keine Primäraktion — der Filter-Button bleibt Ghost.
+
+### Erklärzeilen (Kennzahl-Herkunft)
+- Jede Kennzahl-Sektion nennt ihre Datenbasis in einer Meta-Zeile direkt unter der h2 (ein Halbsatz, z. B. „Aktiv = im letzten erfolgreichen Lauf gesehen") und verlinkt den passenden Anker der `/methodik`-Seite („Details"). Kennzahl-Kacheln tragen die Kurzeinordnung in der `.tile-sub`; unter dem Kachel-Grid steht eine Zeile „Alle Kennzahlen erklärt → Methodik" statt eines Links pro Kachel. Keine `title`-Tooltips — nicht tastatur-/touch-tauglich.
 
 ### Charts (Signature)
 Chart.js mit striktem Token-Bezug: Serien lesen ihre Farben zur Laufzeit aus den CSS-Variablen (`--series-kauf` …), Grid in Raster-Farbe, Achsen in Basislinie, Ticks in Tinte-leise, Legende mit Punkt-Stil. Datenpunkte tragen einen 2px-Ring in Flächenfarbe; Ausreißer sind rote Rauten. Kauf und Miete bekommen getrennte Panels, weil die Skalen ~300× auseinanderliegen. Fällt das CDN aus, erscheint ein Hinweis — alle Werte stehen zusätzlich in den Tabellen.
@@ -211,7 +222,7 @@ Chart.js mit striktem Token-Bezug: Serien lesen ihre Farben zur Laufzeit aus den
 - **Don't** Immobilienportal-Optik: keine Foto-Kacheln, Marketing-Badges oder Dringlichkeits-Druck (Anti-Referenz aus PRODUCT.md).
 - **Don't** SaaS-Dashboard-Klischee: keine KPI-Kachel-Wände, Gradient-Akzente oder Icon-Karten-Raster (Anti-Referenz aus PRODUCT.md).
 - **Don't** Schatten verwenden — das System ist flach (Flach-Regel).
-- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel).
+- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel). Präzisierung: Die Preisänderung eines Inserats trägt ein Urteil (Senkung = Kaufchance, grün; Erhöhung rot) — die Markt-Tendenz eines Gebiets (Median-Bewegung, ▲/▼/→) ist dagegen ein neutraler Fakt und bleibt in Tintenfarbe; Pfeil und Vorzeichen tragen die Richtung ohne Farbe.
 - **Don't** farbige Seitenstreifen (`border-left` > 1px) an Karten, Zeilen oder Hinweisen.
 - **Don't** eine zweite Schriftfamilie einführen; Hierarchie kommt aus Größe und Gewicht.
 - **Don't** Tinte-leise (#898781) für Fließtext verwenden — es besteht den 4.5:1-Kontrast auf Papier nicht; nur für 600er Labels ≥13px oder unkritische Fußnoten.

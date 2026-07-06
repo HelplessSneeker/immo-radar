@@ -99,6 +99,10 @@ export const BASIS_CSS = `
   section {
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px;
+    /* Grid-Kind: ohne min-width 0 kann die Section nicht unter die
+       Tabellen-Eigenbreite schrumpfen und die ganze Seite scrollt seitlich –
+       scrollen soll nur .tabelle-scroll. */
+    min-width: 0;
   }
   a { color: var(--akzent); transition: color var(--dauer-fein) var(--ease-out); }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
@@ -156,6 +160,13 @@ export const BASIS_CSS = `
   .status-fehlgeschlagen { color: var(--status-critical); }
   .status-aktiv { color: var(--status-good); }
   .status-inaktiv { color: var(--text-muted); }
+  /* delistet ist kein Fehler, sondern ein neutraler Lebenszyklus-Zustand –
+     gedämpft wie „inaktiv", das Wort trägt die Bedeutung. */
+  .status-delistet { color: var(--text-muted); }
+  /* Preisänderungen aus Käufer-Sicht: Senkung = Chance (grün), Erhöhung =
+     kritisch. Das Vorzeichen trägt das Urteil auch ohne Farbe. */
+  .gesenkt { color: var(--status-good); font-weight: 600; }
+  .gestiegen { color: var(--status-critical); font-weight: 600; }
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }
@@ -248,6 +259,35 @@ export const BASIS_CSS = `
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* Seiten-Navigation (Blättern): reine Textlinks statt Buttons, in der Mitte
+     der Zähler. Am Rand (erste/letzte Seite) entfällt der jeweilige Link
+     ersatzlos – ein leerer Span hält die Ausrichtung, kein Disabled-Fake. */
+  .seiten-nav {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  }
+  .seiten-nav .zaehler { font-variant-numeric: tabular-nums; }
+
+  /* Filterleiste: inline GET-Formular über Auswertungstabellen. Filter sind
+     Query-Parameter und funktionieren ohne JS. */
+  .filterleiste {
+    display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
+  }
+  .filterleiste .feld { display: grid; gap: 6px; }
+  .filterleiste label { font-weight: 600; font-size: 13px; }
+  .filterleiste select, .filterleiste input[type="text"] {
+    padding: 6px 10px; font: inherit; font-size: 13px;
+    color: var(--text-primary); background: var(--page);
+    border: 1px solid var(--grid); border-radius: 6px;
+    transition: border-color var(--dauer-schnell) var(--ease-out);
+  }
+  .filterleiste select:hover:not(:focus), .filterleiste input[type="text"]:hover:not(:focus) {
+    border-color: var(--baseline);
+  }
+  .filterleiste select:focus, .filterleiste input[type="text"]:focus {
+    border-color: var(--akzent);
+  }
+  .filterleiste button { margin-bottom: 1px; }
+
   /* Sanftes Ausblenden vor einem Reload – der harte Cut wirkt sonst als „Ruckler",
      besonders wenn eine Suche/ein Crawl gerade fertig geworden ist und die Seite
      sich neu lädt. Wird per JS an body gesetzt, kurz bevor location.reload
@@ -304,10 +344,11 @@ export const FORMULAR_CSS = `
 `;
 
 /** Eintrag der Hauptnavigation, der als aktuelle Seite markiert wird. */
-export type NavAktiv = 'suche' | 'gebiete' | 'suchen';
+export type NavAktiv = 'suche' | 'gebiete' | 'suchen' | 'inserate';
 
 const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
   ['gebiete', '/', 'Beobachtungsgebiete'],
+  ['inserate', '/inserate', 'Inserate'],
   ['suche', '/suche', 'Suche'],
   ['suchen', '/suchen', 'Suchhistorie'],
 ];

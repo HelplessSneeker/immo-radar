@@ -1,3 +1,4 @@
+import type { InserateFilter, InserateSortierung } from './db/bestand-repo.js';
 import type { Inserat, InseratTyp } from './types.js';
 
 /** Bundesland-Slug (URL-Pfad beider Portale) → Anzeigename. */
@@ -90,6 +91,50 @@ export function parseGebietForm(params: URLSearchParams): {
   const name = params.get('name')?.trim();
   if (!name) throw new SuchKriterienFehler('Das Gebiet braucht einen Namen.');
   return { name, kriterien: parseSuchKriterien(params) };
+}
+
+export interface InserateAnfrage {
+  filter: InserateFilter;
+  sortierung: InserateSortierung;
+  /** 1-basiert. */
+  seite: number;
+}
+
+const INSERATE_SORTIERUNGEN: ReadonlySet<InserateSortierung> = new Set([
+  'zuletzt_gesehen',
+  'zuerst_gesehen',
+  'preis',
+  'eur_m2',
+  'flaeche',
+]);
+
+/**
+ * Query-Parameter der Bestand-Seite (/inserate). Bewusst nachsichtig – anders
+ * als das werfende parseSuchKriterien: die URLs sind teilbare GET-Links,
+ * ungültige Werte werden still verworfen statt mit 400 beantwortet.
+ */
+export function parseInserateAnfrage(params: URLSearchParams): InserateAnfrage {
+  const filter: InserateFilter = {};
+
+  const bundesland = params.get('bundesland')?.trim().toLowerCase();
+  if (bundesland && bundesland in BUNDESLAENDER) filter.bundesland = bundesland;
+
+  const typ = params.get('typ')?.trim().toLowerCase();
+  if (typ === 'kauf' || typ === 'miete') filter.typ = typ;
+
+  const status = params.get('status')?.trim().toLowerCase();
+  if (status === 'aktiv' || status === 'delistet') filter.status = status;
+
+  const ort = params.get('ort')?.trim();
+  if (ort) filter.ort = ort;
+
+  const sortierungRoh = params.get('sortierung')?.trim().toLowerCase() as InserateSortierung;
+  const sortierung = INSERATE_SORTIERUNGEN.has(sortierungRoh) ? sortierungRoh : 'zuletzt_gesehen';
+
+  const seiteRoh = Math.trunc(Number(params.get('seite')));
+  const seite = Number.isFinite(seiteRoh) && seiteRoh >= 1 ? seiteRoh : 1;
+
+  return { filter, sortierung, seite };
 }
 
 /**

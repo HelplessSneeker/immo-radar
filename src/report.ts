@@ -1,4 +1,5 @@
 import type { AnalyseErgebnis, GebietStatistik, InseratAnalyse } from './analyze.js';
+import { fmtRendite } from './pages/format.js';
 import { escapeHtml, seite } from './pages/layout.js';
 
 export interface ReportMeta {
@@ -23,14 +24,9 @@ const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd
 
 const nfEur0 = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
 const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const nfPct = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function fmtEurM2(wert: number, typ: 'kauf' | 'miete'): string {
   return typ === 'kauf' ? nfEur0.format(Math.round(wert)) : nfEur2.format(wert);
-}
-
-function fmtRendite(anteil: number): string {
-  return `${nfPct.format(anteil * 100)} %`;
 }
 
 function segmentZellen(g: GebietStatistik, typ: 'kauf' | 'miete'): string {
@@ -269,7 +265,11 @@ ${inserateTabelle(inserate)}
       1,5-Fache des Interquartilsabstands unter dem unteren bzw. über dem oberen Viertel — die
       übliche 1,5×IQR-Regel; je Gebiet und Typ, erst ab 4 Inseraten bewertet).
       Brutto-Mietrendite = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis €/m² — ohne Nebenkosten,
-      Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).</p>
+      Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).${
+        meta.navAktiv !== undefined
+          ? '\n      Alle Kennzahlen im Detail: <a href="/methodik">Methodik</a>.'
+          : ''
+      }</p>
     <p>Datenbasis: manuell erfasste Inserate — kein Anspruch auf Marktvollständigkeit.</p>
   </footer>
 

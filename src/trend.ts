@@ -1,6 +1,6 @@
 import type { BestandInserat, PreisPunkt } from './db/bestand-repo.js';
 import { tageZwischen } from './datum.js';
-import { mean, median } from './stats.js';
+import { bruttoRendite, mean, median } from './stats.js';
 import type { InseratTyp } from './types.js';
 
 /**
@@ -122,6 +122,103 @@ export function vermarktungsdauer(delisted: BestandInserat[]): {
     return { anzahl: tage.length, medianTage: median(tage), meanTage: mean(tage) };
   };
   return { kauf: statistik('kauf'), miete: statistik('miete') };
+}
+
+export interface RenditeKennzahl {
+  /** Brutto-Mietrendite als Anteil (0.04 = 4 %). */
+  brutto: number;
+  medianKaufEurM2: number;
+  medianMieteEurM2: number;
+  /** Datenbasis der beiden Mediane – für die Einordnung an der Kachel. */
+  anzahlKauf: number;
+  anzahlMiete: number;
+}
+
+/**
+ * Bruttorendite eines Bestands: Median-Kaltmiete ×12 ÷ Median-Kaufpreis,
+ * jeweils €/m² über die übergebenen (aktiven) Inserate. null, wenn nicht
+ * beide Typen mit auswertbarer Fläche vertreten sind – die Kennzahl
+ * vergleicht den Miet- mit dem Kauf-Markt und braucht beide Seiten.
+ */
+export function berechneRendite(inserate: BestandInserat[]): RenditeKennzahl | null {
+  const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
+  for (const i of inserate) {
+    if (i.flaeche_m2 <= 0) continue;
+    eurM2[i.typ].push(i.preis / i.flaeche_m2);
+  }
+  if (eurM2.kauf.length === 0 || eurM2.miete.length === 0) return null;
+  const medianKauf = median(eurM2.kauf);
+  const medianMiete = median(eurM2.miete);
+  return {
+    brutto: bruttoRendite(medianMiete, medianKauf),
+    medianKaufEurM2: medianKauf,
+    medianMieteEurM2: medianMiete,
+    anzahlKauf: eurM2.kauf.length,
+    anzahlMiete: eurM2.miete.length,
+  };
+}
+
+export interface LaufPreisAenderung {
+  inserat: BestandInserat;
+  alterPreis: number;
+  neuerPreis: number;
+}
+
+/** Tages-Veränderungen eines Crawl-Laufs, siehe berechneLaufDiff. */
+export interface LaufDiff {
+  /** An diesem Tag zum ersten Mal gesehen. */
+  neue: BestandInserat[];
+  /** Bei diesem Lauf erstmals nicht mehr gesehen (leer beim ersten Lauf). */
+  delistete: BestandInserat[];
+  /** An diesem Tag geänderte Preise (ohne die Erst-Erfassung neuer Inserate). */
+  preisAenderungen: LaufPreisAenderung[];
+}
+
+/**
+ * Rekonstruiert, was ein fertiger Crawl-Lauf am Tag `laufDatum` verändert hat:
+ * neu = zuerst an diesem Tag gesehen; delistet = zuletzt zwischen dem vorigen
+ * fertigen Lauf (inklusive) und diesem Tag (exklusiv) gesehen; Preisänderung =
+ * Historien-Punkt an diesem Tag, der nicht die Erst-Zeile des Inserats ist.
+ *
+ * Caveat: Der Diff ist eine Rekonstruktion aus dem heutigen Bestand. Ein
+ * Inserat, das damals verschwand und später wieder auftauchte, hat ein neueres
+ * zuletztGesehen und fällt rückwirkend aus der Delistet-Liste alter Läufe.
+ * „Neu" und Preisänderungen sind dagegen stabil (zuerstGesehen und
+ * Historien-Zeilen ändern sich nachträglich nicht).
+ */
+export function berechneLaufDiff(
+  inserate: BestandInserat[],
+  historie: PreisPunkt[],
+  laufDatum: string,
+  vorherigesLaufDatum: string | undefined,
+): LaufDiff {
+  const neue: BestandInserat[] = [];
+  const delistete: BestandInserat[] = [];
+  for (const i of inserate) {
+    if (i.zuerstGesehen === laufDatum) neue.push(i);
+    if (
+      vorherigesLaufDatum !== undefined &&
+      i.zuletztGesehen < laufDatum &&
+      i.zuletztGesehen >= vorherigesLaufDatum
+    ) {
+      delistete.push(i);
+    }
+  }
+
+  const jeInserat = historieJeInserat(historie);
+  const preisAenderungen: LaufPreisAenderung[] = [];
+  for (const i of inserate) {
+    const punkte = jeInserat.get(inseratSchluessel(i.portal, i.id));
+    if (!punkte) continue;
+    const idx = punkte.findIndex((p) => p.erfasstAm === laufDatum);
+    if (idx <= 0) continue; // kein Punkt an diesem Tag oder nur die Erst-Zeile
+    const alterPreis = punkte[idx - 1]!.preis;
+    const neuerPreis = punkte[idx]!.preis;
+    if (alterPreis === neuerPreis) continue;
+    preisAenderungen.push({ inserat: i, alterPreis, neuerPreis });
+  }
+
+  return { neue, delistete, preisAenderungen };
 }
 
 export interface PreisAenderung {

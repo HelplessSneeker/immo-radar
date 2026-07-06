@@ -151,6 +151,139 @@ export async function bestandLaden(bundesland: string): Promise<BestandInserat[]
   return rows.map(bestandInseratAusZeile);
 }
 
+export interface InserateFilter {
+  /** Bundesland-Slug; Aufrufer validiert gegen BUNDESLAENDER. */
+  bundesland?: string;
+  typ?: InseratTyp;
+  /**
+   * aktiv = beim jüngsten Crawl des eigenen Bundeslands gesehen (Stichtag =
+   * max(zuletzt_gesehen) je Bundesland) – das globale Analogon zur
+   * Stichtag-Regel der Gebiets-Seiten, ohne fixes Tagesfenster.
+   */
+  status?: 'aktiv' | 'delistet';
+  /** Teilstring, case-insensitiv über Ort, PLZ und Bezirk. */
+  ort?: string;
+}
+
+export type InserateSortierung =
+  | 'zuletzt_gesehen'
+  | 'zuerst_gesehen'
+  | 'preis'
+  | 'eur_m2'
+  | 'flaeche';
+
+export interface BestandInseratMitLand extends BestandInserat {
+  bundesland: string;
+  /** Siehe Status-Regel in InserateFilter. */
+  aktiv: boolean;
+}
+
+interface BestandZeileMitLand extends BestandZeile {
+  bundesland: string;
+  aktiv: boolean;
+}
+
+/**
+ * ORDER-BY-Fragmente je Sortierung – Whitelist, damit nie Nutzereingaben ins
+ * SQL interpoliert werden. Jeder Eintrag endet mit dem stabilen Tiebreaker
+ * (portal, inserat_id), sonst dürfen LIMIT/OFFSET-Seiten Zeilen doppeln/schlucken.
+ */
+const SORTIERUNGEN: Record<InserateSortierung, string> = {
+  zuletzt_gesehen: 'b.zuletzt_gesehen DESC, b.portal, b.inserat_id',
+  zuerst_gesehen: 'b.zuerst_gesehen DESC, b.portal, b.inserat_id',
+  preis: 'b.preis ASC, b.portal, b.inserat_id',
+  eur_m2:
+    'CASE WHEN b.flaeche_m2 > 0 THEN b.preis / b.flaeche_m2 END ASC NULLS LAST, b.portal, b.inserat_id',
+  flaeche: 'b.flaeche_m2 DESC, b.portal, b.inserat_id',
+};
+
+/** LIKE/ILIKE-Sonderzeichen escapen, dann als Teilstring-Muster einrahmen. */
+function ilikeMuster(s: string): string {
+  return `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/**
+ * Eine Seite des globalen Bestands, SQL-seitig gefiltert, sortiert und
+ * paginiert, plus Gesamtzahl der Treffer. Der Stichtag je Bundesland kommt
+ * aus einer CTE; er liefert das aktiv/delistet-Flag jeder Zeile.
+ */
+export async function bestandSeiteLaden(
+  filter: InserateFilter,
+  sortierung: InserateSortierung,
+  limit: number,
+  offset: number,
+): Promise<{ inserate: BestandInseratMitLand[]; gesamt: number }> {
+  const bedingungen: string[] = [];
+  const werte: unknown[] = [];
+  const param = (wert: unknown): string => {
+    werte.push(wert);
+    return `$${werte.length}`;
+  };
+  if (filter.bundesland) bedingungen.push(`b.bundesland = ${param(filter.bundesland)}`);
+  if (filter.typ) bedingungen.push(`b.typ = ${param(filter.typ)}`);
+  if (filter.status) {
+    bedingungen.push(
+      filter.status === 'aktiv'
+        ? 'b.zuletzt_gesehen >= s.stichtag'
+        : 'b.zuletzt_gesehen < s.stichtag',
+    );
+  }
+  if (filter.ort) {
+    const muster = param(ilikeMuster(filter.ort));
+    bedingungen.push(`(b.ort ILIKE ${muster} OR b.plz ILIKE ${muster} OR b.bezirk ILIKE ${muster})`);
+  }
+  const von = `FROM inserate_bestand b
+     JOIN (SELECT bundesland, max(zuletzt_gesehen) AS stichtag
+           FROM inserate_bestand GROUP BY bundesland) s USING (bundesland)
+     ${bedingungen.length > 0 ? `WHERE ${bedingungen.join(' AND ')}` : ''}`;
+  // Ab hier teilen sich Count- und Seiten-Query die Filter-Parameter; nur die
+  // Seiten-Query bekommt zusätzlich LIMIT/OFFSET.
+  const filterWerte = [...werte];
+
+  const pool = holePool();
+  const [seiteErgebnis, gesamtErgebnis] = await Promise.all([
+    pool.query<BestandZeileMitLand>(
+      `SELECT b.portal, b.inserat_id, b.typ, b.bundesland, b.ort, b.plz, b.bezirk, b.preis,
+              b.flaeche_m2, b.zimmer, b.baujahr, b.zustand, b.url,
+              b.datum_erfasst::text AS datum_erfasst,
+              b.zuerst_gesehen::text AS zuerst_gesehen, b.zuletzt_gesehen::text AS zuletzt_gesehen,
+              (b.zuletzt_gesehen >= s.stichtag) AS aktiv
+       ${von}
+       ORDER BY ${SORTIERUNGEN[sortierung]}
+       LIMIT ${param(limit)} OFFSET ${param(offset)}`,
+      werte,
+    ),
+    pool.query<{ gesamt: number }>(`SELECT count(*)::int AS gesamt ${von}`, filterWerte),
+  ]);
+  return {
+    inserate: seiteErgebnis.rows.map((z) => ({
+      ...bestandInseratAusZeile(z),
+      bundesland: z.bundesland,
+      aktiv: z.aktiv,
+    })),
+    gesamt: gesamtErgebnis.rows[0]?.gesamt ?? 0,
+  };
+}
+
+/**
+ * Preishistorie nur der übergebenen Inserate (z. B. der 50 sichtbaren Zeilen
+ * einer Bestand-Seite), gleiche Sortierung wie preisHistorieLaden – damit
+ * letztePreisAenderungen() unverändert darauf arbeitet.
+ */
+export async function preisHistorieFuerInserate(
+  inserate: ReadonlyArray<{ portal: string; id: string }>,
+): Promise<PreisPunkt[]> {
+  if (inserate.length === 0) return [];
+  const { rows } = await holePool().query<PreisPunktZeile>(
+    `SELECT portal, inserat_id, preis, erfasst_am::text AS erfasst_am
+     FROM preis_historie
+     WHERE (portal, inserat_id) IN (SELECT * FROM unnest($1::text[], $2::text[]))
+     ORDER BY erfasst_am, portal, inserat_id`,
+    [inserate.map((i) => i.portal), inserate.map((i) => i.id)],
+  );
+  return rows.map(preisPunktAusZeile);
+}
+
 export async function preisHistorieLaden(bundesland: string): Promise<PreisPunkt[]> {
   const { rows } = await holePool().query<PreisPunktZeile>(
     `SELECT h.portal, h.inserat_id, h.preis, h.erfasst_am::text AS erfasst_am

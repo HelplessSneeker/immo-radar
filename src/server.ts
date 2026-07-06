@@ -5,10 +5,17 @@ import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
 import { tageZwischen } from './datum.js';
-import { bestandLaden, preisHistorieLaden } from './db/bestand-repo.js';
+import {
+  bestandLaden,
+  bestandSeiteLaden,
+  preisHistorieFuerInserate,
+  preisHistorieLaden,
+  type BestandInserat,
+} from './db/bestand-repo.js';
 import { holePool } from './db/client.js';
 import {
   crawlLaeufeAuflisten,
+  crawlLaufLaden,
   gebietAktivieren,
   gebietAnlegen,
   gebietDeaktivieren,
@@ -19,7 +26,10 @@ import {
   laufendeCrawlsMitNamen,
   letzteFertigeLaeufe,
   letzterFertigerLauf,
+  letzterFertigerLaufVor,
   zombieCrawlLaeufeBereinigen,
+  type CrawlLauf,
+  type FertigerLauf,
   type Gebiet,
 } from './db/gebiete-repo.js';
 import { wendeMigrationenAn } from './db/migrieren.js';
@@ -32,35 +42,58 @@ import {
   zombieSuchenBereinigen,
   type Suche,
 } from './db/suchen-repo.js';
+import { renderLaufSeite } from './pages/crawl-lauf-page.js';
 import {
   renderGebieteSeite,
   renderGebietOhneDatenSeite,
   renderGebietSeite,
+  type GebietKennzahlen,
+  type LaufVeraenderungen,
 } from './pages/gebiete-pages.js';
-import { renderFehlerSeite, renderKeineTrefferSeite, renderSearchPage } from './pages/search-page.js';
+import { renderInserateSeite } from './pages/inserate-page.js';
+import {
+  renderFehlerSeite,
+  renderKeineTrefferSeite,
+  renderSearchPage,
+  type FormFehler,
+} from './pages/search-page.js';
 import {
   kriterienZusammenfassung,
   renderFehlgeschlagenSeite,
   renderHistorieSeite,
   renderLaufendSeite,
 } from './pages/suchen-pages.js';
-import { renderReport } from './report.js';
+import { renderMethodikSeite } from './pages/methodik-page.js';
+import { renderReport, ZIEL_RENDITE } from './report.js';
 import { starteGebietCrawl, starteZeitplan } from './scheduler.js';
 import {
   BUNDESLAENDER,
   filterInserate,
   parseGebietForm,
+  parseInserateAnfrage,
   parseSuchKriterien,
   SuchKriterienFehler,
 } from './search.js';
 import { starteSuchlauf } from './suchlauf.js';
-import { berechneTrend, letztePreisAenderungen, vermarktungsdauer } from './trend.js';
+import {
+  berechneLaufDiff,
+  berechneRendite,
+  berechneTrend,
+  letztePreisAenderungen,
+  vermarktungsdauer,
+} from './trend.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
 
 /** Fenster der „Kürzlich delistet"-Tabelle auf der Gebiet-Detailseite. */
 const DELISTET_FENSTER_TAGE = 14;
+
+/** Zeilen pro Seite der Bestand-Tabelle (/inserate). */
+const INSERATE_PRO_SEITE = 50;
+
+/** Crawl-Läufe auf der Gebiet-Detailseite. */
+const MAX_LAEUFE = 10;
 
 const portale: PortalAdapter[] = [new WillhabenAdapter(), new ImmoScout24Adapter()];
 
@@ -85,6 +118,116 @@ function liesBody(req: IncomingMessage): Promise<string> {
 }
 
 /**
+ * Die Inserate eines Gebiets aus dem rohen Bundesland-Bestand: erst der
+ * Gebiet-Typ, dann die Kriterien filtern (read-seitig). Gebiet-Detailseite
+ * und Crawl-Lauf-Seite teilen sich diese eine Definition von „im Gebiet".
+ */
+function gebietInserate(gebiet: Gebiet, bestand: BestandInserat[]): BestandInserat[] {
+  const nachTyp =
+    gebiet.kriterien.typ === 'beide'
+      ? bestand
+      : bestand.filter((i) => i.typ === gebiet.kriterien.typ);
+  return filterInserate(nachTyp, gebiet.kriterien);
+}
+
+/**
+ * Veränderungs-Zähler je sichtbarem fertigen Lauf für die Läufe-Tabelle.
+ * Der Vorgänger-Lauf wird nur im geladenen Fenster gesucht: Ist die Liste
+ * voll (limit erreicht) und kein fertiger Vorgänger darin, bleibt der Lauf
+ * ohne Zähler („–") statt mit falschem Fenster zu rechnen; ist die Liste
+ * nicht voll, war es wirklich der erste Lauf des Gebiets.
+ */
+function laufVeraenderungenBerechnen(
+  laeufeAlle: CrawlLauf[],
+  sichtbare: CrawlLauf[],
+  inserate: BestandInserat[],
+  historie: Parameters<typeof berechneLaufDiff>[1],
+  fensterVoll: boolean,
+): Map<number, LaufVeraenderungen> {
+  const zaehler = new Map<number, LaufVeraenderungen>();
+  for (const lauf of sichtbare) {
+    if (lauf.status !== 'fertig') continue;
+    const vorher = laeufeAlle.find(
+      (l) => l.status === 'fertig' && l.laufDatum < lauf.laufDatum,
+    );
+    if (!vorher && fensterVoll) continue;
+    const diff = berechneLaufDiff(inserate, historie, lauf.laufDatum, vorher?.laufDatum);
+    zaehler.set(lauf.id, {
+      neu: diff.neue.length,
+      delistet: diff.delistete.length,
+      preise: diff.preisAenderungen.length,
+    });
+  }
+  return zaehler;
+}
+
+/**
+ * Kennzahlen je Gebiet für die Übersichts-Tabelle: aktive Inserate und die
+ * Wochen-Tendenz des Median-€/m². Bestand und Historie werden je Bundesland
+ * genau einmal geladen, egal wie viele Gebiete darin liegen.
+ */
+async function gebieteKennzahlen(
+  gebiete: Gebiet[],
+  letzteLaeufe: Map<number, FertigerLauf>,
+): Promise<Map<number, GebietKennzahlen>> {
+  const kennzahlen = new Map<number, GebietKennzahlen>();
+  const mitLauf = gebiete.filter((g) => letzteLaeufe.has(g.id));
+  const laender = [...new Set(mitLauf.map((g) => g.kriterien.bundesland))];
+  const jeLand = new Map<
+    string,
+    { bestand: BestandInserat[]; historie: Awaited<ReturnType<typeof preisHistorieLaden>> }
+  >();
+  for (const land of laender) {
+    const [bestand, historie] = await Promise.all([
+      bestandLaden(land),
+      preisHistorieLaden(land),
+    ]);
+    jeLand.set(land, { bestand, historie });
+  }
+
+  for (const gebiet of mitLauf) {
+    const daten = jeLand.get(gebiet.kriterien.bundesland)!;
+    const stichtag = letzteLaeufe.get(gebiet.id)!.laufDatum;
+    const inserate = gebietInserate(gebiet, daten.bestand);
+    const aktive = inserate.filter((i) => i.zuletztGesehen >= stichtag);
+
+    // Leit-Serie der Tendenz: die Miete nur, wenn das Gebiet ein reines
+    // Miet-Gebiet ist – sonst ist der Kaufmarkt die Anlage-Perspektive.
+    const serie = gebiet.kriterien.typ === 'miete' ? ('miete' as const) : ('kauf' as const);
+    const trend = berechneTrend(inserate, daten.historie, stichtag);
+    let tendenz: GebietKennzahlen['tendenz'] = null;
+    if (trend.length >= 2) {
+      const letzter = trend[trend.length - 1]!;
+      const vorwoche = trend[trend.length - 2]!;
+      const neu = serie === 'kauf' ? letzter.medianKaufEurM2 : letzter.medianMieteEurM2;
+      const alt = serie === 'kauf' ? vorwoche.medianKaufEurM2 : vorwoche.medianMieteEurM2;
+      if (neu !== null && alt !== null && alt > 0) {
+        tendenz = { serie, deltaProzent: ((neu - alt) / alt) * 100 };
+      }
+    }
+
+    kennzahlen.set(gebiet.id, {
+      aktive: aktive.length,
+      aktiveKauf: aktive.filter((i) => i.typ === 'kauf').length,
+      aktiveMiete: aktive.filter((i) => i.typ === 'miete').length,
+      tendenz,
+    });
+  }
+  return kennzahlen;
+}
+
+/** Die Startseite (Gebiete-Übersicht) – geteilt von GET / und dem POST-Fehlerpfad. */
+async function gebieteSeite(fehler?: FormFehler): Promise<string> {
+  const [gebiete, laufende, letzteLaeufe] = await Promise.all([
+    gebieteAuflisten(),
+    laufendeCrawls(),
+    letzteFertigeLaeufe(),
+  ]);
+  const kennzahlen = await gebieteKennzahlen(gebiete, letzteLaeufe);
+  return renderGebieteSeite(gebiete, laufende, letzteLaeufe, kennzahlen, fehler);
+}
+
+/**
  * Auswertung eines Gebiets aus dem historisierten Bestand: Stichtag ist der
  * letzte erfolgreiche Crawl-Lauf, aktiv = damals noch gesehen. Der Gebiet-Typ
  * und die Kriterien filtern erst hier (read-seitig), der Bestand ist roh.
@@ -100,11 +243,7 @@ async function gebietSeite(
   const stichtag = lauf.laufDatum;
 
   const bestand = await bestandLaden(gebiet.kriterien.bundesland);
-  const nachTyp =
-    gebiet.kriterien.typ === 'beide'
-      ? bestand
-      : bestand.filter((i) => i.typ === gebiet.kriterien.typ);
-  const inserate = filterInserate(nachTyp, gebiet.kriterien);
+  const inserate = gebietInserate(gebiet, bestand);
   const aktive = inserate.filter((i) => i.zuletztGesehen >= stichtag);
 
   if (alsReport) {
@@ -123,6 +262,10 @@ async function gebietSeite(
   const kuerzlichDelistet = delisted.filter(
     (i) => tageZwischen(i.zuletztGesehen, stichtag) <= DELISTET_FENSTER_TAGE,
   );
+  // Einen Lauf mehr laden als angezeigt wird: der älteste sichtbare braucht
+  // seinen Vorgänger für den Veränderungs-Zähler.
+  const laeufeAlle = await crawlLaeufeAuflisten(gebiet.id, MAX_LAEUFE + 1);
+  const laeufe = laeufeAlle.slice(0, MAX_LAEUFE);
   return renderGebietSeite(
     gebiet,
     {
@@ -130,15 +273,44 @@ async function gebietSeite(
       beendetAm: lauf.beendetAm,
       trend: berechneTrend(inserate, historie, stichtag),
       vermarktung: vermarktungsdauer(delisted),
+      rendite: berechneRendite(aktive),
       aktive,
       delistete: kuerzlichDelistet,
       delistetFensterTage: DELISTET_FENSTER_TAGE,
       aenderungen: letztePreisAenderungen(historie),
       alleAnzeigen,
-      laeufe: await crawlLaeufeAuflisten(gebiet.id, 10),
+      laeufe,
+      laufVeraenderungen: laufVeraenderungenBerechnen(
+        laeufeAlle,
+        laeufe,
+        inserate,
+        historie,
+        laeufeAlle.length > MAX_LAEUFE,
+      ),
       anzahlDelisted: delisted.length,
     },
     crawlLaeuft,
+  );
+}
+
+/**
+ * Detailseite eines Crawl-Laufs: für fertige Läufe die Tages-Veränderungen
+ * (Gebiet-gefiltert, wie die Detailseite), sonst nur die Lauf-Metadaten.
+ */
+async function laufSeite(gebiet: Gebiet, lauf: CrawlLauf): Promise<string> {
+  if (lauf.status !== 'fertig') return renderLaufSeite(gebiet, lauf, undefined);
+  const vorheriger = await letzterFertigerLaufVor(gebiet.id, lauf.laufDatum);
+  const [bestand, historie] = await Promise.all([
+    bestandLaden(gebiet.kriterien.bundesland),
+    preisHistorieLaden(gebiet.kriterien.bundesland),
+  ]);
+  const inserate = gebietInserate(gebiet, bestand);
+  const diff = berechneLaufDiff(inserate, historie, lauf.laufDatum, vorheriger?.laufDatum);
+  return renderLaufSeite(
+    gebiet,
+    lauf,
+    { diff, ersterLauf: vorheriger === undefined },
+    vorheriger?.laufDatum,
   );
 }
 
@@ -199,16 +371,7 @@ const server = createServer((req, res) => {
           form = parseGebietForm(werte);
         } catch (err) {
           if (err instanceof SuchKriterienFehler) {
-            sende(
-              res,
-              400,
-              renderGebieteSeite(
-                await gebieteAuflisten(),
-                await laufendeCrawls(),
-                await letzteFertigeLaeufe(),
-                { werte, meldung: err.message },
-              ),
-            );
+            sende(res, 400, await gebieteSeite({ werte, meldung: err.message }));
             return;
           }
           throw err;
@@ -273,15 +436,7 @@ const server = createServer((req, res) => {
     }
 
     if (url.pathname === '/') {
-      sende(
-        res,
-        200,
-        renderGebieteSeite(
-          await gebieteAuflisten(),
-          await laufendeCrawls(),
-          await letzteFertigeLaeufe(),
-        ),
-      );
+      sende(res, 200, await gebieteSeite());
       return;
     }
     if (url.pathname === '/suche') {
@@ -292,10 +447,62 @@ const server = createServer((req, res) => {
       sende(res, 200, renderHistorieSeite(await suchenAuflisten()));
       return;
     }
+    if (url.pathname === '/inserate') {
+      const anfrage = parseInserateAnfrage(url.searchParams);
+      const { inserate, gesamt } = await bestandSeiteLaden(
+        anfrage.filter,
+        anfrage.sortierung,
+        INSERATE_PRO_SEITE,
+        (anfrage.seite - 1) * INSERATE_PRO_SEITE,
+      );
+      const aenderungen = letztePreisAenderungen(await preisHistorieFuerInserate(inserate));
+      sende(
+        res,
+        200,
+        renderInserateSeite({
+          inserate,
+          gesamt,
+          seite: anfrage.seite,
+          proSeite: INSERATE_PRO_SEITE,
+          filter: anfrage.filter,
+          sortierung: anfrage.sortierung,
+          aenderungen,
+        }),
+      );
+      return;
+    }
+    if (url.pathname === '/methodik') {
+      // Konstanten reinreichen, damit der Erklärtext wahr bleibt, wenn sie sich ändern.
+      sende(
+        res,
+        200,
+        renderMethodikSeite({ delistetFensterTage: DELISTET_FENSTER_TAGE, zielRendite: ZIEL_RENDITE }),
+      );
+      return;
+    }
     if (url.pathname === '/gebiete') {
       // Alte Lesezeichen: die Gebiete-Liste ist jetzt die Startseite.
       res.writeHead(301, { location: '/' });
       res.end();
+      return;
+    }
+    const laufTreffer = /^\/gebiete\/(\d+)\/laeufe\/(\d+)$/.exec(url.pathname);
+    if (laufTreffer) {
+      const gebiet = await gebietLaden(Number(laufTreffer[1]));
+      if (!gebiet) {
+        sende(res, 404, renderFehlerSeite(404, `Es gibt kein Gebiet ${laufTreffer[1]}.`));
+        return;
+      }
+      const lauf = await crawlLaufLaden(gebiet.id, Number(laufTreffer[2]));
+      if (!lauf) {
+        sende(
+          res,
+          404,
+          renderFehlerSeite(404, `Es gibt keinen Crawl-Lauf ${laufTreffer[2]} für dieses Gebiet.`),
+        );
+        return;
+      }
+      sende(res, 200, await laufSeite(gebiet, lauf));
       return;
     }
     const gebietTreffer = /^\/gebiete\/(\d+)(\/report)?$/.exec(url.pathname);
