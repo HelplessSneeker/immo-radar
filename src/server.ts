@@ -3,9 +3,10 @@ import process from 'node:process';
 import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
+import { pruefeAuth } from './auth.js';
 import { KAERNTEN } from './bezirke.js';
 import { bestandSeiteLaden, preisHistorieFuerInserate } from './db/bestand-repo.js';
-import { holePool } from './db/client.js';
+import { holePool, schliessePool } from './db/client.js';
 import { wendeMigrationenAn } from './db/migrieren.js';
 import { objektBestandLaden } from './db/objekte-repo.js';
 import {
@@ -22,6 +23,7 @@ import {
   sweepLaeufeAuflisten,
   zombieSweepsBereinigen,
 } from './db/sweep-repo.js';
+import { behandleHealth } from './health.js';
 import { renderDashboardOhneDatenSeite, renderDashboardSeite } from './pages/dashboard-page.js';
 import { renderFehlerSeite } from './pages/fehler-page.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
@@ -152,6 +154,13 @@ function sendeJson(res: ServerResponse, status: number, daten: unknown): void {
 const server = createServer((req, res) => {
   void (async () => {
     const url = new URL(req.url ?? '/', 'http://localhost');
+
+    // Healthcheck (Coolify) ist die einzige Route ohne Anmeldung.
+    if (url.pathname === '/health') {
+      await behandleHealth(pool, res);
+      return;
+    }
+    if (!pruefeAuth(req, res)) return;
 
     if (req.method === 'POST') {
       if (url.pathname === '/portfolio') {
@@ -299,14 +308,37 @@ try {
   // keine .env – DATABASE_URL kann auch direkt gesetzt sein
 }
 
+// Fail-closed: ohne Credentials startet der Server gar nicht erst.
+if (!process.env.BASIC_AUTH_USER || !process.env.BASIC_AUTH_PASS) {
+  console.error(
+    'BASIC_AUTH_USER und BASIC_AUTH_PASS müssen gesetzt sein (siehe .env.example) – ' +
+      'ohne Zugangsschutz startet der Server nicht.',
+  );
+  process.exit(1);
+}
+
 const pool = holePool();
 await wendeMigrationenAn(pool);
 const zombieSweeps = await zombieSweepsBereinigen();
 if (zombieSweeps > 0) {
   console.log(`${zombieSweeps} unterbrochene(r) Sweep(s) als fehlgeschlagen markiert.`);
 }
-starteZeitplan(portale);
+const zeitplan = starteZeitplan(portale);
 
 server.listen(PORT, () => {
   console.log(`immo-radar läuft: http://localhost:${PORT}`);
 });
+
+function fahreHerunter(signal: string): void {
+  console.log(`${signal} empfangen – Server wird beendet.`);
+  zeitplan.stop();
+  // Falls Verbindungen hängen: nach 10 s trotzdem beenden.
+  setTimeout(() => process.exit(1), 10_000).unref();
+  server.close(() => {
+    void schliessePool().finally(() => process.exit(0));
+  });
+  server.closeIdleConnections();
+}
+
+process.on('SIGTERM', () => fahreHerunter('SIGTERM'));
+process.on('SIGINT', () => fahreHerunter('SIGINT'));

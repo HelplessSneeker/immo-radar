@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "start": "node dist/server.js",
     "analyze": "tsx src/cli.ts analyze",
     "serve": "tsx src/server.ts",
     "db:up": "docker compose up -d",
