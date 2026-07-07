@@ -110,7 +110,7 @@ Das System lehnt explizit ab: Excel-Ästhetik (rohe Zahlengitter ohne Hierarchie
 Warme, papierartige Neutrale als Bühne; drei Serienfarben und zwei Statusfarben als einzige Stimmen.
 
 ### Primary
-- **Akzent-Blau** (#1a66c4, dunkel #3987e5; Button-Fläche dunkel #2a6fc9): Links, Primäraktion (Suchen-Button), Ghost-Buttons, Fokus-Ringe und der Status „läuft". AA-geprüft: ≥ 4,5:1 als Text auf Papier/Fläche und mit weißem Text als Fläche — deshalb hat der Dark-Button einen eigenen, dunkleren Wert (`--akzent-flaeche`).
+- **Akzent-Blau** (#1a66c4, dunkel #3987e5; Button-Fläche dunkel #2a6fc9): Links, Primäraktion (Filter-/Formular-Button), Ghost-Buttons, Fokus-Ringe und der Status „läuft". AA-geprüft: ≥ 4,5:1 als Text auf Papier/Fläche und mit weißem Text als Fläche — deshalb hat der Dark-Button einen eigenen, dunkleren Wert (`--akzent-flaeche`).
 - **Serien-Blau / Kauf** (#2a78d6, dunkel #3987e5): Ausschließlich die Kauf-Serie in Charts (Grafikflächen brauchen nur 3:1). Nicht für Text oder Aktionen — dafür ist Akzent-Blau da.
 - **Serien-Grün / Miete** (#1baf7a, dunkel #199e70): Miete-Serie in Charts. Nie für Aktionen.
 - **Serien-Gelb** (#eda100, dunkel #c98500): Dritter kategorialer Slot (Reserve für weitere Serien). Sparsam.
@@ -126,8 +126,8 @@ Warme, papierartige Neutrale als Bühne; drei Serienfarben und zwei Statusfarben
 - **Kontur** (rgba(11,11,11,0.10), dunkel rgba(255,255,255,0.10)): Ränder von Sections und Tiles.
 
 ### Status
-- **Kritisch** (#d03b3b, dunkel #e35d5d): Fehlgeschlagene Suchen und Crawls, Ausreißer-Markierung, Fehlertexte, Lösch-Aktionen. Der Dark-Wert ist heller, damit er auf dunklen Flächen AA besteht.
-- **Gut** (#2e7d43 als Badge-Text, dunkel #58b06f; Flächen: Text #006300 auf rgba(12,163,12,0.08)): Rendite ≥ 4 %, Status „fertig", aktive Gebiete — und Preissenkungen: immo-radar ist ein Käufer-Werkzeug, ein gesenkter Preis ist eine Kaufgelegenheit, kein Warnsignal.
+- **Kritisch** (#d03b3b, dunkel #e35d5d): Fehlgeschlagene Sweeps und Segmente, Ausreißer-Markierung, Fehlertexte, Lösch-Aktionen. Der Dark-Wert ist heller, damit er auf dunklen Flächen AA besteht.
+- **Gut** (#2e7d43 als Badge-Text, dunkel #58b06f; Flächen: Text #006300 auf rgba(12,163,12,0.08)): Rendite ≥ 4 %, Status „fertig" — und Preissenkungen: immo-radar ist ein Käufer-Werkzeug, ein gesenkter Preis ist eine Kaufgelegenheit, kein Warnsignal.
 
 ### Named Rules
 **Die Urteils-Regel.** Statusfarben (Rot/Grün) erscheinen ausschließlich, wenn eine Zahl ein Urteil trägt — Rendite über Schwelle, Ausreißer, Preissenkung, Suchstatus. Niemals dekorativ, niemals auf neutralen Werten.
@@ -162,7 +162,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Navbar (Hauptnavigation)
 - **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 12px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
-- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die vier Einträge **Beobachtungsgebiete** (`/`, die Startseite — das Herzstück der Anwendung steht vorn), **Inserate** (`/inserate`, der Bestand entsteht aus den Gebieten und steht direkt dahinter), **Suche** (`/suche`), **Suchhistorie** (`/suchen`) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Vier Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
+- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die vier Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Vier Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
 - **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`) dürfen ohne Markierung bleiben.
 - **Ausnahme:** Statisch exportierte CLI-Reports rendern ohne Navbar — ihre Links liefen ohne laufenden Server ins Leere.
 - Quelle: `renderNavbar`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Navbar.
@@ -171,7 +171,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 - **Shape:** Sanft gerundet (6px), keine Kontur bei der Primäraktion.
 - **Primary:** Serien-Blau-Fläche, weißer Text, 600er Gewicht (10px 16px Padding). Eine Primäraktion pro Seite.
 - **Klein/Ghost:** Transparent mit Raster-Kontur, Akzenttext, 12px/400 (4px 10px) — für Zeilen-Aktionen wie „jetzt crawlen". Destruktive Zeilen-Aktionen („löschen") tragen Kritisch-Rot als Text und verlangen eine Bestätigung.
-- **Disabled:** Opazität 0.6, Cursor `wait` (Buttons deaktivieren während laufender Suche/Crawl).
+- **Disabled:** Opazität 0.6, Cursor `wait` (Buttons deaktivieren während laufender Aktionen).
 
 ### Cards / Containers
 - **Section:** Fläche auf Papier, 1px Kontur, 10px Radius, 20px Innenabstand. Das Grundmodul jeder Seite; Inhaltsbreite 560px (Formulare, `breite: 'schmal'`) bzw. 1080px (Auswertungen, `breite: 'breit'`), zentriert.

@@ -180,8 +180,8 @@ function inhaltOderLeer(daten: InserateSeitenDaten): string {
 ${seitenNav(daten)}`;
   }
   if (daten.gesamt === 0 && !filterGesetzt(daten)) {
-    return `    <p class="meta">Der Bestand ist leer – er entsteht aus den täglichen Crawls der
-    Beobachtungsgebiete. <a href="/">Erstes Gebiet anlegen →</a></p>`;
+    return `    <p class="meta">Der Bestand ist leer – er füllt sich mit dem ersten täglichen
+    Kärnten-Sweep. <a href="/crawl">Zu den Crawl-Läufen →</a></p>`;
   }
   if (daten.gesamt === 0) {
     return `    <p class="meta">Keine Inserate für diese Filter.
@@ -202,9 +202,9 @@ export function renderInserateSeite(daten: InserateSeitenDaten): string {
 
   const inhalt = `  <header>
     <h1>Inseratsbestand</h1>
-    <p class="meta">Alle ${nfEur0.format(daten.gesamt)} historisierten Inserate aus den
-    Gebiets-Crawls${filterGesetzt(daten) ? ' (gefiltert)' : ''}. Der Bestand ist
-    gebiets-übergreifend; die Gebiets-Auswertungen filtern ihn nach ihren Kriterien.
+    <p class="meta">Alle ${nfEur0.format(daten.gesamt)} historisierten Roh-Inserate aus dem
+    täglichen Kärnten-Sweep${filterGesetzt(daten) ? ' (gefiltert)' : ''} – hier ohne
+    Deduplizierung; das <a href="/">Dashboard</a> rechnet über die zusammengeführten Objekte.
     <a href="/methodik#datenbasis">Methodik</a></p>
   </header>
 

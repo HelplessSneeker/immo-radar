@@ -151,14 +151,28 @@ export async function bestandLaden(bundesland: string): Promise<BestandInserat[]
   return rows.map(bestandInseratAusZeile);
 }
 
+/**
+ * Aktiv-Stichtag je Portal (max(zuletzt_gesehen) je Bundesland UND Portal):
+ * fällt ein Portal einen Tag aus, gelten seine Inserate nicht plötzlich als
+ * delistet — jedes Portal wird an seinem eigenen letzten Crawl gemessen.
+ */
+export async function stichtagJePortal(bundesland: string): Promise<Map<string, string>> {
+  const { rows } = await holePool().query<{ portal: string; stichtag: string }>(
+    `SELECT portal, max(zuletzt_gesehen)::text AS stichtag
+     FROM inserate_bestand WHERE bundesland = $1 GROUP BY portal`,
+    [bundesland],
+  );
+  return new Map(rows.map((r) => [r.portal, r.stichtag]));
+}
+
 export interface InserateFilter {
   /** Bundesland-Slug; Aufrufer validiert gegen BUNDESLAENDER. */
   bundesland?: string;
   typ?: InseratTyp;
   /**
-   * aktiv = beim jüngsten Crawl des eigenen Bundeslands gesehen (Stichtag =
-   * max(zuletzt_gesehen) je Bundesland) – das globale Analogon zur
-   * Stichtag-Regel der Gebiets-Seiten, ohne fixes Tagesfenster.
+   * aktiv = beim jüngsten Crawl des eigenen Bundeslands UND Portals gesehen
+   * (Stichtag = max(zuletzt_gesehen) je Bundesland und Portal, siehe
+   * stichtagJePortal) – ein Portal-Ausfall „delistet" so nicht massenhaft.
    */
   status?: 'aktiv' | 'delistet';
   /** Teilstring, case-insensitiv über Ort, PLZ und Bezirk. */
@@ -233,8 +247,8 @@ export async function bestandSeiteLaden(
     bedingungen.push(`(b.ort ILIKE ${muster} OR b.plz ILIKE ${muster} OR b.bezirk ILIKE ${muster})`);
   }
   const von = `FROM inserate_bestand b
-     JOIN (SELECT bundesland, max(zuletzt_gesehen) AS stichtag
-           FROM inserate_bestand GROUP BY bundesland) s USING (bundesland)
+     JOIN (SELECT bundesland, portal, max(zuletzt_gesehen) AS stichtag
+           FROM inserate_bestand GROUP BY bundesland, portal) s USING (bundesland, portal)
      ${bedingungen.length > 0 ? `WHERE ${bedingungen.join(' AND ')}` : ''}`;
   // Ab hier teilen sich Count- und Seiten-Query die Filter-Parameter; nur die
   // Seiten-Query bekommt zusätzlich LIMIT/OFFSET.

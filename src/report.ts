@@ -7,13 +7,7 @@ export interface ReportMeta {
   erstellt: string; // ISO-Datum
   /** Region für die Überschrift (Standard: Kärnten, das V1-Beispielgebiet). */
   region?: string;
-  /**
-   * Aktiver Navbar-Eintrag: 'suchen' für Such-Ergebnisse, 'gebiete' für
-   * Gebiets-Reports. Weglassen = ohne Navbar (statisch exportierter Report
-   * aus dem CLI, dort liefen die Links ins Leere).
-   */
-  navAktiv?: 'suchen' | 'gebiete';
-  /** Kontextueller Rücksprung, z. B. zum Gebiet des Reports. */
+  /** Kontextueller Rücksprung (derzeit ungenutzt; der Report ist CLI-only). */
   zurueck?: { href: string; label: string };
 }
 
@@ -267,11 +261,7 @@ ${inserateTabelle(inserate)}
       1,5-Fache des Interquartilsabstands unter dem unteren bzw. über dem oberen Viertel — die
       übliche 1,5×IQR-Regel; je Gebiet und Typ, erst ab 4 Inseraten bewertet).
       Brutto-Mietrendite = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis €/m² — ohne Nebenkosten,
-      Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).${
-        meta.navAktiv !== undefined
-          ? '\n      Alle Kennzahlen im Detail: <a href="/methodik">Methodik</a>.'
-          : ''
-      }</p>
+      Betriebskosten, Leerstand oder Kaufnebenkosten (Nettorendite folgt in V2).</p>
     <p>Datenbasis: manuell erfasste Inserate — kein Anspruch auf Marktvollständigkeit.</p>
   </footer>
 
@@ -433,10 +423,11 @@ ${inserateTabelle(inserate)}
 })();
 </script>`;
 
+  // Der Report wird statisch exportiert (CLI) — ohne Navbar, die Links
+  // liefen ohne Server ins Leere.
   return seite(`Marktanalyse ${meta.erstellt}`, inhalt, {
     breite: 'breit',
     extraCss: REPORT_CSS,
-    aktiv: meta.navAktiv,
-    navbar: meta.navAktiv !== undefined,
+    navbar: false,
   });
 }

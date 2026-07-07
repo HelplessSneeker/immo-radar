@@ -1,17 +1,27 @@
-import { fmtRendite } from './format.js';
+import {
+  BAUJAHR_TOLERANZ,
+  FLAECHE_TOLERANZ_M2,
+  KAUF_PREIS_TOLERANZ,
+  MIETE_PREIS_TOLERANZ,
+  MIETE_PREIS_TOLERANZ_EUR,
+  RELISTING_MAX_LUECKE_TAGE,
+  RELISTING_PREIS_TOLERANZ,
+} from '../matching.js';
+import { MIN_VERGLEICHSOBJEKTE } from '../portfolio-vergleich.js';
+import { fmtRendite, nfPct } from './format.js';
 import { escapeHtml, seite } from './layout.js';
 
 /**
  * Zentrale Erklärseite aller Kennzahlen: was sie bedeuten, wie sie berechnet
  * werden, wo ihre Grenzen liegen. Die Auswertungsseiten verlinken per Anker
- * hierher (#aktive-inserate, #delistet, …) – die Anker-IDs sind deshalb
- * Vertrag, nicht Deko. Bewusst ohne Navbar-Markierung (Referenz, kein
- * Arbeitsfluss) und in Schmalbreite (Prosa).
+ * hierher (#datenbasis, #objekte, …) – die Anker-IDs sind deshalb Vertrag,
+ * nicht Deko. Die Schwellenwerte kommen aus dem Code (matching.ts,
+ * portfolio-vergleich.ts), damit der Text wahr bleibt, wenn sie sich ändern.
+ * Bewusst ohne Navbar-Markierung (Referenz, kein Arbeitsfluss) und in
+ * Schmalbreite (Prosa).
  */
 
 export interface MethodikParameter {
-  /** Fenster der „Kürzlich delistet"-Tabelle in Tagen (Server-Konstante). */
-  delistetFensterTage: number;
   /** Ziel-Bruttorendite als Anteil, z. B. 0.04. */
   zielRendite: number;
 }
@@ -36,63 +46,64 @@ interface Abschnitt {
 
 function abschnitte(p: MethodikParameter): Abschnitt[] {
   const zielProzent = escapeHtml(fmtRendite(p.zielRendite));
+  const kaufToleranz = escapeHtml(nfPct.format(KAUF_PREIS_TOLERANZ * 100));
+  const mieteToleranz = escapeHtml(nfPct.format(MIETE_PREIS_TOLERANZ * 100));
+  const relistingToleranz = escapeHtml(nfPct.format(RELISTING_PREIS_TOLERANZ * 100));
   return [
     {
       id: 'datenbasis',
-      titel: 'Datenbasis: der Inseratsbestand',
+      titel: 'Datenbasis: der tägliche Kärnten-Sweep',
       inhalt: `
-    <p><strong>Was ist das?</strong> Alle Zahlen stammen aus dem historisierten Inseratsbestand:
-    Jedes aktive Beobachtungsgebiet wird einmal täglich auf willhaben.at und immoscout24.at
-    gecrawlt. Jedes gefundene Inserat bekommt eine Zeile im Bestand, die über die Zeit
-    fortgeschrieben wird – wann es zuerst und zuletzt gesehen wurde und wie sich sein Preis
-    entwickelt hat.</p>
-    <p><strong>Grenzen:</strong> Die Portale liefern pro Abfrage höchstens ≈150 (willhaben)
-    bzw. ≈75 (immoscout24) Inserate – große Gebiete sind daher eine Stichprobe, keine
-    Vollerhebung. Dasselbe Objekt kann auf beiden Portalen stehen und zählt dann doppelt
-    (keine portal-übergreifende Zusammenführung). Und weil nur einmal täglich gecrawlt wird,
-    bleibt ein Inserat, das am selben Tag erscheint und wieder verschwindet, unsichtbar.
-    Rückblickende Tages-Auswertungen (Crawl-Läufe) werden aus dem heutigen Bestand
-    rekonstruiert: Taucht ein verschwundenes Inserat später wieder auf, verschwindet es
-    nachträglich aus der Delistet-Liste des alten Laufs.</p>`,
+    <p><strong>Was ist das?</strong> Einmal täglich crawlt immo-radar <em>alle</em> Wohnungs-Inserate
+    Kärntens (Kauf und Miete) auf willhaben.at und immoscout24.at. Damit die Portal-Limits
+    (≈450 bzw. ≈225 Inserate pro Abfrage) nicht zur Stichprobe zwingen, ist der Sweep in
+    Segmente zerlegt: je politischem Bezirk, Typ und Portal; liefert ein Segment trotzdem mehr
+    Treffer als ladbar, wird es zusätzlich in Preisbänder geteilt. Jedes gefundene Inserat
+    bekommt eine Zeile im historisierten Bestand – wann es zuerst und zuletzt gesehen wurde
+    und wie sich sein Preis entwickelt hat.</p>
+    <p><strong>Grenzen:</strong> Gecrawlt wird einmal täglich – ein Inserat, das am selben Tag
+    erscheint und wieder verschwindet, bleibt unsichtbar. Fällt ein Portal aus, fehlt nur der
+    Ausschnitt der betroffenen Segmente (sichtbar unter <a href="/crawl">Crawl-Läufe</a>);
+    „zuletzt gesehen" wird je Portal gemessen, ein Portal-Ausfall lässt dessen Inserate also
+    nicht fälschlich als delistet erscheinen. Daten vor dem 7. Juli 2026 stammen aus dem
+    früheren Gebiets-Crawl mit engeren Limits – die Objekt-Anzahlen springen am Umstellungstag
+    sichtbar nach oben, die Mediane sind davon weitgehend unberührt.</p>`,
+    },
+    {
+      id: 'objekte',
+      titel: 'Objekte: die Zusammenführung der Inserate',
+      inhalt: `
+    <p><strong>Was ist das?</strong> Dieselbe Wohnung steht oft auf beiden Portalen – und
+    taucht nach einer Pause manchmal als neues Inserat wieder auf. Damit sie in den Kennzahlen
+    nur einmal zählt, fasst immo-radar Inserate heuristisch zu „Objekten" zusammen.</p>
+    <p><strong>Regel „Duplikat"</strong> (zwei Inserate gleichzeitig online): nur
+    <em>portal-übergreifend</em>; gleiche PLZ, Fläche ±${escapeHtml(String(FLAECHE_TOLERANZ_M2))} m²,
+    exakt gleiche Zimmerzahl, Preisabstand höchstens ${kaufToleranz} % (Kauf) bzw.
+    ${mieteToleranz} % oder ${MIETE_PREIS_TOLERANZ_EUR} € (Miete); ist bei beiden ein Baujahr
+    angegeben, darf es höchstens ${BAUJAHR_TOLERANZ} Jahre auseinanderliegen. Zwei gleichzeitig
+    aktive Inserate <em>desselben</em> Portals werden nie zusammengeführt – in Neubauprojekten
+    sind baugleiche Wohnungen echte verschiedene Einheiten.</p>
+    <p><strong>Regel „Wiedereinstellung"</strong> (zeitlich getrennt, Lücke bis
+    ${RELISTING_MAX_LUECKE_TAGE} Tage): gleiche Attribut-Schwellen, Preis ±${relistingToleranz} % –
+    die Preishistorie läuft weiter und die Vermarktungsdauer beginnt nicht von vorn.</p>
+    <p><strong>Grenzen:</strong> Eine Heuristik kann irren – zwei sehr ähnliche Wohnungen im
+    selben Haus können fälschlich verschmelzen, und ein Portal-Wechsel mit großem Preissprung
+    bleibt getrennt. Jede Zuordnung ist mit Regel und Abweichungen protokolliert; nach
+    Regeländerungen wird die gesamte Zuordnung deterministisch neu aufgebaut
+    (<code>pnpm objekte:rebuild</code>). Die Roh-Inserate bleiben unangetastet und sind unter
+    <a href="/inserate">Inserate</a> einsehbar.</p>`,
     },
     {
       id: 'aktive-inserate',
-      titel: 'Aktive Inserate',
+      titel: 'Aktiv und delistet',
       inhalt: `
-    <p><strong>Was ist das?</strong> Die Inserate, die beim letzten erfolgreichen Crawl-Lauf
-    noch online waren – der aktuelle Marktbestand des Gebiets.</p>
-    <p><strong>Formel:</strong> zuletzt gesehen am Stichtag (= Datum des letzten erfolgreichen
-    Laufs) oder später.</p>
-    <p><strong>Grenzen:</strong> „Aktiv" heißt nur: das Portal hat es noch gelistet. Ob es
-    real noch verfügbar ist, weiß nur der Anbieter.</p>`,
-    },
-    {
-      id: 'delistet',
-      titel: 'Delistet',
-      inhalt: `
-    <p><strong>Was ist das?</strong> Inserate, die in einem früheren Crawl gesehen wurden,
-    beim letzten aber nicht mehr – sie sind vom Portal verschwunden.</p>
-    <p><strong>Formel:</strong> zuletzt gesehen vor dem Stichtag des letzten erfolgreichen
-    Laufs. Die Tabelle „Kürzlich delistet" zeigt das Fenster der letzten
-    ${p.delistetFensterTage} Tage.</p>
-    <p><strong>Grenzen:</strong> Delisting ist ein <em>Näherungswert</em> für
-    verkauft/vermietet – Inserate können auch zurückgezogen, pausiert oder neu eingestellt
-    worden sein. Auch ein Inserat, das per Preisänderung aus dem Preisfenster des Gebiets
-    fällt, gilt aus Sicht des Gebiets als delistet.</p>`,
-    },
-    {
-      id: 'vermarktungsdauer',
-      titel: 'Vermarktungsdauer',
-      inhalt: `
-    <p><strong>Was ist das?</strong> Wie lange delistete Inserate online waren, bevor sie
-    verschwanden – ein Anhaltspunkt, wie schnell der Markt in diesem Gebiet dreht.</p>
-    <p><strong>Formel:</strong> zuletzt gesehen − zuerst gesehen, in Tagen; angegeben wird
-    der <a href="#median-trend">Median</a> (und zum Vergleich der Durchschnitt Ø), getrennt
-    nach Kauf und Miete.</p>
-    <p><strong>Grenzen:</strong> Inserate, die schon beim allerersten Crawl des Gebiets
-    online waren, könnten davor bereits wochenlang gelistet gewesen sein – ihre gemessene
-    Dauer ist eine Untergrenze. Die Kennzahl wird verlässlicher, je länger das Gebiet
-    beobachtet wird.</p>`,
+    <p><strong>Was ist das?</strong> Aktiv = beim jüngsten Sweep des jeweiligen Portals noch
+    gelistet. Ein <em>Objekt</em> ist aktiv, solange irgendeines seiner Inserate aktiv ist –
+    delistet erst, wenn alle verschwunden sind. Delisting ist der Näherungswert für
+    verkauft/vermietet.</p>
+    <p><strong>Grenzen:</strong> „Aktiv" heißt nur: das Portal hat es noch gelistet. Delistete
+    Inserate können auch zurückgezogen oder pausiert sein; taucht die Wohnung binnen
+    ${RELISTING_MAX_LUECKE_TAGE} Tagen wieder auf, wird sie demselben Objekt zugeordnet.</p>`,
     },
     {
       id: 'eur-m2',
@@ -101,7 +112,8 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     <p><strong>Was ist das?</strong> Der Preis pro Quadratmeter Wohnfläche – die Vergleichsgröße,
     die Wohnungen unterschiedlicher Größe vergleichbar macht.</p>
     <p><strong>Formel:</strong> Preis ÷ Wohnfläche. Bei Kauf der Kaufpreis, bei Miete die
-    monatliche Kaltmiete.</p>
+    monatliche Kaltmiete. Ist ein Objekt auf beiden Portalen inseriert, zählt der
+    <em>niedrigere</em> Preis – zu ihm würde transaktiert.</p>
     <p class="beispiel">Beispiel: 250.000 € ÷ 80 m² = 3.125 €/m² (Kauf) ·
     800 € ÷ 80 m² = 10 €/m² (Miete kalt).</p>
     <p><strong>Grenzen:</strong> Die Flächenangabe stammt aus dem Inserat und ist nicht
@@ -109,21 +121,22 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     },
     {
       id: 'median-trend',
-      titel: 'Median €/m² über die Zeit',
+      titel: 'Die Zeitreihen (Median €/m², Rendite)',
       inhalt: `
-    <p><strong>Was ist das?</strong> Die Preisentwicklung des Gebiets: pro Woche der mittlere
-    Quadratmeterpreis der damals aktiven Inserate, getrennt nach Kauf und Miete.</p>
+    <p><strong>Was ist das?</strong> Die Marktentwicklung im Wochenraster: pro Stichtag der
+    mittlere Quadratmeterpreis der damals aktiven Objekte, getrennt nach Kauf und Miete –
+    plus die daraus abgeleitete <a href="#bruttorendite">Bruttorendite</a> als eigene Reihe.</p>
     <p><strong>Was ist ein Median?</strong> Der Wert in der Mitte, wenn man alle Werte der
     Größe nach sortiert – die Hälfte liegt darunter, die Hälfte darüber. Anders als der
     Durchschnitt verschiebt ihn ein einzelnes Luxus-Penthouse kaum; deshalb nutzt immo-radar
     fast überall den Median.</p>
-    <p><strong>Formel:</strong> Wochenraster vom ersten Crawl bis heute; pro Stichtag zählt
-    ein Inserat, wenn es damals aktiv war, mit seinem damaligen Preis (aus der
-    <a href="#preisaenderungen">Preishistorie</a> rekonstruiert).</p>
-    <p><strong>Grenzen:</strong> In kleinen Gebieten hängt der Median an wenigen Inseraten –
-    die Anzahl pro Punkt steht im Diagramm-Tooltip. Sprünge können auch daher kommen, dass
-    teure oder billige Inserate dazukommen bzw. verschwinden, nicht nur aus echten
-    Preisänderungen.</p>`,
+    <p><strong>Formel:</strong> Wochenraster vom ersten Crawl bis zum letzten fertigen Sweep;
+    pro Stichtag zählt ein Objekt, wenn es damals aktiv war, mit seinem damaligen Preis (aus
+    der <a href="#preisaenderungen">Preishistorie</a> rekonstruiert). Der PLZ-/m²-Filter des
+    Dashboards schränkt die Objektmenge ein, bevor gerechnet wird.</p>
+    <p><strong>Grenzen:</strong> Bei engen Filtern hängt der Median an wenigen Objekten – die
+    Anzahl pro Punkt steht im Diagramm-Tooltip. Sprünge können auch daher kommen, dass teure
+    oder billige Objekte dazukommen bzw. verschwinden, nicht nur aus echten Preisänderungen.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -132,11 +145,11 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     <p><strong>Was ist das?</strong> Wenn ein Anbieter den Preis eines laufenden Inserats
     ändert, zeichnet immo-radar das auf – für Käufer ist eine Senkung ein Signal
     (Verhandlungsspielraum, Preisdruck), deshalb ist sie grün markiert; Erhöhungen rot.</p>
-    <p><strong>Formel:</strong> Beim täglichen Crawl wird der aktuelle Preis mit dem
+    <p><strong>Formel:</strong> Beim täglichen Sweep wird der aktuelle Preis mit dem
     gespeicherten verglichen; jede Änderung wird mit Datum in der Preishistorie abgelegt
     (maximal ein Punkt pro Tag). Angezeigt wird die letzte Änderung: neuer Preis gegenüber
     dem vorherigen, in Prozent und Euro.</p>
-    <p><strong>Grenzen:</strong> Änderungen zwischen zwei Crawls (mehrfach am selben Tag)
+    <p><strong>Grenzen:</strong> Änderungen zwischen zwei Sweeps (mehrfach am selben Tag)
     werden nur als eine gezählt – der letzte Preis des Tages gewinnt.</p>`,
     },
     {
@@ -144,32 +157,32 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
       titel: 'Bruttorendite',
       inhalt: `
     <p><strong>Was ist das?</strong> Das zentrale Anlage-Maß: Wie viel Jahres-Kaltmiete bringt
-    ein investierter Kauf-Euro in diesem Gebiet? Ab ${zielProzent} gilt das Ziel als erreicht
-    und der Wert wird grün hervorgehoben.</p>
+    ein investierter Kauf-Euro? Ab ${zielProzent} gilt das Ziel als erreicht und der Wert wird
+    grün hervorgehoben.</p>
     <p><strong>Formel:</strong> (Median-Kaltmiete €/m² × 12) ÷ Median-Kaufpreis €/m², jeweils
-    über die aktiven Inserate des Gebiets.</p>
+    über die aktiven Objekte im gewählten Filter; als Zeitreihe je Wochen-Stichtag.</p>
     <p class="beispiel">Beispiel: 10 €/m² Kaltmiete × 12 = 120 €/m² Jahresmiete;
     120 ÷ 3.000 €/m² Kaufpreis = 4 %.</p>
     <p><strong>Grenzen:</strong> <em>Brutto</em> heißt: ohne Betriebskosten, Instandhaltung,
     Leerstand, Kaufnebenkosten und Steuern – die tatsächliche Netto-Rendite liegt darunter.
-    Die Zahl ist eine Obergrenze zum Vergleichen von Gebieten, keine Ertragsprognose. Sie
-    vergleicht außerdem den Miet- und den Kauf-Markt desselben Gebiets, nicht dieselben
-    Wohnungen.</p>`,
+    Die Zahl vergleicht außerdem den Miet- mit dem Kauf-Markt, nicht dieselben Wohnungen.</p>`,
     },
     {
-      id: 'ausreisser',
-      titel: 'Ausreißer',
+      id: 'portfolio-vergleich',
+      titel: 'Portfolio: der Marktvergleich',
       inhalt: `
-    <p><strong>Was ist das?</strong> Inserate, deren €/m² weit außerhalb des üblichen Bereichs
-    ihres Gebiets liegt – im Marktreport rot markiert, damit sie den Vergleich nicht
-    verzerren und man sie sich gezielt ansehen kann (Tippfehler? Sanierungsfall?
-    Luxusobjekt?).</p>
-    <p><strong>Formel:</strong> die übliche 1,5×IQR-Regel: Man nimmt das Viertel der
-    günstigsten und das Viertel der teuersten Werte; wer mehr als das 1,5-Fache des Abstands
-    zwischen diesen Vierteln darunter oder darüber liegt, gilt als Ausreißer. Bewertet je
-    Gebiet und Typ, erst ab 4 Inseraten.</p>
-    <p><strong>Grenzen:</strong> Ein Ausreißer ist auffällig, nicht falsch – die Markierung
-    ist eine Einladung zum Nachsehen, kein Urteil über das Objekt.</p>`,
+    <p><strong>Was ist das?</strong> Jedes eigene Objekt wird dem Markt gegenübergestellt:
+    die eigene Kaltmiete/m² dem Markt-Median vergleichbarer Mietwohnungen, die eigene
+    Ist-Rendite (Jahres-Kaltmiete ÷ Kaufpreis) der Markt-Bruttorendite. Liegt die eigene Miete
+    unter Markt, wird das monatliche Potenzial ausgewiesen.</p>
+    <p><strong>Formel:</strong> Verglichen wird zuerst innerhalb derselben PLZ; gibt es dort
+    weniger als ${MIN_VERGLEICHSOBJEKTE} aktive Vergleichsobjekte, weitet sich der Vergleich
+    auf den Bezirk, dann auf ganz Kärnten – die verwendete Ebene steht immer dabei, denn ein
+    Kärnten-weiter Vergleich ist etwas anderes als einer in derselben Straße.</p>
+    <p><strong>Grenzen:</strong> Der Markt-Median vergleicht Angebots-, keine Abschlusspreise;
+    Ausstattung, Zustand und Lage innerhalb der PLZ bleiben unberücksichtigt. Das Potenzial
+    ist eine Rechen-, keine Rechtsgröße (Mietrecht, Befristungen und Bestandsverträge setzen
+    die realen Grenzen).</p>`,
     },
   ];
 }
