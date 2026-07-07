@@ -26,7 +26,9 @@ pnpm serve            # wendet Migrationen automatisch an
 ```
 
 Dann <http://localhost:8787> im Browser öffnen (Port über die Umgebungsvariable
-`PORT` änderbar). Die Seiten:
+`PORT` änderbar). Alle Seiten liegen hinter HTTP-Basic-Auth
+(`BASIC_AUTH_USER`/`BASIC_AUTH_PASS` aus der `.env`; ohne sie startet der
+Server nicht). Die Seiten:
 
 - **`/` – Dashboard** (Startseite): Bruttorendite, Median-Kauf-€/m² und
   Median-Kaltmiete-€/m² als Wochen-Zeitreihen über die deduplizierten
@@ -92,6 +94,25 @@ automatisch; `pnpm db:migrate` wendet sie manuell an.
 ändert ein Portal den Seitenaufbau, degradieren dessen Segmente (sichtbar
 unter `/crawl`). Scraping verstößt formal gegen die Portal-AGB — das Tool ist
 für private, moderate Nutzung gedacht.
+
+## Deployment (Coolify)
+
+Das Repo bringt ein multi-stage `Dockerfile` mit (Build via `tsc`, Runtime nur
+mit Produktions-Dependencies plus `dist/` und `migrations/`). In Coolify als
+Dockerfile-Build anlegen, Postgres als separate Ressource (interner Hostname,
+kein SSL nötig) und diese Env-Vars setzen:
+
+- `DATABASE_URL` – Verbindungs-URL der Postgres-Ressource
+- `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` – Zugangsdaten für alle Seiten;
+  für Prod ein langes Secret wählen
+- `PORT` – optional, Default 8787
+
+Healthcheck-Pfad: **`/health`** (auth-frei; `200 {"status":"ok"}` bei
+erreichbarer DB, sonst `503`). Migrationen laufen beim Start automatisch
+(Advisory-Lock, mehrere Instanzen sind unkritisch). `SIGTERM` fährt sauber
+herunter (offene Requests zu Ende, dann Pool schließen). Fehlen die
+Auth-Vars, beendet sich der Container sofort mit Exit 1 (fail-closed) —
+der Deploy schlägt dann sichtbar fehl statt ungeschützt zu laufen.
 
 ## CLI (CSV/JSON-Dateien oder Portal-Such-URLs)
 
