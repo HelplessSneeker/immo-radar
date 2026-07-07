@@ -344,13 +344,13 @@ export const FORMULAR_CSS = `
 `;
 
 /** Eintrag der Hauptnavigation, der als aktuelle Seite markiert wird. */
-export type NavAktiv = 'suche' | 'gebiete' | 'suchen' | 'inserate';
+export type NavAktiv = 'dashboard' | 'inserate' | 'portfolio' | 'crawl';
 
 const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
-  ['gebiete', '/', 'Beobachtungsgebiete'],
+  ['dashboard', '/', 'Dashboard'],
   ['inserate', '/inserate', 'Inserate'],
-  ['suche', '/suche', 'Suche'],
-  ['suchen', '/suchen', 'Suchhistorie'],
+  ['portfolio', '/portfolio', 'Portfolio'],
+  ['crawl', '/crawl', 'Crawl-Läufe'],
 ];
 
 function renderNavbar(aktiv: NavAktiv | undefined): string {
@@ -365,7 +365,7 @@ function renderNavbar(aktiv: NavAktiv | undefined): string {
   <a class="marke" href="/">immo-radar</a>
   ${links}
   <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
-    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Aktuell laufende Suchen und Crawls anzeigen">
+    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
       <span class="aktivitaet-punkt" aria-hidden="true"></span>
       <span class="aktivitaet-text">läuft</span>
     </button>
@@ -421,18 +421,9 @@ export const AKTIVITAET_JS = `
 
   function baueListe(data) {
     let html = '';
-    if (data.suchen.length) {
-      html += '<p class="aktivitaet-titel">Suchen</p><ul>';
-      for (const s of data.suchen) {
-        html += '<li><a href="/suchen/' + s.id + '"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>' + esc(s.beschreibung) + '</span></a></li>';
-      }
-      html += '</ul>';
-    }
-    if (data.crawls.length) {
-      html += '<p class="aktivitaet-titel">Crawls</p><ul>';
-      for (const c of data.crawls) {
-        html += '<li><a href="/gebiete/' + c.gebietId + '"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>' + esc(c.name) + '</span></a></li>';
-      }
+    if (data.sweep) {
+      html += '<p class="aktivitaet-titel">Crawl</p><ul>';
+      html += '<li><a href="/crawl"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>Kärnten-Sweep (' + esc(data.sweep.laufDatum) + ')</span></a></li>';
       html += '</ul>';
     }
     liste.innerHTML = html;
@@ -443,16 +434,15 @@ export const AKTIVITAET_JS = `
       const res = await fetch('/api/laufend', { headers: { accept: 'application/json' } });
       if (!res.ok) return;
       const data = await res.json();
-      const gesamt = data.suchen.length + data.crawls.length;
-      const hash = gesamt + ':' + data.suchen.map(function (s) { return s.id; }).join(',') + '|' + data.crawls.map(function (c) { return c.gebietId; }).join(',');
+      const hash = data.sweep ? data.sweep.laufDatum : '';
       const geaendert = hash !== letzterHash;
       letzterHash = hash;
 
-      if (gesamt === 0) {
+      if (!data.sweep) {
         if (!slot.hidden) { slot.hidden = true; schliesseListe(); }
       } else {
         if (slot.hidden) slot.hidden = false;
-        text.textContent = gesamt === 1 ? '1 läuft' : gesamt + ' laufen';
+        text.textContent = 'Sweep läuft';
         baueListe(data);
       }
       if (geaendert) {

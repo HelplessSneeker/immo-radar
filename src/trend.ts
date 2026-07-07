@@ -1,5 +1,6 @@
 import type { BestandInserat, PreisPunkt } from './db/bestand-repo.js';
 import { tageZwischen } from './datum.js';
+import { kanonischerOrt, normalisierePlz } from './normalisierung.js';
 import { bruttoRendite, mean, median } from './stats.js';
 import type { InseratTyp } from './types.js';
 
@@ -96,6 +97,183 @@ export function berechneTrend(
       anzahlKauf: eurM2.kauf.length,
       anzahlMiete: eurM2.miete.length,
     };
+  });
+}
+
+// --- Objekt-Zeitreihen (dedupliziert, siehe src/matching.ts) ---
+
+/** Ein Inserat innerhalb eines Objekts, mit eigener Aktivität und Historie. */
+export interface ObjektInserat {
+  portal: string;
+  inseratId: string;
+  flaecheM2: number;
+  zuerstGesehen: string;
+  zuletztGesehen: string;
+  /** Chronologisch sortierte Preishistorie dieses Inserats. */
+  historie: PreisPunkt[];
+}
+
+/**
+ * Ein Objekt als Zeitreihen-Einheit: die Attribute stammen vom ältesten
+ * Inserat, Aktivität ist die Vereinigung aller Inserats-Fenster. Inserate
+ * ohne objekt_id (Matching noch nicht gelaufen) werden als Ein-Inserat-
+ * Objekte mitgezählt.
+ */
+export interface ObjektZeitreihe {
+  objektId?: number;
+  typ: InseratTyp;
+  plz: string; // normalisiert (4-stellig, soweit ableitbar)
+  ort: string;
+  bezirk: string;
+  flaecheM2: number;
+  zimmer: number;
+  zuerstGesehen: string; // min über die Inserate
+  zuletztGesehen: string; // max über die Inserate
+  inserate: ObjektInserat[];
+}
+
+/**
+ * Gruppiert den Bestand nach objekt_id zu Zeitreihen-Objekten. Verarbeitet
+ * in fester Reihenfolge (zuerstGesehen, portal, id), damit die kanonischen
+ * Attribute deterministisch vom ältesten Inserat stammen.
+ */
+export function objekteAusBestand(
+  bestand: Array<BestandInserat & { objektId?: number }>,
+  historie: PreisPunkt[],
+): ObjektZeitreihe[] {
+  const jeInserat = historieJeInserat(historie);
+  const sortiert = [...bestand].sort(
+    (a, b) =>
+      a.zuerstGesehen.localeCompare(b.zuerstGesehen) ||
+      a.portal.localeCompare(b.portal) ||
+      a.id.localeCompare(b.id),
+  );
+  const gruppen = new Map<number | string, ObjektZeitreihe>();
+  for (const i of sortiert) {
+    const mitglied: ObjektInserat = {
+      portal: i.portal,
+      inseratId: i.id,
+      flaecheM2: i.flaeche_m2,
+      zuerstGesehen: i.zuerstGesehen,
+      zuletztGesehen: i.zuletztGesehen,
+      historie: jeInserat.get(inseratSchluessel(i.portal, i.id)) ?? [],
+    };
+    const schluessel = i.objektId ?? `solo ${inseratSchluessel(i.portal, i.id)}`;
+    const objekt = gruppen.get(schluessel);
+    if (objekt === undefined) {
+      const neu: ObjektZeitreihe = {
+        typ: i.typ,
+        plz: normalisierePlz(i.plz, i.ort) ?? i.plz.trim(),
+        ort: kanonischerOrt(i.ort),
+        bezirk: i.bezirk,
+        flaecheM2: i.flaeche_m2,
+        zimmer: i.zimmer,
+        zuerstGesehen: i.zuerstGesehen,
+        zuletztGesehen: i.zuletztGesehen,
+        inserate: [mitglied],
+      };
+      if (i.objektId !== undefined) neu.objektId = i.objektId;
+      gruppen.set(schluessel, neu);
+    } else {
+      objekt.inserate.push(mitglied);
+      if (i.zuerstGesehen < objekt.zuerstGesehen) objekt.zuerstGesehen = i.zuerstGesehen;
+      if (i.zuletztGesehen > objekt.zuletztGesehen) objekt.zuletztGesehen = i.zuletztGesehen;
+    }
+  }
+  return [...gruppen.values()];
+}
+
+/**
+ * €/m² eines Objekts am Stichtag: das MINIMUM über seine dann aktiven
+ * Inserate (zum niedrigeren Preis wird transaktiert; das Minimum ist zudem
+ * stabil gegen die Merge-Reihenfolge). undefined, wenn kein Inserat aktiv
+ * ist oder keine Fläche auswertbar.
+ */
+export function objektEurM2AmStichtag(
+  objekt: ObjektZeitreihe,
+  stichtag: string,
+  intervallTage = 7,
+): number | undefined {
+  let minimum: number | undefined;
+  for (const inserat of objekt.inserate) {
+    if (inserat.zuerstGesehen > stichtag) continue;
+    if (tageZwischen(inserat.zuletztGesehen, stichtag) > intervallTage - 1) continue;
+    if (inserat.flaecheM2 <= 0) continue;
+    const preis = preisAmStichtag(inserat.historie, stichtag);
+    if (preis === undefined) continue;
+    const eurM2 = preis / inserat.flaecheM2;
+    if (minimum === undefined || eurM2 < minimum) minimum = eurM2;
+  }
+  return minimum;
+}
+
+/**
+ * Wie berechneTrend, aber über deduplizierte Objekte: ein Objekt zählt pro
+ * Stichtag genau einmal, solange IRGENDEIN zugeordnetes Inserat aktiv ist
+ * (delistet erst, wenn alle weg sind — Relistings halten die Reihe
+ * durchgehend).
+ */
+export function berechneObjektTrend(
+  objekte: ObjektZeitreihe[],
+  bisDatum: string,
+  intervallTage = 7,
+): TrendPunkt[] {
+  if (objekte.length === 0) return [];
+  const start = objekte.map((o) => o.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
+
+  const stichtage: string[] = [];
+  for (let d = bisDatum; d >= start; d = datumPlusTage(d, -intervallTage)) {
+    stichtage.push(d);
+  }
+  stichtage.reverse();
+
+  return stichtage.map((stichtag) => {
+    const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
+    for (const objekt of objekte) {
+      const wert = objektEurM2AmStichtag(objekt, stichtag, intervallTage);
+      if (wert !== undefined) eurM2[objekt.typ].push(wert);
+    }
+    return {
+      datum: stichtag,
+      medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
+      medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
+      anzahlKauf: eurM2.kauf.length,
+      anzahlMiete: eurM2.miete.length,
+    };
+  });
+}
+
+export interface RenditeTrendPunkt {
+  datum: string;
+  /** Brutto-Mietrendite als Anteil (0.04 = 4 %); null, wenn eine Marktseite fehlt. */
+  bruttoRendite: number | null;
+}
+
+/** Rendite-Zeitreihe aus einem Trend: Median-Miete ×12 ÷ Median-Kauf je Stichtag. */
+export function berechneRenditeTrend(trend: TrendPunkt[]): RenditeTrendPunkt[] {
+  return trend.map((punkt) => ({
+    datum: punkt.datum,
+    bruttoRendite:
+      punkt.medianKaufEurM2 !== null && punkt.medianMieteEurM2 !== null
+        ? bruttoRendite(punkt.medianMieteEurM2, punkt.medianKaufEurM2)
+        : null,
+  }));
+}
+
+export interface ObjektFilter {
+  /** PLZ-Präfix: "9" = Region, "9020" = exakt. */
+  plz?: string;
+  flaecheMin?: number;
+  flaecheMax?: number;
+}
+
+/** Der kleine Dashboard-Filter: PLZ-Präfix und m²-Bereich. */
+export function filterObjekte(objekte: ObjektZeitreihe[], filter: ObjektFilter): ObjektZeitreihe[] {
+  return objekte.filter((o) => {
+    if (filter.plz !== undefined && !o.plz.startsWith(filter.plz)) return false;
+    if (filter.flaecheMin !== undefined && o.flaecheM2 < filter.flaecheMin) return false;
+    if (filter.flaecheMax !== undefined && o.flaecheM2 > filter.flaecheMax) return false;
+    return true;
   });
 }
 

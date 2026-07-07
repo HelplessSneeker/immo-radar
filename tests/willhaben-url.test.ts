@@ -86,6 +86,33 @@ describe('buildSearchUrls', () => {
     expect(new URL(urls[1]!.url).pathname).toBe('/iad/immobilien/mietwohnungen/kaernten/klagenfurt');
   });
 
+  it('hängt einen bekannten Bezirk an den Pfad — auch kombiniert mit Preisband', () => {
+    const urls = buildSearchUrls({
+      bundesland: 'kaernten',
+      typ: 'kauf',
+      bezirk: 'klagenfurt-stadt',
+      preisMin: 150000,
+      preisMax: 250000,
+    });
+    const u = new URL(urls[0]!.url);
+    expect(u.pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/klagenfurt');
+    expect(u.searchParams.get('PRICE_FROM')).toBe('150000');
+    expect(u.searchParams.get('PRICE_TO')).toBe('250000');
+  });
+
+  it('Bezirk schlägt den Ort; unbekannter Bezirk fällt auf den Bundesland-Pfad zurück', () => {
+    const mitBeidem = buildSearchUrls({
+      bundesland: 'kaernten',
+      typ: 'kauf',
+      bezirk: 'villach-stadt',
+      ort: 'Klagenfurt',
+    });
+    expect(new URL(mitBeidem[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten/villach');
+
+    const unbekannt = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', bezirk: 'lienz' });
+    expect(new URL(unbekannt[0]!.url).pathname).toBe('/iad/immobilien/eigentumswohnung/kaernten');
+  });
+
   it('kennt alle 9 Bundesländer und wirft bei unbekanntem Slug', () => {
     expect(Object.keys(BUNDESLAENDER)).toHaveLength(9);
     for (const slug of Object.keys(BUNDESLAENDER)) {

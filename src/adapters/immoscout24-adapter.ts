@@ -2,7 +2,12 @@ import { setTimeout as warte } from 'node:timers/promises';
 import type { Inserat, InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
 import { BUNDESLAENDER } from '../search.js';
-import { PortalFehler, type PortalAdapter, type PortalSuchErgebnis } from './portal-adapter.js';
+import {
+  PortalFehler,
+  type PortalAdapter,
+  type PortalSuchErgebnis,
+  type SuchOptionen,
+} from './portal-adapter.js';
 import { extractInitialState, extractPageData, mapPage } from '../immoscout24/map.js';
 import { buildSearchUrls } from '../immoscout24/url.js';
 
@@ -53,16 +58,19 @@ export class ImmoScout24Adapter implements PortalAdapter {
     return (await this.fetchMitStatistik(source)).inserate;
   }
 
-  async sucheMitStatistik(kriterien: SuchKriterien): Promise<PortalSuchErgebnis[]> {
+  async sucheMitStatistik(
+    kriterien: SuchKriterien,
+    optionen?: SuchOptionen,
+  ): Promise<PortalSuchErgebnis[]> {
     const ergebnisse: PortalSuchErgebnis[] = [];
     for (const suche of buildSearchUrls(kriterien)) {
-      const ergebnis = await this.fetchMitStatistik(suche.url);
+      const ergebnis = await this.fetchMitStatistik(suche.url, optionen?.maxSeiten);
       ergebnisse.push({ typ: suche.typ, ...ergebnis });
     }
     return ergebnisse;
   }
 
-  async fetchMitStatistik(source: string): Promise<CrawlErgebnis> {
+  async fetchMitStatistik(source: string, maxSeiten = MAX_SEITEN): Promise<CrawlErgebnis> {
     const typ = typAusUrl(source);
     const bezirk = bezirkAusUrl(source);
     const heute = new Date().toISOString().slice(0, 10);
@@ -73,7 +81,7 @@ export class ImmoScout24Adapter implements PortalAdapter {
     let uebersprungen = 0;
     let gesamtTreffer = 0;
 
-    for (let seite = 1; seite <= MAX_SEITEN; seite += 1) {
+    for (let seite = 1; seite <= maxSeiten; seite += 1) {
       if (seite > 1) await warte(this.seitenPauseMs);
 
       const url = new URL(basis);

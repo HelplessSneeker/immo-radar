@@ -30,10 +30,16 @@ export interface PortalSuchErgebnis {
   gesamtTreffer: number;
 }
 
+/** Optionen einer Kriterien-Suche. */
+export interface SuchOptionen {
+  /** Seiten-Deckel pro Such-URL (Default: MAX_SEITEN des Adapters). */
+  maxSeiten?: number;
+}
+
 /** Immobilienportal: kann zusätzlich zu fetch(url) eine Kriterien-Suche ausführen. */
 export interface PortalAdapter extends SourceAdapter {
   /** Kurzname fürs UI, z. B. "willhaben.at". */
   readonly portal: string;
   /** Baut die Such-URLs zu den Kriterien und crawlt sie (ein Ergebnis pro URL/Typ). */
-  sucheMitStatistik(kriterien: SuchKriterien): Promise<PortalSuchErgebnis[]>;
+  sucheMitStatistik(kriterien: SuchKriterien, optionen?: SuchOptionen): Promise<PortalSuchErgebnis[]>;
 }

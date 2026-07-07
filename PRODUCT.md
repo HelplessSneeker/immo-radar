@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Benjamin und sein enger Kreis (Partner/Familie). Primärnutzer ist ein technisch versierter Investor, der abends am Desktop den österreichischen Wohnungsmarkt analysiert; Ergebnisse (Reports, Gebiets-Auswertungen) werden aber mit Nicht-Technikern geteilt und gemeinsam besprochen. Job to be done: fundierte Kauf-Entscheidungen für Anlageobjekte treffen — sowohl im Ad-hoc-Vergleich („Wo lohnt sich Kaufen gerade?") als auch in der Langzeit-Beobachtung („Wie entwickelt sich mein Gebiet?"). Beide Aufgaben sind gleichwertig.
+Benjamin und sein enger Kreis (Partner/Familie). Primärnutzer ist ein technisch versierter Investor, der abends am Desktop den Kärntner Wohnungsmarkt beobachtet; Ergebnisse werden aber mit Nicht-Technikern geteilt und gemeinsam besprochen. Job to be done: fundierte Kauf- und Vermietungs-Entscheidungen für Anlageobjekte treffen — den Markt als Zeitreihe im Blick behalten („Wie entwickeln sich Rendite, Miete/m², Preis/m²?") und die eigenen Wohnungen dagegen einordnen („Liegt meine Miete unter Markt?").
 
 ## Product Purpose
 
-immo-radar lädt Kauf- und Miet-Inserate (Live-Crawl von willhaben.at und immoscout24.at oder CSV/JSON), wertet sie pro Gebiet aus und zeigt Bruttorenditen, €/m²-Vergleiche und Ausreißer. Beobachtungsgebiete bauen einen historisierten Bestand auf (Preisentwicklung, Vermarktungsdauer, Preissenkungen). Erfolg heißt: Auf einen Blick erkennen, wo und wann sich ein Kauf lohnt — mit Zahlen, denen man traut, und ohne Portal-Rauschen.
+immo-radar crawlt täglich alle Kärntner Wohnungs-Inserate (willhaben.at + immoscout24.at), dedupliziert sie zu Objekten und zeigt den Markt als Zeitreihen-Dashboard: Bruttorendite, Miete/m² und Preis/m² über die Zeit, filterbar nach PLZ und Fläche. Das eigene Portfolio (manuell gepflegt) wird dem Markt gegenübergestellt — eigene Miete und Ist-Rendite vs. Markt-Median. Erfolg heißt: Auf einen Blick erkennen, wohin der Markt läuft und wo die eigenen Objekte stehen — mit Zahlen, denen man traut, und ohne Portal-Rauschen.
 
 ## Brand Personality
 

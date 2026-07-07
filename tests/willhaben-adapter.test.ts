@@ -112,6 +112,26 @@ describe('WillhabenAdapter', () => {
     expect(ergebnisse[1]!.inserate.every((i) => i.typ === 'miete')).toBe(true);
   });
 
+  it('respektiert einen erhöhten maxSeiten-Deckel (Sweep-Modus)', async () => {
+    // 8 volle Seiten à 30 — der Default (5 Seiten) würde bei 150 abbrechen.
+    const seiten = Object.fromEntries(
+      Array.from({ length: 8 }, (_, i) => [String(i + 1), macheSeite(ids(30, i * 30), 240)]),
+    );
+    const aufrufe: string[] = [];
+    const adapter = new WillhabenAdapter(fakeFetch(seiten, aufrufe), 0);
+
+    const standard = await adapter.sucheMitStatistik({ bundesland: 'kaernten', typ: 'kauf' });
+    expect(standard[0]!.inserate).toHaveLength(150);
+
+    aufrufe.length = 0;
+    const sweep = await adapter.sucheMitStatistik(
+      { bundesland: 'kaernten', typ: 'kauf' },
+      { maxSeiten: 15 },
+    );
+    expect(sweep[0]!.inserate).toHaveLength(240);
+    expect(aufrufe).toHaveLength(8);
+  });
+
   it('wirft WillhabenFehler bei HTTP-Fehlern und Netzwerkproblemen', async () => {
     const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;
     await expect(new WillhabenAdapter(blockiert, 0).fetch(KAUF_URL)).rejects.toThrow(/HTTP 403/);

@@ -1,7 +1,12 @@
 import { setTimeout as warte } from 'node:timers/promises';
 import type { Inserat, InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
-import { PortalFehler, type PortalAdapter, type PortalSuchErgebnis } from './portal-adapter.js';
+import {
+  PortalFehler,
+  type PortalAdapter,
+  type PortalSuchErgebnis,
+  type SuchOptionen,
+} from './portal-adapter.js';
 import { extractNextData, extractSearchResult, mapPage } from '../willhaben/map.js';
 import { buildSearchUrls } from '../willhaben/url.js';
 
@@ -51,16 +56,22 @@ export class WillhabenAdapter implements PortalAdapter {
     return (await this.fetchMitStatistik(source)).inserate;
   }
 
-  async sucheMitStatistik(kriterien: SuchKriterien): Promise<PortalSuchErgebnis[]> {
+  async sucheMitStatistik(
+    kriterien: SuchKriterien,
+    optionen?: SuchOptionen,
+  ): Promise<PortalSuchErgebnis[]> {
     const ergebnisse: PortalSuchErgebnis[] = [];
     for (const suche of buildSearchUrls(kriterien)) {
-      const { inserate, uebersprungen, rowsFound } = await this.fetchMitStatistik(suche.url);
+      const { inserate, uebersprungen, rowsFound } = await this.fetchMitStatistik(
+        suche.url,
+        optionen?.maxSeiten,
+      );
       ergebnisse.push({ typ: suche.typ, inserate, uebersprungen, gesamtTreffer: rowsFound });
     }
     return ergebnisse;
   }
 
-  async fetchMitStatistik(source: string): Promise<CrawlErgebnis> {
+  async fetchMitStatistik(source: string, maxSeiten = MAX_SEITEN): Promise<CrawlErgebnis> {
     const typ = typAusUrl(source);
     const heute = new Date().toISOString().slice(0, 10);
     const gesehen = new Set<string>();
@@ -68,7 +79,7 @@ export class WillhabenAdapter implements PortalAdapter {
     let uebersprungen = 0;
     let rowsFound = 0;
 
-    for (let seite = 1; seite <= MAX_SEITEN; seite += 1) {
+    for (let seite = 1; seite <= maxSeiten; seite += 1) {
       if (seite > 1) await warte(this.seitenPauseMs);
 
       const url = new URL(source);

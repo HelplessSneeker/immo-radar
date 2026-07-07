@@ -12,6 +12,7 @@
     "serve": "tsx src/server.ts",
     "db:up": "docker compose up -d",
     "db:migrate": "tsx src/db/migrate-cli.ts",
+    "objekte:rebuild": "tsx src/db/objekte-rebuild-cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

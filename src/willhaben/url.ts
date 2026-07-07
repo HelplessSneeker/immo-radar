@@ -3,6 +3,7 @@ import type { SuchKriterien } from '../search.js';
 import type { SuchUrl } from '../adapters/portal-adapter.js';
 import { BUNDESLAENDER } from '../search.js';
 import { ortSlug } from '../ort-slugs.js';
+import { bezirkSlug } from '../bezirke.js';
 
 const BASIS = 'https://www.willhaben.at/iad/immobilien';
 
@@ -51,7 +52,8 @@ export function buildSearchUrls(kriterien: SuchKriterien): SuchUrl[] {
   }
   const typen: InseratTyp[] = kriterien.typ === 'beide' ? ['kauf', 'miete'] : [kriterien.typ];
   const preisTyp: InseratTyp = kriterien.typ === 'beide' ? 'kauf' : kriterien.typ;
-  const ort = ortSlug(kriterien, 'willhaben');
+  // Bezirk (Sweep-Partition) schlägt den Ort; beides liegt an derselben Pfad-Position.
+  const ort = bezirkSlug(kriterien, 'willhaben') ?? ortSlug(kriterien, 'willhaben');
 
   return typen.map((typ) => {
     const url = new URL(`${BASIS}/${KATEGORIE[typ]}/${slug}${ort ? `/${ort}` : ''}`);

@@ -75,6 +75,33 @@ describe('buildSearchUrls (immoscout24)', () => {
     expect(new URL(urls[1]!.url).pathname).toBe('/regional/kaernten/villach/wohnung-mieten');
   });
 
+  it('hängt einen bekannten Bezirk in den Pfad — auch kombiniert mit Preisband', () => {
+    const urls = buildSearchUrls({
+      bundesland: 'kaernten',
+      typ: 'miete',
+      bezirk: 'klagenfurt-stadt',
+      preisMin: 700,
+      preisMax: 1000,
+    });
+    const u = new URL(urls[0]!.url);
+    expect(u.pathname).toBe('/regional/kaernten/klagenfurt-am-woerthersee/wohnung-mieten');
+    expect(u.searchParams.get('primaryPriceFrom')).toBe('700');
+    expect(u.searchParams.get('primaryPriceTo')).toBe('1000');
+  });
+
+  it('Bezirk schlägt den Ort; unbekannter Bezirk fällt auf den Bundesland-Pfad zurück', () => {
+    const mitBeidem = buildSearchUrls({
+      bundesland: 'kaernten',
+      typ: 'kauf',
+      bezirk: 'villach-stadt',
+      ort: 'Klagenfurt',
+    });
+    expect(new URL(mitBeidem[0]!.url).pathname).toBe('/regional/kaernten/villach/wohnung-kaufen');
+
+    const unbekannt = buildSearchUrls({ bundesland: 'kaernten', typ: 'kauf', bezirk: 'lienz' });
+    expect(new URL(unbekannt[0]!.url).pathname).toBe('/regional/kaernten/wohnung-kaufen');
+  });
+
   it('kennt alle 9 Bundesländer und wirft bei unbekanntem Slug', () => {
     for (const slug of Object.keys(BUNDESLAENDER)) {
       expect(buildSearchUrls({ bundesland: slug, typ: 'kauf' })[0]!.url).toContain(`/${slug}/`);

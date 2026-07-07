@@ -1,5 +1,5 @@
 import type { InserateFilter, InserateSortierung } from './db/bestand-repo.js';
-import type { Inserat, InseratTyp } from './types.js';
+import type { InseratTyp } from './types.js';
 
 /** Bundesland-Slug (URL-Pfad beider Portale) → Anzeigename. */
 export const BUNDESLAENDER: Record<string, string> = {
@@ -32,6 +32,11 @@ export interface SuchKriterien {
   zimmerMax?: number;
   /** Freitext, matcht Ort, PLZ oder Bezirk (Teilstring, case-insensitiv). */
   ort?: string;
+  /**
+   * Bezirk-Schlüssel (BEZIRKE_KAERNTEN) für die Sweep-Partitionierung —
+   * schlägt in den Portal-URLs den Ort-Slug.
+   */
+  bezirk?: string;
 }
 
 function zahlOderUndefined(params: URLSearchParams, name: string): number | undefined {
@@ -42,55 +47,6 @@ function zahlOderUndefined(params: URLSearchParams, name: string): number | unde
     throw new SuchKriterienFehler(`"${name}" muss eine positive Zahl sein, ist "${roh}".`);
   }
   return n;
-}
-
-function pruefeBereich(name: string, min?: number, max?: number): void {
-  if (min !== undefined && max !== undefined && min > max) {
-    throw new SuchKriterienFehler(`${name}: "von" (${min}) darf nicht größer als "bis" (${max}) sein.`);
-  }
-}
-
-/** Validiert die Query-Parameter der Suchseite zu SuchKriterien. */
-export function parseSuchKriterien(params: URLSearchParams): SuchKriterien {
-  const bundesland = params.get('bundesland')?.trim().toLowerCase() ?? '';
-  if (!(bundesland in BUNDESLAENDER)) {
-    throw new SuchKriterienFehler(
-      `Unbekanntes Bundesland "${bundesland}". Erlaubt: ${Object.keys(BUNDESLAENDER).join(', ')}`,
-    );
-  }
-
-  const typRoh = params.get('typ')?.trim().toLowerCase() || 'beide';
-  if (typRoh !== 'kauf' && typRoh !== 'miete' && typRoh !== 'beide') {
-    throw new SuchKriterienFehler(`"typ" muss kauf, miete oder beide sein, ist "${typRoh}".`);
-  }
-
-  const kriterien: SuchKriterien = {
-    bundesland,
-    typ: typRoh,
-    preisMin: zahlOderUndefined(params, 'preis_min'),
-    preisMax: zahlOderUndefined(params, 'preis_max'),
-    flaecheMin: zahlOderUndefined(params, 'flaeche_min'),
-    flaecheMax: zahlOderUndefined(params, 'flaeche_max'),
-    zimmerMin: zahlOderUndefined(params, 'zimmer_min'),
-    zimmerMax: zahlOderUndefined(params, 'zimmer_max'),
-  };
-  pruefeBereich('Preis', kriterien.preisMin, kriterien.preisMax);
-  pruefeBereich('Fläche', kriterien.flaecheMin, kriterien.flaecheMax);
-  pruefeBereich('Zimmer', kriterien.zimmerMin, kriterien.zimmerMax);
-
-  const ort = params.get('ort')?.trim();
-  if (ort) kriterien.ort = ort;
-  return kriterien;
-}
-
-/** Validiert das Formular der Gebiete-Seite: Pflicht-Name + SuchKriterien. */
-export function parseGebietForm(params: URLSearchParams): {
-  name: string;
-  kriterien: SuchKriterien;
-} {
-  const name = params.get('name')?.trim();
-  if (!name) throw new SuchKriterienFehler('Das Gebiet braucht einen Namen.');
-  return { name, kriterien: parseSuchKriterien(params) };
 }
 
 export interface InserateAnfrage {
@@ -137,32 +93,99 @@ export function parseInserateAnfrage(params: URLSearchParams): InserateAnfrage {
   return { filter, sortierung, seite };
 }
 
-/**
- * Serverseitiger Filter über die gecrawlten Inserate. Der Preis wird nur auf
- * den Typ angewendet, auf den er sich bezieht (bei "beide" der Kauf) – die
- * willhaben-URL filtert ihn zwar schon, aber wir verlassen uns nicht darauf.
- */
-export function filterInserate<T extends Inserat>(inserate: T[], kriterien: SuchKriterien): T[] {
-  const preisTyp: InseratTyp = kriterien.typ === 'beide' ? 'kauf' : kriterien.typ;
-  const ort = kriterien.ort?.toLowerCase();
-
-  return inserate.filter((i) => {
-    if (i.typ === preisTyp) {
-      if (kriterien.preisMin !== undefined && i.preis < kriterien.preisMin) return false;
-      if (kriterien.preisMax !== undefined && i.preis > kriterien.preisMax) return false;
-    }
-    if (kriterien.flaecheMin !== undefined && i.flaeche_m2 < kriterien.flaecheMin) return false;
-    if (kriterien.flaecheMax !== undefined && i.flaeche_m2 > kriterien.flaecheMax) return false;
-    if (kriterien.zimmerMin !== undefined && i.zimmer < kriterien.zimmerMin) return false;
-    if (kriterien.zimmerMax !== undefined && i.zimmer > kriterien.zimmerMax) return false;
-    if (
-      ort &&
-      !i.ort.toLowerCase().includes(ort) &&
-      !i.plz.toLowerCase().includes(ort) &&
-      !i.bezirk.toLowerCase().includes(ort)
-    ) {
-      return false;
-    }
-    return true;
-  });
+/** Eingaben des Portfolio-Formulars — Persistenz-Shape siehe portfolio-repo. */
+export interface PortfolioFormWerte {
+  bezeichnung: string;
+  plz: string;
+  ort: string;
+  kaufpreis: number;
+  kaufdatum?: string;
+  mieteMonat?: number;
+  flaecheM2: number;
+  zimmer: number;
+  baujahr?: number;
 }
+
+/** Validiert das Portfolio-Formular; wirft SuchKriterienFehler (Server: 400 + Re-Render). */
+export function parsePortfolioForm(params: URLSearchParams): PortfolioFormWerte {
+  const pflichtText = (name: string, label: string): string => {
+    const wert = params.get(name)?.trim();
+    if (!wert) throw new SuchKriterienFehler(`${label} fehlt.`);
+    return wert;
+  };
+  const pflichtZahl = (name: string, label: string): number => {
+    const wert = zahlOderUndefined(params, name);
+    if (wert === undefined) throw new SuchKriterienFehler(`${label} fehlt.`);
+    return wert;
+  };
+
+  const plz = pflichtText('plz', 'Die PLZ');
+  if (!/^\d{4}$/.test(plz)) {
+    throw new SuchKriterienFehler(`Die PLZ muss 4-stellig sein, ist "${plz}".`);
+  }
+
+  const werte: PortfolioFormWerte = {
+    bezeichnung: pflichtText('bezeichnung', 'Die Bezeichnung'),
+    plz,
+    ort: pflichtText('ort', 'Der Ort'),
+    kaufpreis: pflichtZahl('kaufpreis', 'Der Kaufpreis'),
+    flaecheM2: pflichtZahl('flaeche_m2', 'Die Wohnfläche'),
+    zimmer: pflichtZahl('zimmer', 'Die Zimmeranzahl'),
+  };
+
+  const kaufdatum = params.get('kaufdatum')?.trim();
+  if (kaufdatum) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(kaufdatum) || Number.isNaN(Date.parse(kaufdatum))) {
+      throw new SuchKriterienFehler(`Das Kaufdatum muss YYYY-MM-DD sein, ist "${kaufdatum}".`);
+    }
+    werte.kaufdatum = kaufdatum;
+  }
+
+  const miete = zahlOderUndefined(params, 'miete_monat');
+  if (miete !== undefined) werte.mieteMonat = miete;
+
+  const baujahrRoh = params.get('baujahr')?.trim();
+  if (baujahrRoh) {
+    const baujahr = Number(baujahrRoh);
+    if (!Number.isInteger(baujahr) || baujahr < 1800 || baujahr > 2100) {
+      throw new SuchKriterienFehler(`"Baujahr" muss ein plausibles Jahr sein, ist "${baujahrRoh}".`);
+    }
+    werte.baujahr = baujahr;
+  }
+
+  return werte;
+}
+
+export interface DashboardFilter {
+  /** PLZ-Präfix (1–4 Ziffern): "9" = Region, "9020" = exakt. */
+  plz?: string;
+  flaecheMin?: number;
+  flaecheMax?: number;
+}
+
+/**
+ * Der kleine Dashboard-Filter (PLZ-Präfix + m²-Bereich). Bewusst nachsichtig
+ * wie parseInserateAnfrage: die URLs sind teilbare GET-Links, ungültige
+ * Werte werden still verworfen; ein verdrehter Bereich wird umgedreht.
+ */
+export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
+  const filter: DashboardFilter = {};
+
+  const plz = params.get('plz')?.trim();
+  if (plz && /^\d{1,4}$/.test(plz)) filter.plz = plz;
+
+  const zahl = (name: string): number | undefined => {
+    const roh = params.get(name)?.trim();
+    if (!roh) return undefined;
+    const n = Number(roh.replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  let min = zahl('flaeche_min');
+  let max = zahl('flaeche_max');
+  if (min !== undefined && max !== undefined && min > max) [min, max] = [max, min];
+  if (min !== undefined) filter.flaecheMin = min;
+  if (max !== undefined) filter.flaecheMax = max;
+
+  return filter;
+}
+
