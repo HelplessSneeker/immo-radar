@@ -3,7 +3,7 @@ import process from 'node:process';
 import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
-import { pruefeAuth } from './auth.js';
+import { pruefeAuth, verarbeiteLogin } from './auth.js';
 import { KAERNTEN } from './bezirke.js';
 import { bestandSeiteLaden, preisHistorieFuerInserate } from './db/bestand-repo.js';
 import { holePool, schliessePool } from './db/client.js';
@@ -27,6 +27,7 @@ import { behandleHealth } from './health.js';
 import { renderDashboardOhneDatenSeite, renderDashboardSeite } from './pages/dashboard-page.js';
 import { renderFehlerSeite } from './pages/fehler-page.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
+import { renderLoginSeite } from './pages/login-page.js';
 import { renderMethodikSeite } from './pages/methodik-page.js';
 import {
   renderPortfolioBearbeitenSeite,
@@ -160,7 +161,41 @@ const server = createServer((req, res) => {
       await behandleHealth(pool, res);
       return;
     }
-    if (!pruefeAuth(req, res)) return;
+    // Anmeldung ist vor pruefeAuth zugänglich, sonst wäre der Login-Weg
+    // selbst gesperrt. GET zeigt das Formular, POST verarbeitet es.
+    if (url.pathname === '/login' && req.method === 'GET') {
+      sende(res, 200, renderLoginSeite({ returnPfad: url.searchParams.get('return') ?? undefined }));
+      return;
+    }
+    if (url.pathname === '/login' && req.method === 'POST') {
+      let body: string;
+      try {
+        body = await liesBody(req);
+      } catch (err) {
+        if (err instanceof BodyZuGrossFehler) {
+          sende(res, 413, renderFehlerSeite(413, err.message));
+          return;
+        }
+        throw err;
+      }
+      const ergebnis = verarbeiteLogin(body, res);
+      if (ergebnis.erfolg) {
+        res.writeHead(303, { location: ergebnis.ziel });
+        res.end();
+        return;
+      }
+      sende(
+        res,
+        400,
+        renderLoginSeite({
+          fehler: 'Benutzer oder Passwort falsch.',
+          benutzer: ergebnis.benutzer,
+          returnPfad: ergebnis.returnPfad,
+        }),
+      );
+      return;
+    }
+    if (!pruefeAuth(req, res, url.pathname + url.search)) return;
 
     if (req.method === 'POST') {
       if (url.pathname === '/portfolio') {
@@ -308,11 +343,18 @@ try {
   // keine .env – DATABASE_URL kann auch direkt gesetzt sein
 }
 
-// Fail-closed: ohne Credentials startet der Server gar nicht erst.
+// Fail-closed: ohne Credentials und Session-Secret startet der Server nicht.
 if (!process.env.BASIC_AUTH_USER || !process.env.BASIC_AUTH_PASS) {
   console.error(
     'BASIC_AUTH_USER und BASIC_AUTH_PASS müssen gesetzt sein (siehe .env.example) – ' +
       'ohne Zugangsschutz startet der Server nicht.',
+  );
+  process.exit(1);
+}
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+  console.error(
+    'SESSION_SECRET muss gesetzt sein und mindestens 32 Zeichen haben (siehe .env.example) – ' +
+      'ohne Session-Secret kann kein Anmelde-Cookie signiert werden.',
   );
   process.exit(1);
 }
