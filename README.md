@@ -114,6 +114,8 @@ herunter (offene Requests zu Ende, dann Pool schließen). Fehlen die
 Auth-Vars, beendet sich der Container sofort mit Exit 1 (fail-closed) —
 der Deploy schlägt dann sichtbar fehl statt ungeschützt zu laufen.
 
+Schritt-für-Schritt: [RELEASE.md](RELEASE.md)
+
 ## CLI (CSV/JSON-Dateien oder Portal-Such-URLs)
 
 ```sh
