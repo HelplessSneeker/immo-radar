@@ -317,15 +317,15 @@ export const FORMULAR_CSS = `
   legend, label.feld { font-weight: 600; font-size: 13px; padding: 0; }
   .hinweis { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
   .feld-fehler { color: var(--status-critical); font-size: 12px; font-weight: 600; }
-  select, input[type="number"], input[type="text"] {
+  select, input[type="number"], input[type="text"], input[type="password"] {
     width: 100%; padding: 8px 10px; font: inherit;
     color: var(--text-primary); background: var(--page);
     border: 1px solid var(--grid); border-radius: 6px;
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
   select:hover:not(:focus), input[type="number"]:hover:not(:focus),
-  input[type="text"]:hover:not(:focus) { border-color: var(--baseline); }
-  select:focus, input[type="number"]:focus, input[type="text"]:focus { border-color: var(--akzent); }
+  input[type="text"]:hover:not(:focus), input[type="password"]:hover:not(:focus) { border-color: var(--baseline); }
+  select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus { border-color: var(--akzent); }
   .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .radios { display: flex; gap: 16px; }
   .radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; }

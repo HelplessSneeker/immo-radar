@@ -27,6 +27,7 @@ import { behandleHealth } from './health.js';
 import { renderDashboardOhneDatenSeite, renderDashboardSeite } from './pages/dashboard-page.js';
 import { renderFehlerSeite } from './pages/fehler-page.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
+import { renderLoginSeite } from './pages/login-page.js';
 import { renderMethodikSeite } from './pages/methodik-page.js';
 import {
   renderPortfolioBearbeitenSeite,
@@ -158,6 +159,14 @@ const server = createServer((req, res) => {
     // Healthcheck (Coolify) ist die einzige Route ohne Anmeldung.
     if (url.pathname === '/health') {
       await behandleHealth(pool, res);
+      return;
+    }
+    // GET /login: Vorschau der Anmelde-Seite. Aktuell ist Basic-Auth für
+    // alles andere aktiv — POST /login und der Session-Switch kommen mit
+    // dem Auth-Backend-PR (adeptus-codicus). Contract siehe PR-Beschreibung
+    // sowie den Header-Kommentar in src/pages/login-page.ts.
+    if (url.pathname === '/login' && req.method === 'GET') {
+      sende(res, 200, renderLoginSeite({ returnPfad: url.searchParams.get('return') ?? undefined }));
       return;
     }
     if (!pruefeAuth(req, res)) return;
