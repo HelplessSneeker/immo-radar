@@ -3,7 +3,7 @@ import process from 'node:process';
 import { ImmoScout24Adapter } from './adapters/immoscout24-adapter.js';
 import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
-import { pruefeAuth, verarbeiteLogin } from './auth.js';
+import { hatGueltigeSitzung, pruefeAuth, verarbeiteLogin } from './auth.js';
 import { KAERNTEN } from './bezirke.js';
 import { bestandSeiteLaden, preisHistorieFuerInserate } from './db/bestand-repo.js';
 import { holePool, schliessePool } from './db/client.js';
@@ -23,7 +23,7 @@ import {
   sweepLaeufeAuflisten,
   zombieSweepsBereinigen,
 } from './db/sweep-repo.js';
-import { behandleHealth } from './health.js';
+import { behandleHealth, paketVersion } from './health.js';
 import { renderDashboardOhneDatenSeite, renderDashboardSeite } from './pages/dashboard-page.js';
 import { renderFehlerSeite } from './pages/fehler-page.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
@@ -54,6 +54,7 @@ import {
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
+const VERSION = paketVersion();
 
 /** Zeilen pro Seite der Bestand-Tabelle (/inserate). */
 const INSERATE_PRO_SEITE = 50;
@@ -62,6 +63,20 @@ const INSERATE_PRO_SEITE = 50;
 const MAX_SWEEP_LAEUFE = 30;
 
 const portale: PortalAdapter[] = [new WillhabenAdapter(), new ImmoScout24Adapter()];
+
+/**
+ * Single-Flight um letzterFertigerSweep für /health: hängt die Abfrage
+ * (z. B. bei einem Lock auf sweep_laeufe), teilen sich alle parallel
+ * eintrudelnden Healthchecks einen Aufruf, statt je einen Pool-Client zu
+ * belegen, bis der Pool leer ist.
+ */
+let sweepAbfrage: ReturnType<typeof letzterFertigerSweep> | undefined;
+function letzterSweepFuerHealth(): ReturnType<typeof letzterFertigerSweep> {
+  sweepAbfrage ??= letzterFertigerSweep().finally(() => {
+    sweepAbfrage = undefined;
+  });
+  return sweepAbfrage;
+}
 
 class BodyZuGrossFehler extends Error {}
 
@@ -158,7 +173,15 @@ const server = createServer((req, res) => {
 
     // Healthcheck (Coolify) ist die einzige Route ohne Anmeldung.
     if (url.pathname === '/health') {
-      await behandleHealth(pool, res);
+      await behandleHealth(
+        {
+          pool,
+          version: VERSION,
+          angemeldet: hatGueltigeSitzung(req),
+          letzterSweep: letzterSweepFuerHealth,
+        },
+        res,
+      );
       return;
     }
     // Anmeldung ist vor pruefeAuth zugänglich, sonst wäre der Login-Weg

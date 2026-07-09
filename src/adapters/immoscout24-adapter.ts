@@ -8,6 +8,8 @@ import {
   type PortalSuchErgebnis,
   type SuchOptionen,
 } from './portal-adapter.js';
+import type { RetryOptionen } from '../retry.js';
+import { ladePortalSeite, PORTAL_RETRY } from './portal-seite.js';
 import { extractInitialState, extractPageData, mapPage } from '../immoscout24/map.js';
 import { buildSearchUrls } from '../immoscout24/url.js';
 
@@ -18,9 +20,6 @@ export class ImmoScout24Fehler extends PortalFehler {}
 const MAX_SEITEN = 5;
 const TREFFER_PRO_SEITE = 15;
 const SEITEN_PAUSE_MS = 1000;
-const REQUEST_TIMEOUT_MS = 15_000;
-const USER_AGENT =
-  'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0';
 
 export interface CrawlErgebnis {
   inserate: Inserat[];
@@ -43,6 +42,7 @@ export class ImmoScout24Adapter implements PortalAdapter {
   constructor(
     private readonly fetchFn: typeof fetch = fetch,
     private readonly seitenPauseMs: number = SEITEN_PAUSE_MS,
+    private readonly retryOptionen: RetryOptionen = PORTAL_RETRY,
   ) {}
 
   canHandle(source: string): boolean {
@@ -108,22 +108,13 @@ export class ImmoScout24Adapter implements PortalAdapter {
     return { inserate, uebersprungen, gesamtTreffer };
   }
 
-  private async ladeSeite(url: URL): Promise<string> {
-    let antwort: Response;
-    try {
-      antwort = await this.fetchFn(url, {
-        headers: { 'user-agent': USER_AGENT, accept: 'text/html' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (e) {
-      throw new ImmoScout24Fehler(
-        `immoscout24.at ist nicht erreichbar (${e instanceof Error ? e.message : String(e)}).`,
-      );
-    }
-    if (!antwort.ok) {
-      throw new ImmoScout24Fehler(`immoscout24.at antwortet mit HTTP ${antwort.status} für ${url.pathname}.`);
-    }
-    return antwort.text();
+  private ladeSeite(url: URL): Promise<string> {
+    return ladePortalSeite(url, {
+      fetchFn: this.fetchFn,
+      host: 'immoscout24.at',
+      fehler: ImmoScout24Fehler,
+      retry: this.retryOptionen,
+    });
   }
 }
 
