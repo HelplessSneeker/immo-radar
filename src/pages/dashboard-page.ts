@@ -485,19 +485,6 @@ ${datenpunkteSektion(daten)}
       });
     });
     const farbe = cssVar(serie === 'kauf' ? '--series-kauf' : '--series-miete');
-    // Achse symmetrisch um den Median (log-Raum): das geometrische Mittel der
-    // Stichtag-Mediane sitzt in der Chart-Mitte, der Faktor deckt alle Punkte ab.
-    const mediane = TREND.map(medianVon).filter((m) => m !== null && m > 0);
-    const mitte = mediane.length > 0
-      ? Math.exp(mediane.reduce((summe, m) => summe + Math.log(m), 0) / mediane.length)
-      : undefined;
-    let faktor = 1.5;
-    if (mitte !== undefined) {
-      for (const p of wolke) {
-        if (p.y > 0) faktor = Math.max(faktor, p.y / mitte, mitte / p.y);
-      }
-      faktor *= 1.15; // etwas Rand über/unter den äußersten Punkten
-    }
     return new Chart(document.getElementById(canvasId), {
       data: {
         datasets: [
@@ -568,7 +555,6 @@ ${datenpunkteSektion(daten)}
             // Logarithmisch: €/m² ist stark rechtsschief – einzelne Ausreißer
             // würden den dichten Marktbereich sonst an die Nulllinie stauchen.
             type: 'logarithmic',
-            ...(mitte !== undefined ? { min: mitte / faktor, max: mitte * faktor } : {}),
             grid: { color: cssVar('--grid') },
             border: { display: false },
             ticks: { color: cssVar('--text-muted'), font: { family: FONT },
