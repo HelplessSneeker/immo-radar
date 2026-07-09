@@ -20,6 +20,10 @@ export function escapeHtml(s: string): string {
  */
 export const TOKEN_CSS = `
   :root {
+    /* Native Widget-Teile (Datums-Picker, Select-Dropdown, Scrollbars) sollen
+       dem aktiven Theme folgen – ohne color-scheme rendert der Browser sie
+       immer hell, auch im Dark-Theme. */
+    color-scheme: light dark;
     --page: #f9f9f7;
     --surface-1: #fcfcfb;
     --surface-hover: rgba(11,11,11,0.035);
@@ -317,15 +321,16 @@ export const FORMULAR_CSS = `
   legend, label.feld { font-weight: 600; font-size: 13px; padding: 0; }
   .hinweis { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
   .feld-fehler { color: var(--status-critical); font-size: 12px; font-weight: 600; }
-  select, input[type="number"], input[type="text"], input[type="password"] {
+  select, input[type="number"], input[type="text"], input[type="password"], input[type="date"] {
     width: 100%; padding: 8px 10px; font: inherit;
     color: var(--text-primary); background: var(--page);
     border: 1px solid var(--grid); border-radius: 6px;
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
-  select:hover:not(:focus), input[type="number"]:hover:not(:focus),
+  select:hover:not(:focus), input[type="number"]:hover:not(:focus), input[type="date"]:hover:not(:focus),
   input[type="text"]:hover:not(:focus), input[type="password"]:hover:not(:focus) { border-color: var(--baseline); }
-  select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus { border-color: var(--akzent); }
+  select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus,
+  input[type="date"]:focus { border-color: var(--akzent); }
   .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   /* Nachbar-Fieldsets in .bereich haben oft eine Hint-Zeile nur auf einer Seite
      (z. B. "leer lassen = leerstehend" bei der Kaltmiete, nicht bei Baujahr).
