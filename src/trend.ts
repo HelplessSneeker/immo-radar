@@ -107,6 +107,7 @@ export interface ObjektInserat {
   portal: string;
   inseratId: string;
   flaecheM2: number;
+  url?: string;
   zuerstGesehen: string;
   zuletztGesehen: string;
   /** Chronologisch sortierte Preishistorie dieses Inserats. */
@@ -158,6 +159,7 @@ export function objekteAusBestand(
       zuletztGesehen: i.zuletztGesehen,
       historie: jeInserat.get(inseratSchluessel(i.portal, i.id)) ?? [],
     };
+    if (i.url !== undefined) mitglied.url = i.url;
     const schluessel = i.objektId ?? `solo ${inseratSchluessel(i.portal, i.id)}`;
     const objekt = gruppen.get(schluessel);
     if (objekt === undefined) {
@@ -183,28 +185,54 @@ export function objekteAusBestand(
   return [...gruppen.values()];
 }
 
+/** Datenpunkt eines Objekts am Stichtag: der Minimum-Wert samt liefernden Inserat. */
+export interface ObjektDatenpunkt {
+  eurM2: number;
+  /** Preis des Minimum-Inserats am Stichtag (aus der Historie, nicht der heutige). */
+  preis: number;
+  /** Das Inserat, das das Minimum liefert. */
+  inserat: ObjektInserat;
+  /** Am Stichtag aktive, auswertbare Inserate des Objekts (>1 = dedupliziert). */
+  anzahlAktive: number;
+}
+
 /**
  * €/m² eines Objekts am Stichtag: das MINIMUM über seine dann aktiven
  * Inserate (zum niedrigeren Preis wird transaktiert; das Minimum ist zudem
  * stabil gegen die Merge-Reihenfolge). undefined, wenn kein Inserat aktiv
  * ist oder keine Fläche auswertbar.
  */
-export function objektEurM2AmStichtag(
+export function objektDatenpunktAmStichtag(
   objekt: ObjektZeitreihe,
   stichtag: string,
   intervallTage = 7,
-): number | undefined {
-  let minimum: number | undefined;
+): ObjektDatenpunkt | undefined {
+  let minimum: ObjektDatenpunkt | undefined;
+  let anzahlAktive = 0;
   for (const inserat of objekt.inserate) {
     if (inserat.zuerstGesehen > stichtag) continue;
     if (tageZwischen(inserat.zuletztGesehen, stichtag) > intervallTage - 1) continue;
     if (inserat.flaecheM2 <= 0) continue;
     const preis = preisAmStichtag(inserat.historie, stichtag);
     if (preis === undefined) continue;
+    anzahlAktive += 1;
     const eurM2 = preis / inserat.flaecheM2;
-    if (minimum === undefined || eurM2 < minimum) minimum = eurM2;
+    if (minimum === undefined || eurM2 < minimum.eurM2) {
+      minimum = { eurM2, preis, inserat, anzahlAktive: 0 };
+    }
   }
+  if (minimum === undefined) return undefined;
+  minimum.anzahlAktive = anzahlAktive;
   return minimum;
+}
+
+/** Wie objektDatenpunktAmStichtag, aber nur der €/m²-Wert (geht in den Median). */
+export function objektEurM2AmStichtag(
+  objekt: ObjektZeitreihe,
+  stichtag: string,
+  intervallTage = 7,
+): number | undefined {
+  return objektDatenpunktAmStichtag(objekt, stichtag, intervallTage)?.eurM2;
 }
 
 /**
@@ -240,6 +268,90 @@ export function berechneObjektTrend(
       anzahlKauf: eurM2.kauf.length,
       anzahlMiete: eurM2.miete.length,
     };
+  });
+}
+
+/**
+ * Ein einzelner Datenpunkt hinter dem Wochen-Median: ein Objekt mit dem
+ * Wert, der am Stichtag in den Median eingeht, plus dem Inserat, das ihn
+ * liefert (für Link und Portal-Angabe).
+ */
+export interface StichtagDatenpunkt {
+  objektId?: number;
+  ort: string;
+  plz: string;
+  zimmer: number;
+  /** Fläche des Minimum-Inserats, damit preis/flaeche = eurM2 aufgeht. */
+  flaecheM2: number;
+  /** Preis am Stichtag (aus der Historie, nicht der heutige). */
+  preis: number;
+  eurM2: number;
+  portal: string;
+  inseratId: string;
+  url?: string;
+  /** Am Stichtag aktive Inserate des Objekts (>1 = portalübergreifend dedupliziert). */
+  anzahlInserate: number;
+}
+
+/**
+ * Die Datenpunkte hinter einem Wochenraster-Stichtag: pro dann aktivem
+ * Objekt genau der €/m²-Wert, der in berechneObjektTrend in den Median
+ * eingeht (dieselbe Kernlogik: objektDatenpunktAmStichtag). Je Serie
+ * aufsteigend nach €/m² sortiert (Käufer-Perspektive: günstig zuerst).
+ */
+export function datenpunkteAmStichtag(
+  objekte: ObjektZeitreihe[],
+  stichtag: string,
+  intervallTage = 7,
+): { kauf: StichtagDatenpunkt[]; miete: StichtagDatenpunkt[] } {
+  const punkte: Record<InseratTyp, StichtagDatenpunkt[]> = { kauf: [], miete: [] };
+  for (const objekt of objekte) {
+    const wert = objektDatenpunktAmStichtag(objekt, stichtag, intervallTage);
+    if (wert === undefined) continue;
+    const punkt: StichtagDatenpunkt = {
+      ort: objekt.ort,
+      plz: objekt.plz,
+      zimmer: objekt.zimmer,
+      flaecheM2: wert.inserat.flaecheM2,
+      preis: wert.preis,
+      eurM2: wert.eurM2,
+      portal: wert.inserat.portal,
+      inseratId: wert.inserat.inseratId,
+      anzahlInserate: wert.anzahlAktive,
+    };
+    if (objekt.objektId !== undefined) punkt.objektId = objekt.objektId;
+    if (wert.inserat.url !== undefined) punkt.url = wert.inserat.url;
+    punkte[objekt.typ].push(punkt);
+  }
+  punkte.kauf.sort((a, b) => a.eurM2 - b.eurM2);
+  punkte.miete.sort((a, b) => a.eurM2 - b.eurM2);
+  return punkte;
+}
+
+/** Die €/m²-Werte aller Objekte an einem Stichtag – eine Spalte der Punktwolke. */
+export interface StreuungsPunkt {
+  datum: string;
+  kauf: number[];
+  miete: number[];
+}
+
+/**
+ * Punktwolke hinter dem Wochenraster: je Stichtag die einzelnen €/m²-Werte,
+ * deren Median berechneObjektTrend bildet (dieselbe Kernlogik, daher
+ * deckungsgleich mit den Trend-Linien).
+ */
+export function streuungJeStichtag(
+  objekte: ObjektZeitreihe[],
+  stichtage: string[],
+  intervallTage = 7,
+): StreuungsPunkt[] {
+  return stichtage.map((stichtag) => {
+    const werte: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
+    for (const objekt of objekte) {
+      const wert = objektEurM2AmStichtag(objekt, stichtag, intervallTage);
+      if (wert !== undefined) werte[objekt.typ].push(wert);
+    }
+    return { datum: stichtag, kauf: werte.kauf, miete: werte.miete };
   });
 }
 

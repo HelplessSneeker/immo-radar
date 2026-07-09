@@ -189,3 +189,26 @@ export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
   return filter;
 }
 
+/**
+ * Gewünschter Datenpunkte-Stichtag (?stichtag=YYYY-MM-DD), nachsichtig wie
+ * parseDashboardFilter: Unbrauchbares wird still verworfen. Ob das Datum
+ * wirklich ein Trend-Stichtag ist, prüft der Handler (braucht den Trend).
+ */
+export function parseStichtag(params: URLSearchParams): string | undefined {
+  const roh = params.get('stichtag')?.trim();
+  return roh && /^\d{4}-\d{2}-\d{2}$/.test(roh) ? roh : undefined;
+}
+
+/**
+ * Tabellen-Seiten der Datenpunkte-Sektion (?kauf_seite / ?miete_seite),
+ * nachsichtig: alles Unbrauchbare wird Seite 1. Ob die Seite existiert,
+ * klemmt der Renderer auf den gültigen Bereich.
+ */
+export function parseDatenpunkteSeiten(params: URLSearchParams): { kauf: number; miete: number } {
+  const seite = (name: string): number => {
+    const n = Number(params.get(name));
+    return Number.isInteger(n) && n >= 1 ? n : 1;
+  };
+  return { kauf: seite('kauf_seite'), miete: seite('miete_seite') };
+}
+

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { BestandInserat, PreisPunkt } from '../src/db/bestand-repo.js';
+import { median } from '../src/stats.js';
 import {
   berechneObjektTrend,
   berechneRenditeTrend,
+  datenpunkteAmStichtag,
   filterObjekte,
   objekteAusBestand,
+  streuungJeStichtag,
   type ObjektZeitreihe,
 } from '../src/trend.js';
 
@@ -130,6 +133,140 @@ describe('berechneObjektTrend', () => {
     // In der Lücke (z. B. 2026-06-10) ist das Objekt nicht aktiv.
     const luecke = trend.find((p) => p.datum === '2026-06-10');
     expect(luecke?.anzahlKauf ?? 0).toBe(0);
+  });
+});
+
+describe('datenpunkteAmStichtag', () => {
+  it('trennt Kauf und Miete und sortiert je Serie aufsteigend nach €/m²', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 200000 }), // 4000 €/m²
+      inserat({ id: 'wh-2', preis: 180000 }), // 3600 €/m²
+      inserat({ id: 'wh-3', typ: 'miete', preis: 500 }), // 10 €/m²
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-2', 180000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-3', 500, '2026-06-01'),
+    ];
+    const { kauf, miete } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.map((p) => p.eurM2)).toEqual([3600, 4000]);
+    expect(miete.map((p) => p.eurM2)).toEqual([10]);
+    expect(kauf[0]).toMatchObject({ ort: 'Klagenfurt', plz: '9020', zimmer: 3, flaecheM2: 50, preis: 180000 });
+  });
+
+  it('liefert pro Objekt einen Punkt: das Minimum-Inserat samt url/portal, Anzahl dedupliziert', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', objektId: 1, preis: 200000, url: 'https://willhaben.at/wh-1' }),
+      inserat({
+        id: 'is24-1',
+        portal: 'immoscout24.at',
+        objektId: 1,
+        preis: 195000,
+        url: 'https://immoscout24.at/is24-1',
+      }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('immoscout24.at', 'is24-1', 195000, '2026-06-01'),
+    ];
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf).toHaveLength(1);
+    expect(kauf[0]).toMatchObject({
+      objektId: 1,
+      eurM2: 3900,
+      preis: 195000,
+      portal: 'immoscout24.at',
+      inseratId: 'is24-1',
+      url: 'https://immoscout24.at/is24-1',
+      anzahlInserate: 2,
+    });
+  });
+
+  it('nimmt den historischen Preis am Stichtag, nicht den letzten', () => {
+    const bestand = [inserat({ id: 'wh-1' })];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-1', 180000, '2026-06-20'),
+    ];
+    const objekte = objekteAusBestand(bestand, historie);
+    expect(datenpunkteAmStichtag(objekte, '2026-06-10').kauf[0]).toMatchObject({
+      preis: 200000,
+      eurM2: 4000,
+    });
+    expect(datenpunkteAmStichtag(objekte, '2026-07-01').kauf[0]).toMatchObject({
+      preis: 180000,
+      eurM2: 3600,
+    });
+  });
+
+  it('lässt inaktive Objekte und solche ohne auswertbare Fläche weg', () => {
+    const bestand = [
+      inserat({ id: 'wh-alt', zuletztGesehen: '2026-06-10' }), // am Stichtag längst delistet
+      inserat({ id: 'wh-flaeche', flaeche_m2: 0 }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-alt', 200000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-flaeche', 200000, '2026-06-01'),
+    ];
+    const { kauf, miete } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf).toHaveLength(0);
+    expect(miete).toHaveLength(0);
+  });
+
+  it('Konsistenz-Invariante: Median und Anzahl der Punkte decken sich mit berechneObjektTrend', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', objektId: 1, preis: 200000 }),
+      inserat({ id: 'is24-1', portal: 'immoscout24.at', objektId: 1, preis: 195000 }),
+      inserat({ id: 'wh-2', preis: 240000, flaeche_m2: 60 }),
+      inserat({ id: 'wh-3', preis: 150000, flaeche_m2: 45, zuerstGesehen: '2026-06-15' }),
+      inserat({ id: 'wh-4', typ: 'miete', preis: 600, flaeche_m2: 55 }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('immoscout24.at', 'is24-1', 195000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-2', 240000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-3', 150000, '2026-06-15'),
+      punkt('willhaben.at', 'wh-4', 600, '2026-06-01'),
+    ];
+    const objekte = objekteAusBestand(bestand, historie);
+    const trend = berechneObjektTrend(objekte, '2026-07-01');
+    for (const punkt of trend) {
+      const { kauf, miete } = datenpunkteAmStichtag(objekte, punkt.datum);
+      expect(kauf).toHaveLength(punkt.anzahlKauf);
+      expect(miete).toHaveLength(punkt.anzahlMiete);
+      expect(kauf.length > 0 ? median(kauf.map((p) => p.eurM2)) : null).toBe(punkt.medianKaufEurM2);
+      expect(miete.length > 0 ? median(miete.map((p) => p.eurM2)) : null).toBe(punkt.medianMieteEurM2);
+    }
+  });
+});
+
+describe('streuungJeStichtag', () => {
+  it('liefert je Stichtag exakt die Werte, deren Median der Trend bildet', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', objektId: 1, preis: 200000 }),
+      inserat({ id: 'is24-1', portal: 'immoscout24.at', objektId: 1, preis: 195000 }),
+      inserat({ id: 'wh-2', preis: 240000, flaeche_m2: 60 }),
+      inserat({ id: 'wh-3', typ: 'miete', preis: 600, flaeche_m2: 55, zuerstGesehen: '2026-06-15' }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('immoscout24.at', 'is24-1', 195000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-2', 240000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-3', 600, '2026-06-15'),
+    ];
+    const objekte = objekteAusBestand(bestand, historie);
+    const trend = berechneObjektTrend(objekte, '2026-07-01');
+    const streuung = streuungJeStichtag(objekte, trend.map((t) => t.datum));
+    expect(streuung.map((s) => s.datum)).toEqual(trend.map((t) => t.datum));
+    trend.forEach((t, i) => {
+      const s = streuung[i]!;
+      expect(s.kauf).toHaveLength(t.anzahlKauf);
+      expect(s.miete).toHaveLength(t.anzahlMiete);
+      expect(s.kauf.length > 0 ? median(s.kauf) : null).toBe(t.medianKaufEurM2);
+      expect(s.miete.length > 0 ? median(s.miete) : null).toBe(t.medianMieteEurM2);
+    });
+    // Dedupliziert: Objekt 1 liefert einen Wert (das Minimum), nicht zwei.
+    expect(streuung.at(-1)!.kauf.sort((a, b) => a - b)).toEqual([3900, 4000]);
   });
 });
 
