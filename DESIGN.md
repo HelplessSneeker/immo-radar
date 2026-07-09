@@ -180,7 +180,8 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 - **Verschachtelte Karten sind verboten.** Tiles liegen im Grid nebeneinander, nie ineinander.
 
 ### Inputs / Fields
-- **Style:** Papier-Hintergrund (dunkler als die Section-Fläche), 1px Raster-Kontur, 6px Radius, 8px/10px Padding, erbt die Body-Schrift.
+- **Style:** Papier-Hintergrund (dunkler als die Section-Fläche), 1px Raster-Kontur, 6px Radius, 8px/10px Padding, erbt die Body-Schrift. Gilt für alle Input-Typen inkl. `date` — kein Feld fällt aufs Browser-Default zurück.
+- **Native Widget-Teile** (Datums-Picker, Select-Dropdown, Scrollbars): folgen dem aktiven Theme via `color-scheme: light dark` auf `:root`.
 - **Labels:** 600/13px über dem Feld; Hinweise 12px in Tinte-leise darunter.
 - **Bereichs-Felder** (von–bis): zweispaltiges Grid mit 8px Lücke.
 
