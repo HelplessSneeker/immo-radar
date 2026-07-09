@@ -29,13 +29,19 @@ const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd
 
 const DASHBOARD_CSS = `
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
-  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  /* Kacheln werden vom Grid gleich hoch gemacht; die interne Flex-Verteilung
+     drückt die Sub-Zeile (Herkunfts-/Erklär-Text) zuverlässig an den Boden,
+     damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
+  .tile {
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    display: flex; flex-direction: column;
+  }
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; }
   .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
   .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
-  .tile-sub { font-size: 12px; color: var(--text-secondary); }
+  .tile-sub { font-size: 12px; color: var(--text-secondary); margin-top: auto; }
   .charts-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
@@ -146,8 +152,13 @@ function chartSektion(trend: TrendPunkt[]): string {
 
 /** Startseite ohne Daten: noch kein fertiger Sweep. */
 export function renderDashboardOhneDatenSeite(sweepLaeuft: boolean): string {
+  // Selbe Meta-Zeile wie im befüllten Zustand (ohne "Stand …"), damit der
+  // Kopf nicht als isolierter Titel wirkt und der Ton zwischen leer und
+  // befüllt konsistent bleibt.
   const inhalt = `  <header>
     <h1>Wohnungsmarkt Kärnten</h1>
+    <p class="meta">Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
+    täglich vollständig gecrawlt und zu Objekten dedupliziert.</p>
   </header>
   <section>
     <h2>Noch keine Daten</h2>

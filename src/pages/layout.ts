@@ -327,6 +327,14 @@ export const FORMULAR_CSS = `
   input[type="text"]:hover:not(:focus), input[type="password"]:hover:not(:focus) { border-color: var(--baseline); }
   select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus { border-color: var(--akzent); }
   .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  /* Nachbar-Fieldsets in .bereich haben oft eine Hint-Zeile nur auf einer Seite
+     (z. B. "leer lassen = leerstehend" bei der Kaltmiete, nicht bei Baujahr).
+     Ohne diesen Ausgleich sitzt der eine Input höher als der andere. Flex mit
+     margin-top: auto drückt den Input zuverlässig an den unteren Rand des
+     (grid-stretched) Fieldsets, unabhängig davon, ob ein Hint dazwischen liegt. */
+  .bereich > fieldset { display: flex; flex-direction: column; gap: 6px; }
+  .bereich > fieldset > input,
+  .bereich > fieldset > select { margin-top: auto; }
   .radios { display: flex; gap: 16px; }
   .radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   /* Absende-Button mit „läuft"-Zustand: der Text wird ausgetauscht, das

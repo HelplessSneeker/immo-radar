@@ -64,6 +64,11 @@ function segmenteTabelle(segmente: SweepSegment[]): string {
         s.inserateGeladen !== undefined && s.gesamtTreffer !== undefined
           ? `${nfTage.format(s.inserateGeladen)} / ${nfTage.format(s.gesamtTreffer)}`
           : '';
+      // Bei "fehlgeschlagen" steht in der Quelle-Spalte die Fehlermeldung; die
+      // darf nicht wie eine gedämpfte URL aussehen. Die Statusfarbe (Urteils-
+      // Regel) darf hier hin, weil der Status "fehlgeschlagen" die Zelle zum
+      // Fehlertext macht – kein Widerspruch zur "Farbe nur mit Urteil"-Regel.
+      const quelleKlasse = s.status === 'fehlgeschlagen' ? 'fehler' : 'meta';
       return `      <tr>
         <td>${escapeHtml(s.portal)}</td>
         <td>${escapeHtml(bezirkName(s.bezirk))}</td>
@@ -71,7 +76,7 @@ function segmenteTabelle(segmente: SweepSegment[]): string {
         <td class="num">${escapeHtml(preisBandText(s))}</td>
         <td>${statusBadge(s.status)}</td>
         <td class="num">${abdeckung}</td>
-        <td class="meta">${s.quelle ? escapeHtml(s.quelle) : ''}</td>
+        <td class="${quelleKlasse}">${s.quelle ? escapeHtml(s.quelle) : ''}</td>
       </tr>`;
     })
     .join('\n');
