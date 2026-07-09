@@ -45,10 +45,15 @@ function feld(
   optionen: { pflicht?: boolean; hinweis?: string; typ?: string } = {},
 ): string {
   const wert = werte?.get(name) ?? vorbelegung;
-  const hinweis = optionen.hinweis ? `\n        <span class="hinweis">${optionen.hinweis}</span>` : '';
+  // Hint per aria-describedby ans Feld gebunden, damit er auch beim
+  // Fokussieren vorgelesen wird – visuell hängt er ohnehin am Feld.
+  const hinweis = optionen.hinweis
+    ? `\n        <span class="hinweis" id="p-${name}-hinweis">${optionen.hinweis}</span>`
+    : '';
+  const beschreibung = optionen.hinweis ? ` aria-describedby="p-${name}-hinweis"` : '';
   return `      <fieldset>
         <label class="feld" for="p-${name}">${escapeHtml(label)}</label>${hinweis}
-        <input type="${optionen.typ ?? 'text'}" id="p-${name}" name="${name}" value="${escapeHtml(wert)}"${optionen.pflicht ? ' required' : ''}>
+        <input type="${optionen.typ ?? 'text'}" id="p-${name}" name="${name}" value="${escapeHtml(wert)}"${optionen.pflicht ? ' required' : ''}${beschreibung}>
       </fieldset>`;
 }
 

@@ -39,11 +39,13 @@ function laeufeTabelle(laeufe: SweepLauf[]): string {
   }
   const zeilen = laeufe
     .map(
+      // Die Fehler-Spalte trägt nur Fehlermeldungen – wie in der Segmente-
+      // Tabelle gilt: Fehlertext in Statusfarbe, nicht meta-gedämpft.
       (l) => `      <tr>
         <td>${escapeHtml(datumMedium(l.laufDatum))}</td>
         <td>${statusBadge(l.status)}</td>
         <td class="num">${l.inserateGesehen !== undefined ? nfTage.format(l.inserateGesehen) : ''}</td>
-        <td class="meta">${l.fehler ? escapeHtml(l.fehler) : ''}</td>
+        <td class="fehler">${l.fehler ? escapeHtml(l.fehler) : ''}</td>
       </tr>`,
     )
     .join('\n');
