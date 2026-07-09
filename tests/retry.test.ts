@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   WIEDERHOLBARE_STATUS,
+  empfohlenePause,
   istWiederholbar,
   markiereWiederholbar,
   mitRetry,
@@ -29,6 +30,13 @@ describe('markiereWiederholbar / istWiederholbar', () => {
     expect(istWiederholbar(new Error('nope'))).toBe(false);
     expect(istWiederholbar('string')).toBe(false);
     expect(istWiederholbar(null)).toBe(false);
+  });
+
+  it('trägt eine optionale Pause-Empfehlung am Fehler mit', () => {
+    const mitPause = markiereWiederholbar(new Error('rate-limit'), 7000);
+    expect(empfohlenePause(mitPause)).toBe(7000);
+    expect(empfohlenePause(markiereWiederholbar(new Error('ohne')))).toBeUndefined();
+    expect(empfohlenePause(null)).toBeUndefined();
   });
 });
 
@@ -101,6 +109,36 @@ describe('mitRetry', () => {
     expect(aufrufe).toBe(5);
   });
 
+  it('nutzt die Pause-Empfehlung des Fehlers statt des Backoffs', async () => {
+    const pausen: number[] = [];
+    await expect(
+      mitRetry(
+        async () => {
+          throw markiereWiederholbar(new Error('rate-limit'), 12_000);
+        },
+        optionen({
+          maxVersuche: 2,
+          basisPauseMs: 100,
+          warte: async (ms) => {
+            pausen.push(ms);
+          },
+        }),
+      ),
+    ).rejects.toThrow('rate-limit');
+    expect(pausen).toEqual([12_000]);
+  });
+
+  it('wirft bei maxVersuche < 1 einen Konfigurationsfehler statt undefined', async () => {
+    let aufrufe = 0;
+    await expect(
+      mitRetry(async () => {
+        aufrufe += 1;
+        return 'nie';
+      }, optionen({ maxVersuche: 0 })),
+    ).rejects.toThrow(/maxVersuche/);
+    expect(aufrufe).toBe(0);
+  });
+
   it('respektiert eine eigene wiederholbar-Klassifizierung', async () => {
     let aufrufe = 0;
     const nurEins = (fehler: unknown) => (fehler as Error).message === 'retry-mich';
@@ -119,7 +157,7 @@ describe('mitRetry', () => {
 
 describe('WIEDERHOLBARE_STATUS', () => {
   it('enthält typische transiente Statuscodes', () => {
-    for (const code of [408, 425, 429, 500, 502, 503, 504]) {
+    for (const code of [408, 425, 500, 502, 503, 504]) {
       expect(WIEDERHOLBARE_STATUS.has(code)).toBe(true);
     }
   });
@@ -128,5 +166,9 @@ describe('WIEDERHOLBARE_STATUS', () => {
     for (const code of [400, 401, 403, 404, 410, 422]) {
       expect(WIEDERHOLBARE_STATUS.has(code)).toBe(false);
     }
+  });
+
+  it('enthält 429 nicht — Rate-Limits wiederholt nur ladePortalSeite mit Retry-After', () => {
+    expect(WIEDERHOLBARE_STATUS.has(429)).toBe(false);
   });
 });

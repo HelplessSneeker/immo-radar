@@ -7,7 +7,7 @@ export interface HealthPool {
 }
 
 export interface LetzterSweep {
-  datum: string;
+  laufDatum: string;
   beendetAm: Date;
 }
 
@@ -15,54 +15,90 @@ export interface HealthDeps {
   pool: HealthPool;
   /** Version aus package.json — Boot-Zeit gelesen, s. paketVersion(). */
   version: string;
+  /** Hat der Aufrufer eine gültige Sitzung? Nur dann gibt es Details. */
+  angemeldet: boolean;
   /** Jüngster erfolgreicher Sweep. Fehler werden geschluckt (Bonus-Info). */
   letzterSweep?: () => Promise<LetzterSweep | undefined>;
   /** Deckel für die Sweep-Abfrage, damit /health nie hängt (Default 1 s). */
   letzterSweepTimeoutMs?: number;
+  /** Deckel für den SELECT-1-Check — hängt der Pool, gilt die DB als weg (Default 2 s). */
+  dbTimeoutMs?: number;
 }
 
 /** Default-Deckel für die Sweep-Abfrage in /health. */
 export const LETZTER_SWEEP_TIMEOUT_MS = 1000;
 
+/** Default-Deckel für den SELECT-1-Check in /health. */
+export const DB_TIMEOUT_MS = 2000;
+
 export interface HealthOk {
   status: 'ok';
-  version: string;
-  letzterSweep?: { datum: string; beendetAm: string };
+  version?: string;
+  letzterSweep?: { laufDatum: string; beendetAm: string };
+}
+
+const ABGELAUFEN = Symbol('health-timeout');
+
+/**
+ * Race mit aufgeräumtem Timer: liefert ABGELAUFEN statt zu hängen. Bricht die
+ * verlorene Abfrage nicht ab — der Aufrufer muss dafür sorgen, dass hängende
+ * Abfragen nicht pro Healthcheck einen weiteren Pool-Client belegen
+ * (s. Single-Flight in server.ts).
+ */
+async function mitZeitdeckel<T>(lauf: Promise<T>, ms: number): Promise<T | typeof ABGELAUFEN> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      lauf,
+      new Promise<typeof ABGELAUFEN>((resolve) => {
+        timer = setTimeout(() => resolve(ABGELAUFEN), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
  * GET /health für den Coolify-Healthcheck: prüft die DB-Verbindung mit
- * SELECT 1 und meldet zusätzlich die Version und — falls erhebbar — den
- * jüngsten fertigen Sweep. Läuft vor dem Auth-Gate. Bei DB-Ausfall bleibt
- * die Antwort auf { status: "db-unreachable" } reduziert (kein Info-Leak).
+ * SELECT 1, gedeckelt — ein hängender Pool zählt als db-unreachable statt den
+ * Healthcheck kippen zu lassen. Läuft vor dem Auth-Gate und verrät anonym
+ * nichts außer ob die Datenbank erreichbar ist; erst mit gültiger Sitzung
+ * kommen Version und — falls erhebbar — der jüngste fertige Sweep dazu.
  */
 export async function behandleHealth(deps: HealthDeps, res: ServerResponse): Promise<void> {
+  let dbErreichbar: boolean;
   try {
-    await deps.pool.query('SELECT 1');
+    const probe = await mitZeitdeckel(deps.pool.query('SELECT 1'), deps.dbTimeoutMs ?? DB_TIMEOUT_MS);
+    dbErreichbar = probe !== ABGELAUFEN;
   } catch {
+    dbErreichbar = false;
+  }
+  if (!dbErreichbar) {
     res.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ status: 'db-unreachable' }));
     return;
   }
-  const koerper: HealthOk = { status: 'ok', version: deps.version };
-  if (deps.letzterSweep) {
-    // Race mit Timeout: /health muss auch dann prompt antworten, wenn die
-    // Sweep-Abfrage durch DB-Locks hängt — sonst kippt der Coolify-Healthcheck.
-    const timeout = deps.letzterSweepTimeoutMs ?? LETZTER_SWEEP_TIMEOUT_MS;
-    const abbruch = Symbol('sweep-timeout');
-    try {
-      const sweep = await Promise.race([
-        deps.letzterSweep(),
-        new Promise<typeof abbruch>((resolve) => setTimeout(() => resolve(abbruch), timeout)),
-      ]);
-      if (sweep !== abbruch && sweep !== undefined) {
-        koerper.letzterSweep = {
-          datum: sweep.datum,
-          beendetAm: sweep.beendetAm.toISOString(),
-        };
+  const koerper: HealthOk = { status: 'ok' };
+  if (deps.angemeldet) {
+    koerper.version = deps.version;
+    if (deps.letzterSweep) {
+      // Deckel: /health muss auch dann prompt antworten, wenn die Sweep-
+      // Abfrage durch DB-Locks hängt — sonst kippt der Coolify-Healthcheck.
+      try {
+        const sweep = await mitZeitdeckel(
+          deps.letzterSweep(),
+          deps.letzterSweepTimeoutMs ?? LETZTER_SWEEP_TIMEOUT_MS,
+        );
+        if (sweep !== ABGELAUFEN && sweep !== undefined) {
+          koerper.letzterSweep = {
+            laufDatum: sweep.laufDatum,
+            beendetAm: sweep.beendetAm.toISOString(),
+          };
+        }
+      } catch {
+        // Sweep-Info ist Bonus — bei DB-Fehler weglassen, nicht 503 auslösen.
       }
-    } catch {
-      // Sweep-Info ist Bonus — bei DB-Fehler weglassen, nicht 503 auslösen.
     }
   }
   res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });

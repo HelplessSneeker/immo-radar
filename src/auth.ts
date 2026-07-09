@@ -181,6 +181,19 @@ export function pruefeAuth(
   return true;
 }
 
+/**
+ * Nicht-umleitender Session-Check für Routen, die auch anonym antworten,
+ * Angemeldeten aber mehr zeigen (z. B. /health). Kein Sliding-Refresh —
+ * das bleibt pruefeAuth vorbehalten.
+ */
+export function hatGueltigeSitzung(req: IncomingMessage): boolean {
+  const geheimnis = process.env.SESSION_SECRET;
+  if (!geheimnis) return false;
+  const cookie = liesCookie(req, COOKIE_NAME);
+  if (!cookie) return false;
+  return pruefeSitzung(cookie, geheimnis).ok;
+}
+
 /** Konstante-Zeit-Vergleich gegen BASIC_AUTH_USER/BASIC_AUTH_PASS. */
 export function pruefeCredentials(benutzer: string, passwort: string): boolean {
   const erwarteterUser = process.env.BASIC_AUTH_USER;
