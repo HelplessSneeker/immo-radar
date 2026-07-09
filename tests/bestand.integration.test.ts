@@ -3,6 +3,7 @@ import {
   bestandLaden,
   bestandSeiteLaden,
   bestandUpsert,
+  inseratAnzahlProTyp,
   preisHistorieFuerInserate,
   preisHistorieLaden,
 } from '../src/db/bestand-repo.js';
@@ -199,6 +200,27 @@ describe.runIf(!!process.env.DATABASE_URL)('bestand (Integration)', () => {
       const seite = await bestandSeiteLaden({}, 'zuletzt_gesehen', 50, 100);
       expect(seite.inserate).toEqual([]);
       expect(seite.gesamt).toBe(1);
+    });
+  });
+
+  describe('inseratAnzahlProTyp', () => {
+    it('zählt nur Inserate mit zuletzt_gesehen = Stichtag, getrennt nach Typ', async () => {
+      await bestandUpsert(
+        [inserat('wh-1'), inserat('wh-2'), { ...inserat('wh-3'), typ: 'miete' as const, preis: 900 }],
+        'kaernten',
+        '2026-07-07',
+      );
+      // wh-1 wird beim nächsten Lauf wieder gesehen, wh-2/wh-3 nicht.
+      await bestandUpsert([inserat('wh-1')], 'kaernten', '2026-07-09');
+      // Anderes Bundesland zählt nicht mit.
+      await bestandUpsert([inserat('wh-wien')], 'wien', '2026-07-09');
+
+      expect(await inseratAnzahlProTyp('kaernten', '2026-07-09')).toEqual({ kauf: 1, miete: 0 });
+      expect(await inseratAnzahlProTyp('kaernten', '2026-07-07')).toEqual({ kauf: 1, miete: 1 });
+    });
+
+    it('liefert Nullen ohne Treffer', async () => {
+      expect(await inseratAnzahlProTyp('kaernten', '2026-07-09')).toEqual({ kauf: 0, miete: 0 });
     });
   });
 

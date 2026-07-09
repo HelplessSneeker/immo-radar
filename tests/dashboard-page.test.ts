@@ -29,6 +29,7 @@ function daten(overrides: Partial<DashboardDaten> = {}): DashboardDaten {
     sweepBeendetAm: new Date('2026-07-07T04:30:00Z'),
     portalAusfaelle: [],
     sweepLaeuft: false,
+    inserateImLauf: { kauf: 2802, miete: 669 },
     trend: [
       { datum: '2026-06-30', medianKaufEurM2: 3900, medianMieteEurM2: 9.8, anzahlKauf: 40, anzahlMiete: 30 },
       { datum: '2026-07-07', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 42, anzahlMiete: 31 },
@@ -60,6 +61,19 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('4 000 €/m²'); // de-AT gruppiert mit NBSP
     expect(html).toContain('10,00 €/m²');
     expect(html).toContain('42 aktive Kauf-Objekte');
+  });
+
+  it('zeigt die Roh-Inserate des Laufs (Kauf/Miete) an der Sweep-Kachel', () => {
+    const html = renderDashboardSeite(daten());
+    // de-AT gruppiert mit NBSP (U+00A0).
+    expect(html).toContain('2 802 Kauf- · 669 Miet-Inserate im Lauf');
+    expect(html).toContain('Roh-Inserate vor Deduplizierung');
+  });
+
+  it('formatiert die Chart-Labels als dd.mm.yyyy (serverseitig vorformatiert)', () => {
+    const html = renderDashboardSeite(daten());
+    expect(html).toContain('"label":"30.06.2026"');
+    expect(html).toContain('"label":"07.07.2026"');
   });
 
   it('hebt eine Rendite über dem Ziel hervor', () => {
@@ -128,22 +142,22 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('<details class="datenpunkte" open>');
   });
 
-  it('Wochen-Links tragen Filter, Stichtag und Anker; am Rand steht ein leerer Span', () => {
+  it('Stichtag-Links tragen Filter, Stichtag und Anker; am Rand steht ein leerer Span', () => {
     const html = renderDashboardSeite(
       daten({ filter: { plz: '9020', flaecheMin: 45 }, datenpunkteOffen: true }),
     );
-    // Letzter Stichtag: ältere Woche verlinkt, neuere nicht.
+    // Letzter Stichtag: älterer verlinkt, neuerer nicht.
     expect(html).toContain('href="/?plz=9020&flaeche_min=45&stichtag=2026-06-30#datenpunkte"');
-    expect(html).toContain('← ältere Woche');
-    expect(html).not.toContain('neuere Woche →</a>');
-    expect(html).toContain('Woche 2 von 2');
+    expect(html).toContain('← älterer Stichtag');
+    expect(html).not.toContain('neuerer Stichtag →</a>');
+    expect(html).toContain('Stichtag 2 von 2');
   });
 
-  it('verlinkt vom älteren Stichtag zur neueren Woche', () => {
+  it('verlinkt vom älteren Stichtag zum neueren', () => {
     const html = renderDashboardSeite(daten({ datenpunkteStichtag: '2026-06-30' }));
     expect(html).toContain('href="/?stichtag=2026-07-07#datenpunkte"');
-    expect(html).toContain('neuere Woche →');
-    expect(html).toContain('Woche 1 von 2');
+    expect(html).toContain('neuerer Stichtag →');
+    expect(html).toContain('Stichtag 1 von 2');
   });
 
   it('hält die Sektion über die Filterleiste offen (Hidden-Field nur bei offener Sektion)', () => {

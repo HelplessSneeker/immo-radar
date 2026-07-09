@@ -123,20 +123,24 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
       id: 'median-trend',
       titel: 'Die Zeitreihen (Median €/m², Rendite)',
       inhalt: `
-    <p><strong>Was ist das?</strong> Die Marktentwicklung im Wochenraster: pro Stichtag der
-    mittlere Quadratmeterpreis der damals aktiven Objekte, getrennt nach Kauf und Miete –
-    plus die daraus abgeleitete <a href="#bruttorendite">Bruttorendite</a> als eigene Reihe.</p>
+    <p><strong>Was ist das?</strong> Die Marktentwicklung mit einem Datenpunkt je Crawl-Lauf:
+    pro Stichtag der mittlere Quadratmeterpreis der damals aktiven Objekte, getrennt nach Kauf
+    und Miete – plus die daraus abgeleitete <a href="#bruttorendite">Bruttorendite</a> als
+    eigene Reihe.</p>
     <p><strong>Was ist ein Median?</strong> Der Wert in der Mitte, wenn man alle Werte der
     Größe nach sortiert – die Hälfte liegt darunter, die Hälfte darüber. Anders als der
     Durchschnitt verschiebt ihn ein einzelnes Luxus-Penthouse kaum; deshalb nutzt immo-radar
     fast überall den Median.</p>
-    <p><strong>Formel:</strong> Wochenraster vom ersten Crawl bis zum letzten fertigen Sweep;
-    pro Stichtag zählt ein Objekt, wenn es damals aktiv war, mit seinem damaligen Preis (aus
-    der <a href="#preisaenderungen">Preishistorie</a> rekonstruiert). Der PLZ-/m²-Filter des
+    <p><strong>Formel:</strong> Ein Stichtag je fertigem Sweep, vom ersten Crawl bis heute
+    (fehlgeschlagene Läufe erhalten keinen Punkt); pro Stichtag zählt ein Objekt, wenn es
+    damals aktiv war, mit seinem damaligen Preis (aus der
+    <a href="#preisaenderungen">Preishistorie</a> rekonstruiert). Der PLZ-/m²-Filter des
     Dashboards schränkt die Objektmenge ein, bevor gerechnet wird.</p>
     <p><strong>Grenzen:</strong> Bei engen Filtern hängt der Median an wenigen Objekten – die
     Anzahl pro Punkt steht im Diagramm-Tooltip. Sprünge können auch daher kommen, dass teure
-    oder billige Objekte dazukommen bzw. verschwinden, nicht nur aus echten Preisänderungen.</p>`,
+    oder billige Objekte dazukommen bzw. verschwinden, nicht nur aus echten Preisänderungen.
+    Fällt bei einem sonst fertigen Lauf ein Portal-Segment aus, kann der neueste Punkt zu
+    niedrig ausfallen; er heilt rückwirkend, sobald die Inserate wieder gesehen werden.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -160,7 +164,7 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     ein investierter Kauf-Euro? Ab ${zielProzent} gilt das Ziel als erreicht und der Wert wird
     grün hervorgehoben.</p>
     <p><strong>Formel:</strong> (Median-Kaltmiete €/m² × 12) ÷ Median-Kaufpreis €/m², jeweils
-    über die aktiven Objekte im gewählten Filter; als Zeitreihe je Wochen-Stichtag.</p>
+    über die aktiven Objekte im gewählten Filter; als Zeitreihe je Lauf-Stichtag.</p>
     <p class="beispiel">Beispiel: 10 €/m² Kaltmiete × 12 = 120 €/m² Jahresmiete;
     120 ÷ 3.000 €/m² Kaufpreis = 4 %.</p>
     <p><strong>Grenzen:</strong> <em>Brutto</em> heißt: ohne Betriebskosten, Instandhaltung,

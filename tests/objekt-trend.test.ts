@@ -7,6 +7,7 @@ import {
   datenpunkteAmStichtag,
   filterObjekte,
   objekteAusBestand,
+  stichtageFuerTrend,
   streuungJeStichtag,
   type ObjektZeitreihe,
 } from '../src/trend.js';
@@ -79,7 +80,10 @@ describe('berechneObjektTrend', () => {
       punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
       punkt('immoscout24.at', 'is24-1', 195000, '2026-06-01'),
     ];
-    const trend = berechneObjektTrend(objekteAusBestand(bestand, historie), '2026-07-01');
+    const trend = berechneObjektTrend(objekteAusBestand(bestand, historie), [
+      '2026-06-01',
+      '2026-07-01',
+    ]);
     const letzter = trend.at(-1)!;
     expect(letzter.anzahlKauf).toBe(1);
     expect(letzter.medianKaufEurM2).toBe(3900);
@@ -101,7 +105,10 @@ describe('berechneObjektTrend', () => {
       punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
       punkt('immoscout24.at', 'is24-1', 210000, '2026-06-01'),
     ];
-    const trend = berechneObjektTrend(objekteAusBestand(bestand, historie), '2026-07-01');
+    const trend = berechneObjektTrend(objekteAusBestand(bestand, historie), [
+      '2026-06-01',
+      '2026-07-01',
+    ]);
     const letzter = trend.at(-1)!;
     // Am Ende zählt nur noch das is24-Inserat (wh ist delistet) ⇒ 4200 €/m².
     expect(letzter.anzahlKauf).toBe(1);
@@ -127,12 +134,87 @@ describe('berechneObjektTrend', () => {
     ];
     const objekte = objekteAusBestand(bestand, historie);
     expect(objekte).toHaveLength(1);
-    const trend = berechneObjektTrend(objekte, '2026-07-01');
+    const trend = berechneObjektTrend(objekte, ['2026-05-01', '2026-06-10', '2026-07-01']);
     expect(trend.at(-1)!.medianKaufEurM2).toBe(3800); // neuer Preis
     expect(trend[0]!.medianKaufEurM2).toBe(4000); // alter Preis am Anfang
-    // In der Lücke (z. B. 2026-06-10) ist das Objekt nicht aktiv.
+    // In der Lücke (2026-06-10: wh-alt delistet, wh-neu noch nicht da) ist
+    // das Objekt nicht aktiv — die Reihe zeigt die Lücke ehrlich.
     const luecke = trend.find((p) => p.datum === '2026-06-10');
     expect(luecke?.anzahlKauf ?? 0).toBe(0);
+  });
+
+  it('aktiv exakt bis zuletztGesehen: am Tag selbst dabei, am nächsten Stichtag nicht mehr', () => {
+    const objekte = objekteAusBestand(
+      [inserat({ id: 'wh-1', zuerstGesehen: '2026-06-01', zuletztGesehen: '2026-06-10' })],
+      [punkt('willhaben.at', 'wh-1', 200000, '2026-06-01')],
+    );
+    const trend = berechneObjektTrend(objekte, ['2026-06-10', '2026-06-11']);
+    expect(trend.map((p) => p.anzahlKauf)).toEqual([1, 0]);
+  });
+
+  it('überbrückt einen fehlgeschlagenen Lauf: gesehen am 07. und 09. ⇒ aktiv an beiden Stichtagen', () => {
+    // Der 08. war ein fehlgeschlagener Lauf und ist kein Stichtag; das
+    // Inserat wurde am 09. wieder gesehen und zählt daher auch am 07.
+    const objekte = objekteAusBestand(
+      [inserat({ id: 'wh-1', zuerstGesehen: '2026-07-03', zuletztGesehen: '2026-07-09' })],
+      [punkt('willhaben.at', 'wh-1', 200000, '2026-07-03')],
+    );
+    const trend = berechneObjektTrend(objekte, ['2026-07-07', '2026-07-09']);
+    expect(trend.map((p) => p.anzahlKauf)).toEqual([1, 1]);
+  });
+
+  it('schneidet Stichtage vor dem ersten Datenpunkt der (gefilterten) Objekte ab', () => {
+    const objekte = objekteAusBestand(
+      [inserat({ id: 'wh-1', zuerstGesehen: '2026-06-15' })],
+      [punkt('willhaben.at', 'wh-1', 200000, '2026-06-15')],
+    );
+    const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-06-15', '2026-07-01']);
+    expect(trend.map((p) => p.datum)).toEqual(['2026-06-15', '2026-07-01']);
+  });
+});
+
+describe('stichtageFuerTrend', () => {
+  it('vereinigt Sweep-Tage mit Beobachtungstagen vor dem ersten Sweep, dedupliziert und sortiert', () => {
+    const objekte = objekteAusBestand(
+      [
+        // Import-Ära: vor dem ersten protokollierten Sweep gesehen.
+        inserat({ id: 'wh-1', zuerstGesehen: '2026-07-03', zuletztGesehen: '2026-07-06' }),
+        inserat({ id: 'wh-2', zuerstGesehen: '2026-07-06', zuletztGesehen: '2026-07-09' }),
+        // Beobachtung NACH dem ersten Sweep-Tag (2026-07-08, Partial eines
+        // fehlgeschlagenen Laufs) darf keinen eigenen Stichtag erzeugen.
+        inserat({ id: 'wh-3', zuerstGesehen: '2026-07-08', zuletztGesehen: '2026-07-09' }),
+      ],
+      [punkt('willhaben.at', 'wh-1', 180000, '2026-07-03')],
+    );
+    expect(stichtageFuerTrend(objekte, ['2026-07-07', '2026-07-09'])).toEqual([
+      '2026-07-03',
+      '2026-07-06',
+      '2026-07-07',
+      '2026-07-09',
+    ]);
+  });
+
+  it('nimmt auch Historien-Tage vor dem ersten Sweep als Stichtage', () => {
+    const objekte = objekteAusBestand(
+      [inserat({ id: 'wh-1', zuerstGesehen: '2026-07-01', zuletztGesehen: '2026-07-09' })],
+      [
+        punkt('willhaben.at', 'wh-1', 200000, '2026-07-01'),
+        punkt('willhaben.at', 'wh-1', 190000, '2026-07-04'),
+      ],
+    );
+    expect(stichtageFuerTrend(objekte, ['2026-07-09'])).toEqual([
+      '2026-07-01',
+      '2026-07-04',
+      '2026-07-09',
+    ]);
+  });
+
+  it('ohne protokollierte Sweeps sind alle Beobachtungstage Stichtage', () => {
+    const objekte = objekteAusBestand(
+      [inserat({ id: 'wh-1', zuerstGesehen: '2026-06-01', zuletztGesehen: '2026-07-01' })],
+      [punkt('willhaben.at', 'wh-1', 200000, '2026-06-01')],
+    );
+    expect(stichtageFuerTrend(objekte, [])).toEqual(['2026-06-01', '2026-07-01']);
   });
 });
 
@@ -229,7 +311,7 @@ describe('datenpunkteAmStichtag', () => {
       punkt('willhaben.at', 'wh-4', 600, '2026-06-01'),
     ];
     const objekte = objekteAusBestand(bestand, historie);
-    const trend = berechneObjektTrend(objekte, '2026-07-01');
+    const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-06-15', '2026-07-01']);
     for (const punkt of trend) {
       const { kauf, miete } = datenpunkteAmStichtag(objekte, punkt.datum);
       expect(kauf).toHaveLength(punkt.anzahlKauf);
@@ -255,7 +337,7 @@ describe('streuungJeStichtag', () => {
       punkt('willhaben.at', 'wh-3', 600, '2026-06-15'),
     ];
     const objekte = objekteAusBestand(bestand, historie);
-    const trend = berechneObjektTrend(objekte, '2026-07-01');
+    const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-06-15', '2026-07-01']);
     const streuung = streuungJeStichtag(objekte, trend.map((t) => t.datum));
     expect(streuung.map((s) => s.datum)).toEqual(trend.map((t) => t.datum));
     trend.forEach((t, i) => {
