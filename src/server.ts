@@ -40,16 +40,20 @@ import { ZIEL_RENDITE } from './report.js';
 import { starteZeitplan } from './scheduler.js';
 import {
   parseDashboardFilter,
+  parseDatenpunkteSeiten,
   parseInserateAnfrage,
   parsePortfolioForm,
+  parseStichtag,
   SuchKriterienFehler,
 } from './search.js';
 import {
   berechneObjektTrend,
   berechneRenditeTrend,
+  datenpunkteAmStichtag,
   filterObjekte,
   letztePreisAenderungen,
   objekteAusBestand,
+  streuungJeStichtag,
 } from './trend.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -110,6 +114,17 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
   ]);
   const objekte = filterObjekte(objekteAusBestand(bestand, historie), filter);
   const trend = berechneObjektTrend(objekte, sweep.laufDatum);
+  // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
+  // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
+  const gewuenscht = parseStichtag(params);
+  const datenpunkteStichtag =
+    gewuenscht !== undefined && trend.some((t) => t.datum === gewuenscht)
+      ? gewuenscht
+      : trend.at(-1)?.datum;
+  const datenpunkte =
+    datenpunkteStichtag !== undefined
+      ? datenpunkteAmStichtag(objekte, datenpunkteStichtag)
+      : { kauf: [], miete: [] };
   return renderDashboardSeite({
     stichtag: sweep.laufDatum,
     sweepBeendetAm: sweep.beendetAm,
@@ -121,6 +136,11 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     renditeTrend: berechneRenditeTrend(trend),
     filter,
     zielRendite: ZIEL_RENDITE,
+    datenpunkte,
+    streuung: streuungJeStichtag(objekte, trend.map((t) => t.datum)),
+    datenpunkteStichtag,
+    datenpunkteOffen: params.has('stichtag'),
+    datenpunkteSeiten: parseDatenpunkteSeiten(params),
   });
 }
 
