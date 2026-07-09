@@ -280,6 +280,26 @@ export async function bestandSeiteLaden(
 }
 
 /**
+ * Roh-Inserate (vor Deduplizierung) des Laufs am Stichtag, getrennt nach
+ * Kauf/Miete: zuletzt_gesehen = Stichtag heißt, der Lauf hat das Inserat
+ * gesehen. Fehlt ein Typ im Ergebnis, bleibt seine Zählung 0.
+ */
+export async function inseratAnzahlProTyp(
+  bundesland: string,
+  stichtag: string,
+): Promise<{ kauf: number; miete: number }> {
+  const { rows } = await holePool().query<{ typ: InseratTyp; anzahl: number }>(
+    `SELECT typ, count(*)::int AS anzahl
+     FROM inserate_bestand WHERE bundesland = $1 AND zuletzt_gesehen = $2
+     GROUP BY typ`,
+    [bundesland, stichtag],
+  );
+  const anzahl = { kauf: 0, miete: 0 };
+  for (const zeile of rows) anzahl[zeile.typ] = zeile.anzahl;
+  return anzahl;
+}
+
+/**
  * Preishistorie nur der übergebenen Inserate (z. B. der 50 sichtbaren Zeilen
  * einer Bestand-Seite), gleiche Sortierung wie preisHistorieLaden – damit
  * letztePreisAenderungen() unverändert darauf arbeitet.

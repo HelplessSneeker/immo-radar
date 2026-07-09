@@ -24,12 +24,14 @@ export interface DashboardDaten {
   /** Quellen-Zeilen fehlgeschlagener Segmente des Stichtag-Sweeps. */
   portalAusfaelle: string[];
   sweepLaeuft: boolean;
+  /** Roh-Inserate (vor Deduplizierung) des Stichtag-Laufs, ungefiltert. */
+  inserateImLauf: { kauf: number; miete: number };
   trend: TrendPunkt[];
   renditeTrend: RenditeTrendPunkt[];
   filter: DashboardFilter;
   /** Ziel-Bruttorendite (Anteil), ab der die Kachel als "gut" gilt. */
   zielRendite: number;
-  /** Datenpunkte der Datenpunkte-Sektion (Objekte hinter dem Wochen-Median). */
+  /** Datenpunkte der Datenpunkte-Sektion (Objekte hinter dem Stichtag-Median). */
   datenpunkte: { kauf: StichtagDatenpunkt[]; miete: StichtagDatenpunkt[] };
   /** Punktwolke über alle Trend-Stichtage (für die Streu-Charts der Sektion). */
   streuung: StreuungsPunkt[];
@@ -157,7 +159,8 @@ ${renditeKachel(daten, zielProzent)}      <div class="tile">
       <div class="tile">
         <div class="tile-label">Letzter Sweep</div>
         <div class="tile-value">${escapeHtml(datumMedium(daten.stichtag))}</div>
-        <div class="tile-sub">${daten.sweepLaeuft ? 'nächster Sweep läuft gerade — ' : ''}<a href="/crawl">alle Läufe</a></div>
+        <div class="tile-badge">${nfTage.format(daten.inserateImLauf.kauf)} Kauf- · ${nfTage.format(daten.inserateImLauf.miete)} Miet-Inserate im Lauf</div>
+        <div class="tile-sub">Roh-Inserate vor Deduplizierung · ${daten.sweepLaeuft ? 'nächster Sweep läuft gerade — ' : ''}<a href="/crawl">alle Läufe</a></div>
       </div>
     </div>${ausfallWarnung}`;
 }
@@ -186,7 +189,7 @@ function chartSektion(trend: TrendPunkt[]): string {
 /**
  * Dashboard-URL mit Filter + Stichtag; Sprungziel ist die Datenpunkte-Sektion
  * (bzw. per anker eine der Tabellen). Ohne seiten starten die Tabellen auf
- * Seite 1 (Wochen-Wechsel setzt die Pagination bewusst zurück).
+ * Seite 1 (Stichtag-Wechsel setzt die Pagination bewusst zurück).
  */
 function dashboardUrl(
   filter: DashboardFilter,
@@ -204,20 +207,20 @@ function dashboardUrl(
   return `/?${params.toString()}#${anker}`;
 }
 
-function wochenNav(daten: DashboardDaten, stichtag: string): string {
+function stichtagNav(daten: DashboardDaten, stichtag: string): string {
   const stichtage = daten.trend.map((t) => t.datum);
   const idx = stichtage.indexOf(stichtag);
   const aeltere =
     idx > 0
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx - 1] as string)}">← ältere Woche</a>`
+      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx - 1] as string)}">← älterer Stichtag</a>`
       : '<span></span>';
   const neuere =
     idx >= 0 && idx < stichtage.length - 1
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx + 1] as string)}">neuere Woche →</a>`
+      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx + 1] as string)}">neuerer Stichtag →</a>`
       : '<span></span>';
   return `      <nav class="seiten-nav" aria-label="Stichtag wählen">
         ${aeltere}
-        <span class="meta zaehler">Woche ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}</span>
+        <span class="meta zaehler">Stichtag ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}</span>
         ${neuere}
       </nav>`;
 }
@@ -297,21 +300,21 @@ function datenpunkteSektion(daten: DashboardDaten): string {
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
       <summary><h2>Datenpunkte (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
-      Wochen-Medianen, dazu die Median-Linie aus dem Wochenraster.
+      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">
           <div class="chart-title">Kauf (€/m²) · Punktwolke &amp; Median · log. Skala</div>
-          <div class="chart-wrap"><canvas id="streu-kauf" role="img" aria-label="Streudiagramm: Kaufpreis in Euro pro Quadratmeter je Objekt und Woche, mit Median-Linie, logarithmische Skala."></canvas></div>
+          <div class="chart-wrap"><canvas id="streu-kauf" role="img" aria-label="Streudiagramm: Kaufpreis in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
         </div>
         <div class="chart-box">
           <div class="chart-title">Miete kalt (€/m²) · Punktwolke &amp; Median · log. Skala</div>
-          <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Woche, mit Median-Linie, logarithmische Skala."></canvas></div>
+          <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
         </div>
       </div>
       <p class="meta">Die Tabellen zeigen die Punkte des gewählten Stichtags – zum
       Nachschlagen und Prüfen einzelner Ausreißer.</p>
-${wochenNav(daten, stichtag)}
+${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}
 ${serieBlock(daten, stichtag, false)}
     </details>
@@ -343,7 +346,10 @@ export function renderDashboardOhneDatenSeite(sweepLaeuft: boolean): string {
 export function renderDashboardSeite(daten: DashboardDaten): string {
   const zielProzent = `${(daten.zielRendite * 100).toLocaleString('de-AT')} %`;
   const beschreibung = filterBeschreibung(daten.filter);
-  const trendJson = JSON.stringify(daten.trend).replace(/</g, '\\u003c'); // "</script>"-sicher
+  // label = dd.mm.yyyy für Achsen und Tooltips; datum (ISO) bleibt für die Nav-Links.
+  const trendJson = JSON.stringify(
+    daten.trend.map((t) => ({ ...t, label: datumMedium(t.datum) })),
+  ).replace(/</g, '\\u003c'); // "</script>"-sicher
   const renditeJson = JSON.stringify(daten.renditeTrend).replace(/</g, '\\u003c');
   // Gerundet serialisieren: bei tausenden Punkten spart das spürbar HTML-Gewicht,
   // und feiner als ganze € (Kauf) bzw. Cent (Miete) zeichnet kein Pixel.
@@ -371,9 +377,10 @@ ${kpiZeile(daten, zielProzent)}
   </section>
 
   <section>
-    <h2>Zeitreihen (Wochenraster)</h2>
-    <p class="meta">Median über die am Stichtag aktiven Objekte; ein Objekt zählt einmal,
-    auch wenn es auf beiden Portalen inseriert ist. <a href="/methodik#objekte">Details</a></p>
+    <h2>Zeitreihen (je Crawl-Lauf)</h2>
+    <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
+    Objekte; ein Objekt zählt einmal, auch wenn es auf beiden Portalen inseriert ist.
+    <a href="/methodik#objekte">Details</a></p>
 ${chartSektion(daten.trend)}
   </section>
 ${datenpunkteSektion(daten)}
@@ -411,7 +418,7 @@ ${datenpunkteSektion(daten)}
     return new Chart(document.getElementById(canvasId), {
       type: 'line',
       data: {
-        labels: TREND.map((t) => t.datum),
+        labels: TREND.map((t) => t.label),
         datasets: [{
           data: werte,
           borderColor: cssVar(farbeVar),
@@ -471,7 +478,7 @@ ${datenpunkteSektion(daten)}
     const wolke = [];
     STREUUNG.forEach((s, i) => {
       s[serie].forEach((wert, j) => {
-        // Deterministischer Jitter entzerrt die Wochen-Spalten, ohne bei
+        // Deterministischer Jitter entzerrt die Stichtag-Spalten, ohne bei
         // jedem Re-Render (Theme-Wechsel) zu springen.
         const versatz = (((i * 7919 + j * 104729) % 1000) / 1000 - 0.5) * 0.5;
         wolke.push({ x: i + versatz, y: wert });
@@ -479,7 +486,7 @@ ${datenpunkteSektion(daten)}
     });
     const farbe = cssVar(serie === 'kauf' ? '--series-kauf' : '--series-miete');
     // Achse symmetrisch um den Median (log-Raum): das geometrische Mittel der
-    // Wochen-Mediane sitzt in der Chart-Mitte, der Faktor deckt alle Punkte ab.
+    // Stichtag-Mediane sitzt in der Chart-Mitte, der Faktor deckt alle Punkte ab.
     const mediane = TREND.map(medianVon).filter((m) => m !== null && m > 0);
     const mitte = mediane.length > 0
       ? Math.exp(mediane.reduce((summe, m) => summe + Math.log(m), 0) / mediane.length)
@@ -528,8 +535,8 @@ ${datenpunkteSektion(daten)}
           tooltip: {
             callbacks: {
               label: (c) => {
-                const woche = TREND[Math.round(c.parsed.x)];
-                const datum = woche ? woche.datum : '';
+                const punkt = TREND[Math.round(c.parsed.x)];
+                const datum = punkt ? punkt.label : '';
                 return (c.datasetIndex === 1 ? 'Median ' : '')
                   + format(c.parsed.y) + ' €/m² (' + datum + ')';
               },
@@ -543,14 +550,18 @@ ${datenpunkteSektion(daten)}
             max: TREND.length - 0.5,
             grid: { display: false },
             border: { color: cssVar('--baseline') },
+            // Ticks exakt auf die Stichtag-Spalten legen – die automatische
+            // Einteilung trifft sonst halbe Positionen und lässt die Achse leer.
+            afterBuildTicks: (achse) => {
+              achse.ticks = TREND.map((_, i) => ({ value: i }));
+            },
             ticks: {
-              stepSize: 1,
               color: cssVar('--text-secondary'),
               font: { family: FONT },
               maxRotation: 0,
               autoSkip: true,
               maxTicksLimit: 8,
-              callback: (v) => (Number.isInteger(v) && TREND[v] ? TREND[v].datum : ''),
+              callback: (v) => (TREND[v] ? TREND[v].label : ''),
             },
           },
           y: {

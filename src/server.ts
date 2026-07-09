@@ -5,7 +5,11 @@ import type { PortalAdapter } from './adapters/portal-adapter.js';
 import { WillhabenAdapter } from './adapters/willhaben-adapter.js';
 import { hatGueltigeSitzung, pruefeAuth, verarbeiteLogin } from './auth.js';
 import { KAERNTEN } from './bezirke.js';
-import { bestandSeiteLaden, preisHistorieFuerInserate } from './db/bestand-repo.js';
+import {
+  bestandSeiteLaden,
+  inseratAnzahlProTyp,
+  preisHistorieFuerInserate,
+} from './db/bestand-repo.js';
 import { holePool, schliessePool } from './db/client.js';
 import { wendeMigrationenAn } from './db/migrieren.js';
 import { objektBestandLaden } from './db/objekte-repo.js';
@@ -17,6 +21,7 @@ import {
   portfolioLoeschen,
 } from './db/portfolio-repo.js';
 import {
+  fertigeSweepTage,
   laufenderSweep,
   letzterFertigerSweep,
   segmenteFuerDatum,
@@ -53,6 +58,7 @@ import {
   filterObjekte,
   letztePreisAenderungen,
   objekteAusBestand,
+  stichtageFuerTrend,
   streuungJeStichtag,
 } from './trend.js';
 
@@ -108,12 +114,21 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
   const [sweep, laufend] = await Promise.all([letzterFertigerSweep(), laufenderSweep()]);
   if (!sweep) return renderDashboardOhneDatenSeite(laufend !== undefined);
 
-  const [{ bestand, historie }, segmente] = await Promise.all([
+  const [{ bestand, historie }, segmente, sweepTage, inserateImLauf] = await Promise.all([
     objektBestandLaden(KAERNTEN),
     segmenteFuerDatum(sweep.laufDatum),
+    fertigeSweepTage(),
+    inseratAnzahlProTyp(KAERNTEN, sweep.laufDatum),
   ]);
-  const objekte = filterObjekte(objekteAusBestand(bestand, historie), filter);
-  const trend = berechneObjektTrend(objekte, sweep.laufDatum);
+  const alleObjekte = objekteAusBestand(bestand, historie);
+  // Stichtage aus dem UNGEFILTERTEN Bestand ableiten, damit das Raster nicht
+  // mit dem PLZ/m²-Filter variiert; Deckel auf den Seiten-Stichtag, falls
+  // zwischen den Queries gerade ein Sweep fertig geworden ist.
+  const stichtage = stichtageFuerTrend(alleObjekte, sweepTage).filter(
+    (d) => d <= sweep.laufDatum,
+  );
+  const objekte = filterObjekte(alleObjekte, filter);
+  const trend = berechneObjektTrend(objekte, stichtage);
   // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
   // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
   const gewuenscht = parseStichtag(params);
@@ -132,6 +147,7 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
       .filter((s) => s.status === 'fehlgeschlagen')
       .map((s) => s.quelle ?? `${s.portal} ${s.bezirk}`),
     sweepLaeuft: laufend !== undefined,
+    inserateImLauf,
     trend,
     renditeTrend: berechneRenditeTrend(trend),
     filter,

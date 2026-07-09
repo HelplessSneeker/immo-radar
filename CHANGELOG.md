@@ -7,6 +7,27 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+
+- Dashboard-Zeitreihen: ein Datenpunkt je fertigem Crawl-Lauf statt
+  synthetischem Wochenraster — einzelne Läufe (z. B. der 07.07.) verschwinden
+  nicht mehr, wenn ein späterer Lauf das 7-Tage-Gitter verschiebt.
+  Fehlgeschlagene Läufe erhalten weiterhin keinen Punkt. Die
+  Aktivitätsprüfung ist jetzt exakt (zuerst ≤ Stichtag ≤ zuletzt); der
+  6-Tage-Look-back entfällt.
+- Chart-Datumslabels (Achsen und Tooltips) im Format dd.mm.yyyy statt ISO.
+
+### Hinzugefügt
+
+- „Letzter Sweep"-Kachel zeigt die Roh-Inserate des Laufs (vor
+  Deduplizierung), getrennt nach Kauf und Miete.
+
+### Bekannte Grenzen
+
+- Die Punktwolke der Datenpunkte-Sektion wächst mit täglichen Stichtagen um
+  ~3,5k Werte pro Tag Historie; bei Bedarf später auf die letzten N
+  Stichtage kappen.
+
 ## [1.0.0] - 2026-07-08
 
 Erste produktionsreife Version: vom CLI-Report zum täglich crawlenden

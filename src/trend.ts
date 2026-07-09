@@ -17,12 +17,6 @@ export interface TrendPunkt {
   anzahlMiete: number;
 }
 
-const MS_PRO_TAG = 24 * 60 * 60 * 1000;
-
-function datumPlusTage(datum: string, tage: number): string {
-  return new Date(Date.parse(datum) + tage * MS_PRO_TAG).toISOString().slice(0, 10);
-}
-
 /** Map-Schlüssel eines Portal-Inserats – überall identisch bilden. */
 export function inseratSchluessel(portal: string, inseratId: string): string {
   return `${portal} ${inseratId}`;
@@ -52,52 +46,6 @@ function preisAmStichtag(punkte: PreisPunkt[] | undefined, stichtag: string): nu
     preis = p.preis;
   }
   return preis;
-}
-
-/**
- * Wochenraster (intervallTage) vom ersten Sehen bis bisDatum: pro Stichtag
- * der Median €/m² der dann aktiven Inserate, getrennt nach Kauf und Miete.
- * Aktiv am Stichtag D = zuerstGesehen ≤ D und zuletztGesehen ≥ D −
- * (intervallTage − 1); der Preis kommt aus der Historie (Stand D).
- */
-export function berechneTrend(
-  inserate: BestandInserat[],
-  historie: PreisPunkt[],
-  bisDatum: string,
-  intervallTage = 7,
-): TrendPunkt[] {
-  if (inserate.length === 0) return [];
-  const start = inserate.map((i) => i.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
-  const jeInserat = historieJeInserat(historie);
-
-  // Raster rückwärts von bisDatum aus aufbauen, damit der letzte Punkt
-  // immer der aktuelle Stand ist, dann chronologisch zurückgeben.
-  const stichtage: string[] = [];
-  for (let d = bisDatum; d >= start; d = datumPlusTage(d, -intervallTage)) {
-    stichtage.push(d);
-  }
-  stichtage.reverse();
-
-  return stichtage.map((stichtag) => {
-    const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
-    for (const inserat of inserate) {
-      if (inserat.zuerstGesehen > stichtag) continue;
-      if (tageZwischen(inserat.zuletztGesehen, stichtag) > intervallTage - 1) continue;
-      const preis = preisAmStichtag(
-        jeInserat.get(inseratSchluessel(inserat.portal, inserat.id)),
-        stichtag,
-      );
-      if (preis === undefined || inserat.flaeche_m2 <= 0) continue;
-      eurM2[inserat.typ].push(preis / inserat.flaeche_m2);
-    }
-    return {
-      datum: stichtag,
-      medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
-      medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
-      anzahlKauf: eurM2.kauf.length,
-      anzahlMiete: eurM2.miete.length,
-    };
-  });
 }
 
 // --- Objekt-Zeitreihen (dedupliziert, siehe src/matching.ts) ---
@@ -199,19 +147,19 @@ export interface ObjektDatenpunkt {
 /**
  * €/m² eines Objekts am Stichtag: das MINIMUM über seine dann aktiven
  * Inserate (zum niedrigeren Preis wird transaktiert; das Minimum ist zudem
- * stabil gegen die Merge-Reihenfolge). undefined, wenn kein Inserat aktiv
- * ist oder keine Fläche auswertbar.
+ * stabil gegen die Merge-Reihenfolge). Aktiv am Stichtag D = zuerstGesehen
+ * ≤ D ≤ zuletztGesehen — exakt, weil die Stichtage echte Beobachtungstage
+ * sind (siehe stichtageFuerTrend). undefined, wenn kein Inserat aktiv ist
+ * oder keine Fläche auswertbar.
  */
 export function objektDatenpunktAmStichtag(
   objekt: ObjektZeitreihe,
   stichtag: string,
-  intervallTage = 7,
 ): ObjektDatenpunkt | undefined {
   let minimum: ObjektDatenpunkt | undefined;
   let anzahlAktive = 0;
   for (const inserat of objekt.inserate) {
-    if (inserat.zuerstGesehen > stichtag) continue;
-    if (tageZwischen(inserat.zuletztGesehen, stichtag) > intervallTage - 1) continue;
+    if (inserat.zuerstGesehen > stichtag || inserat.zuletztGesehen < stichtag) continue;
     if (inserat.flaecheM2 <= 0) continue;
     const preis = preisAmStichtag(inserat.historie, stichtag);
     if (preis === undefined) continue;
@@ -230,49 +178,71 @@ export function objektDatenpunktAmStichtag(
 export function objektEurM2AmStichtag(
   objekt: ObjektZeitreihe,
   stichtag: string,
-  intervallTage = 7,
 ): number | undefined {
-  return objektDatenpunktAmStichtag(objekt, stichtag, intervallTage)?.eurM2;
+  return objektDatenpunktAmStichtag(objekt, stichtag)?.eurM2;
 }
 
 /**
- * Wie berechneTrend, aber über deduplizierte Objekte: ein Objekt zählt pro
- * Stichtag genau einmal, solange IRGENDEIN zugeordnetes Inserat aktiv ist
- * (delistet erst, wenn alle weg sind — Relistings halten die Reihe
- * durchgehend).
+ * Die Stichtage der Zeitreihen: alle fertigen Sweep-Tage plus die
+ * Beobachtungstage aus der Zeit VOR dem ersten protokollierten Sweep
+ * (importierte Bestände tragen ihre Daten nur in den Inseraten selbst).
+ * Fehlgeschlagene Läufe fehlen bewusst — ihre Partial-Daten würden als
+ * künstlicher Einbruch erscheinen. Dedupliziert, aufsteigend sortiert.
+ */
+export function stichtageFuerTrend(objekte: ObjektZeitreihe[], sweepTage: string[]): string[] {
+  const ersterSweepTag =
+    sweepTage.length > 0 ? sweepTage.reduce((a, b) => (a < b ? a : b)) : undefined;
+  const tage = new Set(sweepTage);
+  for (const objekt of objekte) {
+    for (const inserat of objekt.inserate) {
+      const beobachtet = [
+        inserat.zuerstGesehen,
+        inserat.zuletztGesehen,
+        ...inserat.historie.map((p) => p.erfasstAm),
+      ];
+      for (const tag of beobachtet) {
+        if (ersterSweepTag === undefined || tag < ersterSweepTag) tage.add(tag);
+      }
+    }
+  }
+  return [...tage].sort();
+}
+
+/**
+ * Zeitreihe über deduplizierte Objekte: ein Punkt je Stichtag (fertiger
+ * Crawl-Lauf bzw. Import-Tag, siehe stichtageFuerTrend). Ein Objekt zählt
+ * pro Stichtag genau einmal, solange IRGENDEIN zugeordnetes Inserat aktiv
+ * ist (delistet erst, wenn alle weg sind — Relistings halten die Reihe
+ * durchgehend). Stichtage vor dem ersten Datenpunkt der übergebenen
+ * (ggf. gefilterten) Objekte werden abgeschnitten.
  */
 export function berechneObjektTrend(
   objekte: ObjektZeitreihe[],
-  bisDatum: string,
-  intervallTage = 7,
+  stichtage: string[],
 ): TrendPunkt[] {
   if (objekte.length === 0) return [];
   const start = objekte.map((o) => o.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
 
-  const stichtage: string[] = [];
-  for (let d = bisDatum; d >= start; d = datumPlusTage(d, -intervallTage)) {
-    stichtage.push(d);
-  }
-  stichtage.reverse();
-
-  return stichtage.map((stichtag) => {
-    const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
-    for (const objekt of objekte) {
-      const wert = objektEurM2AmStichtag(objekt, stichtag, intervallTage);
-      if (wert !== undefined) eurM2[objekt.typ].push(wert);
-    }
-    return {
-      datum: stichtag,
-      medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
-      medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
-      anzahlKauf: eurM2.kauf.length,
-      anzahlMiete: eurM2.miete.length,
-    };
-  });
+  return stichtage
+    .filter((stichtag) => stichtag >= start)
+    .map((stichtag) => {
+      const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
+      for (const objekt of objekte) {
+        const wert = objektEurM2AmStichtag(objekt, stichtag);
+        if (wert !== undefined) eurM2[objekt.typ].push(wert);
+      }
+      return {
+        datum: stichtag,
+        medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
+        medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
+        anzahlKauf: eurM2.kauf.length,
+        anzahlMiete: eurM2.miete.length,
+      };
+    });
 }
 
 /**
- * Ein einzelner Datenpunkt hinter dem Wochen-Median: ein Objekt mit dem
+ * Ein einzelner Datenpunkt hinter dem Stichtag-Median: ein Objekt mit dem
  * Wert, der am Stichtag in den Median eingeht, plus dem Inserat, das ihn
  * liefert (für Link und Portal-Angabe).
  */
@@ -294,19 +264,18 @@ export interface StichtagDatenpunkt {
 }
 
 /**
- * Die Datenpunkte hinter einem Wochenraster-Stichtag: pro dann aktivem
- * Objekt genau der €/m²-Wert, der in berechneObjektTrend in den Median
- * eingeht (dieselbe Kernlogik: objektDatenpunktAmStichtag). Je Serie
- * aufsteigend nach €/m² sortiert (Käufer-Perspektive: günstig zuerst).
+ * Die Datenpunkte hinter einem Stichtag: pro dann aktivem Objekt genau der
+ * €/m²-Wert, der in berechneObjektTrend in den Median eingeht (dieselbe
+ * Kernlogik: objektDatenpunktAmStichtag). Je Serie aufsteigend nach €/m²
+ * sortiert (Käufer-Perspektive: günstig zuerst).
  */
 export function datenpunkteAmStichtag(
   objekte: ObjektZeitreihe[],
   stichtag: string,
-  intervallTage = 7,
 ): { kauf: StichtagDatenpunkt[]; miete: StichtagDatenpunkt[] } {
   const punkte: Record<InseratTyp, StichtagDatenpunkt[]> = { kauf: [], miete: [] };
   for (const objekt of objekte) {
-    const wert = objektDatenpunktAmStichtag(objekt, stichtag, intervallTage);
+    const wert = objektDatenpunktAmStichtag(objekt, stichtag);
     if (wert === undefined) continue;
     const punkt: StichtagDatenpunkt = {
       ort: objekt.ort,
@@ -336,19 +305,18 @@ export interface StreuungsPunkt {
 }
 
 /**
- * Punktwolke hinter dem Wochenraster: je Stichtag die einzelnen €/m²-Werte,
+ * Punktwolke hinter der Zeitreihe: je Stichtag die einzelnen €/m²-Werte,
  * deren Median berechneObjektTrend bildet (dieselbe Kernlogik, daher
  * deckungsgleich mit den Trend-Linien).
  */
 export function streuungJeStichtag(
   objekte: ObjektZeitreihe[],
   stichtage: string[],
-  intervallTage = 7,
 ): StreuungsPunkt[] {
   return stichtage.map((stichtag) => {
     const werte: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
     for (const objekt of objekte) {
-      const wert = objektEurM2AmStichtag(objekt, stichtag, intervallTage);
+      const wert = objektEurM2AmStichtag(objekt, stichtag);
       if (wert !== undefined) werte[objekt.typ].push(wert);
     }
     return { datum: stichtag, kauf: werte.kauf, miete: werte.miete };

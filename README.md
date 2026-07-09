@@ -31,7 +31,7 @@ Dann <http://localhost:8787> im Browser öffnen (Port über die Umgebungsvariabl
 Server nicht). Die Seiten:
 
 - **`/` – Dashboard** (Startseite): Bruttorendite, Median-Kauf-€/m² und
-  Median-Kaltmiete-€/m² als Wochen-Zeitreihen über die deduplizierten
+  Median-Kaltmiete-€/m² als Zeitreihen (ein Punkt je Crawl-Lauf) über die deduplizierten
   Objekte, dazu die aktuellen Kennzahlen mit Urteil (Ziel-Rendite ≥ 4 %
   hervorgehoben). Kleiner Filter: PLZ-Präfix (`9020` exakt, `9` Region) und
   m²-Bereich – als GET-Parameter, Links sind teilbar.
@@ -180,7 +180,7 @@ JSON-Dateien enthalten ein Array von Objekten mit denselben Feldern.
 ## Kennzahlen
 
 - **Brutto-Mietrendite** = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis
-  €/m²; ab 4 % hervorgehoben. Im Dashboard als Wochen-Zeitreihe.
+  €/m²; ab 4 % hervorgehoben. Im Dashboard als Zeitreihe je Crawl-Lauf.
 - **Median/Quartile** mit linearer Interpolation (R-7); Ausreißer im
   CLI-Report per 1,5×IQR-Regel.
 - Die Bruttorendite ignoriert Betriebskosten, Leerstand und Kaufnebenkosten —
@@ -238,7 +238,7 @@ src/
   datum.ts                  Datums-Helfer (YYYY-MM-DD, UTC)
   stats.ts                  Median, Quantile, IQR-Ausreißer, Bruttorendite
   analyze.ts                Gruppierung nach Gebiet, Kennzahlen (CLI-Report)
-  trend.ts                  Zeitreihen: Inserat- und Objekt-Trends, Rendite-Reihe, Filter
+  trend.ts                  Zeitreihen: Objekt-Trend je Lauf-Stichtag, Rendite-Reihe, Filter
   report.ts                 Statischer HTML-Report der CLI (Chart.js via CDN)
   db/client.ts              Lazy Postgres-Pool (braucht DATABASE_URL)
   db/migrieren.ts           Migrations-Runner (migrations/*.sql)
