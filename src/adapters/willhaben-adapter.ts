@@ -7,6 +7,7 @@ import {
   type PortalSuchErgebnis,
   type SuchOptionen,
 } from './portal-adapter.js';
+import { markiereWiederholbar, mitRetry, WIEDERHOLBARE_STATUS, type RetryOptionen } from '../retry.js';
 import { extractNextData, extractSearchResult, mapPage } from '../willhaben/map.js';
 import { buildSearchUrls } from '../willhaben/url.js';
 
@@ -20,6 +21,14 @@ const SEITEN_PAUSE_MS = 1000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const USER_AGENT =
   'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0';
+
+/** Default-Retry: 3 Versuche, 500 ms Basis, verdoppelt bis 4 s Cap, Jitter 50–100 %. */
+const DEFAULT_RETRY: RetryOptionen = {
+  maxVersuche: 3,
+  basisPauseMs: 500,
+  maxPauseMs: 4000,
+  warte: (ms) => warte(ms),
+};
 
 export interface CrawlErgebnis {
   inserate: Inserat[];
@@ -41,6 +50,7 @@ export class WillhabenAdapter implements PortalAdapter {
   constructor(
     private readonly fetchFn: typeof fetch = fetch,
     private readonly seitenPauseMs: number = SEITEN_PAUSE_MS,
+    private readonly retryOptionen: RetryOptionen = DEFAULT_RETRY,
   ) {}
 
   canHandle(source: string): boolean {
@@ -107,22 +117,31 @@ export class WillhabenAdapter implements PortalAdapter {
     return { inserate, uebersprungen, rowsFound };
   }
 
-  private async ladeSeite(url: URL): Promise<string> {
-    let antwort: Response;
-    try {
-      antwort = await this.fetchFn(url, {
-        headers: { 'user-agent': USER_AGENT, accept: 'text/html' },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (e) {
-      throw new WillhabenFehler(
-        `willhaben.at ist nicht erreichbar (${e instanceof Error ? e.message : String(e)}).`,
-      );
-    }
-    if (!antwort.ok) {
-      throw new WillhabenFehler(`willhaben.at antwortet mit HTTP ${antwort.status} für ${url.pathname}.`);
-    }
-    return antwort.text();
+  private ladeSeite(url: URL): Promise<string> {
+    return mitRetry(async () => {
+      let antwort: Response;
+      try {
+        antwort = await this.fetchFn(url, {
+          headers: { 'user-agent': USER_AGENT, accept: 'text/html' },
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+      } catch (e) {
+        // Netzwerkfehler und Timeouts sind transient — Retry darf ansetzen.
+        throw markiereWiederholbar(
+          new WillhabenFehler(
+            `willhaben.at ist nicht erreichbar (${e instanceof Error ? e.message : String(e)}).`,
+          ),
+        );
+      }
+      if (!antwort.ok) {
+        const fehler = new WillhabenFehler(
+          `willhaben.at antwortet mit HTTP ${antwort.status} für ${url.pathname}.`,
+        );
+        if (WIEDERHOLBARE_STATUS.has(antwort.status)) markiereWiederholbar(fehler);
+        throw fehler;
+      }
+      return antwort.text();
+    }, this.retryOptionen);
   }
 }
 

@@ -133,12 +133,66 @@ describe('WillhabenAdapter', () => {
   });
 
   it('wirft WillhabenFehler bei HTTP-Fehlern und Netzwerkproblemen', async () => {
+    const instant = { maxVersuche: 1, basisPauseMs: 0, maxPauseMs: 0, warte: async () => {} };
     const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;
-    await expect(new WillhabenAdapter(blockiert, 0).fetch(KAUF_URL)).rejects.toThrow(/HTTP 403/);
+    await expect(new WillhabenAdapter(blockiert, 0, instant).fetch(KAUF_URL)).rejects.toThrow(/HTTP 403/);
 
     const offline = (async () => {
       throw new TypeError('fetch failed');
     }) as typeof fetch;
-    await expect(new WillhabenAdapter(offline, 0).fetch(KAUF_URL)).rejects.toThrow(WillhabenFehler);
+    await expect(new WillhabenAdapter(offline, 0, instant).fetch(KAUF_URL)).rejects.toThrow(WillhabenFehler);
+  });
+
+  it('wiederholt transiente 5xx-Antworten und liefert danach das Ergebnis', async () => {
+    // 503, 503, dann 200. Der Retry (maxVersuche = 3) muss zum Erfolg kommen.
+    let aufrufe = 0;
+    const flaky = (async () => {
+      aufrufe += 1;
+      if (aufrufe < 3) return new Response('down', { status: 503 });
+      return new Response(macheSeite(ids(5, 0), 5), { status: 200, headers: { 'content-type': 'text/html' } });
+    }) as typeof fetch;
+    const adapter = new WillhabenAdapter(flaky, 0, {
+      maxVersuche: 3,
+      basisPauseMs: 0,
+      maxPauseMs: 0,
+      warte: async () => {},
+    });
+    const ergebnis = await adapter.fetchMitStatistik(KAUF_URL);
+    expect(aufrufe).toBe(3);
+    expect(ergebnis.inserate).toHaveLength(5);
+  });
+
+  it('wiederholt Netzwerkfehler bis zum Erfolg', async () => {
+    let aufrufe = 0;
+    const flaky = (async () => {
+      aufrufe += 1;
+      if (aufrufe === 1) throw new TypeError('ECONNRESET');
+      return new Response(macheSeite(ids(3, 0), 3), { status: 200, headers: { 'content-type': 'text/html' } });
+    }) as typeof fetch;
+    const adapter = new WillhabenAdapter(flaky, 0, {
+      maxVersuche: 3,
+      basisPauseMs: 0,
+      maxPauseMs: 0,
+      warte: async () => {},
+    });
+    const ergebnis = await adapter.fetch(KAUF_URL);
+    expect(aufrufe).toBe(2);
+    expect(ergebnis).toHaveLength(3);
+  });
+
+  it('wiederholt persistente 4xx-Fehler nicht', async () => {
+    let aufrufe = 0;
+    const blockiert = (async () => {
+      aufrufe += 1;
+      return new Response('blocked', { status: 403 });
+    }) as typeof fetch;
+    const adapter = new WillhabenAdapter(blockiert, 0, {
+      maxVersuche: 3,
+      basisPauseMs: 0,
+      maxPauseMs: 0,
+      warte: async () => {},
+    });
+    await expect(adapter.fetch(KAUF_URL)).rejects.toThrow(/HTTP 403/);
+    expect(aufrufe).toBe(1);
   });
 });
