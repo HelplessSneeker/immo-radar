@@ -7,25 +7,66 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Geändert
+## [1.1.0] - 2026-07-10
 
-- Dashboard-Zeitreihen: ein Datenpunkt je fertigem Crawl-Lauf statt
-  synthetischem Wochenraster — einzelne Läufe (z. B. der 07.07.) verschwinden
-  nicht mehr, wenn ein späterer Lauf das 7-Tage-Gitter verschiebt.
-  Fehlgeschlagene Läufe erhalten weiterhin keinen Punkt. Die
-  Aktivitätsprüfung ist jetzt exakt (zuerst ≤ Stichtag ≤ zuletzt); der
-  6-Tage-Look-back entfällt.
-- Chart-Datumslabels (Achsen und Tooltips) im Format dd.mm.yyyy statt ISO.
+Zweite Runde: Dashboard-Zeitreihen an echte Läufe geknüpft, neue
+Datenpunkte-Sektion mit Punktwolke, UI-Polish über alle Server-Seiten,
+Crawler mit Retry-Backoff und `/health` mit Substanz.
 
 ### Hinzugefügt
 
+- Datenpunkte-Sektion unter dem Wochenraster: kollabierbar, Streudiagramme
+  (log-Skala, lazy beim Aufklappen) plus paginierte Kauf/Miete-Tabellen
+  (20 Zeilen) mit Wochen-Auswahl per `?stichtag`. Kernlogik geteilt mit
+  dem Trend, damit Median und Punkte deckungsgleich sind (`0e0992b`).
 - „Letzter Sweep"-Kachel zeigt die Roh-Inserate des Laufs (vor
-  Deduplizierung), getrennt nach Kauf und Miete.
+  Deduplizierung), getrennt nach Kauf und Miete (`23a64e2`).
+- Retry-Backoff für Portal-Crawler: Exponential Backoff mit Jitter über
+  transiente Fehler (Netzwerk, HTTP 408/425/500/502/503/504); 429 nur
+  mit explizitem `Retry-After` (gedeckelt 30 s), ohne Header fail-fast,
+  damit Anti-Bot-Systeme nicht eskaliert werden (`7f55b44`, `b5315af`).
+- `/health` liefert — nur mit gültiger Sitzung — `version` und
+  `letzterSweep` (Datum + ISO-Timestamp). Sweep-Lookup mit Race-Timeout
+  und Single-Flight, `SELECT 1` gedeckelt auf 2 s, damit hängende Pools
+  den Coolify-Healthcheck nicht kippen (`7f55b44`, `b5315af`). Anonym
+  bleibt es weiterhin bei `{status}`.
+
+### Geändert
+
+- Dashboard-Zeitreihen: ein Datenpunkt je fertigem Crawl-Lauf statt
+  synthetischem 7-Tage-Gitter — einzelne Läufe (z. B. der 07.07.)
+  verschwinden nicht mehr, wenn ein späterer Lauf das Raster verschiebt.
+  Aktivitätsprüfung jetzt exakt (zuerst ≤ Stichtag ≤ zuletzt); der
+  6-Tage-Look-back entfällt. Fehlgeschlagene Läufe bekommen weiterhin
+  keinen Punkt (`23a64e2`).
+- Chart-Datumslabels (Achsen und Tooltips) im Format `dd.mm.yyyy` statt
+  ISO; Punktwolken-Achse mit expliziten Stichtag-Ticks (`23a64e2`).
+- UI-Polish über alle Server-Seiten gegen `DESIGN.md`: gleiche
+  Kachel-Höhen im Dashboard, symmetrische Rendite-Datenbasis im
+  Portfolio („N Kauf · M Miete"), Portfolio-Formularfelder auf gleicher
+  Y-Achse trotz ungleicher Hint-Zeilen, Fehler-Zellen der Sweep-Segmente
+  in `--status-critical`, konsistenter Ton im Dashboard-Leer-State,
+  Rettungs-Link „← Zurück zum Dashboard" aus Fehler-Seiten (`a80ede4`).
+- Läufe-Tabelle: Fehler-Spalte trägt nur noch Fehlermeldungen mit der
+  Statusfarbe der Segmente-Tabelle; Portfolio-Formular-Hints per
+  `aria-describedby` an ihre Felder gebunden, damit Screenreader sie
+  beim Fokussieren vorlesen (`36520a2`).
+
+### Behoben
+
+- Punktwolken-Achse: die symmetrische Aufspannung um den Median blähte
+  die Achse bei einzelnen Tief-Ausreißern um Dekaden auf und drückte
+  die Median-Linie flach — die log-Achse passt sich jetzt automatisch
+  an die Daten an (`4d0192e`).
+- `input[type=date]` folgt dem Formular-Styling und dem Theme;
+  `color-scheme: light dark` auf `:root`, damit auch die nativen
+  Widget-Teile (Kalender-Icon, Picker-Popup, Scrollbars) dem aktiven
+  Theme folgen (`806a98c`).
 
 ### Bekannte Grenzen
 
-- Die Punktwolke der Datenpunkte-Sektion wächst mit täglichen Stichtagen um
-  ~3,5k Werte pro Tag Historie; bei Bedarf später auf die letzten N
+- Die Punktwolke der Datenpunkte-Sektion wächst mit täglichen Stichtagen
+  um ~3,5k Werte pro Tag Historie; bei Bedarf später auf die letzten N
   Stichtage kappen.
 
 ## [1.0.0] - 2026-07-08
@@ -57,6 +98,7 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0
 [0.1.0]: https://github.com/HelplessSneeker/immo-radar/commits/43cc18e
