@@ -206,6 +206,16 @@ export async function letzterFertigerSweep(): Promise<
   return zeile ? { laufDatum: zeile.lauf_datum, beendetAm: zeile.beendet_am } : undefined;
 }
 
+/** Aufsteigende lauf_datum aller fertigen Sweeps — die Stichtage der Zeitreihen. */
+export async function fertigeSweepTage(): Promise<string[]> {
+  const { rows } = await holePool().query<{ lauf_datum: string }>(
+    `SELECT lauf_datum::text AS lauf_datum
+     FROM sweep_laeufe WHERE status = 'fertig'
+     ORDER BY lauf_datum`,
+  );
+  return rows.map((z) => z.lauf_datum);
+}
+
 /** Gerade laufender Sweep — für den Aktivitäts-Indikator im Kopf. */
 export async function laufenderSweep(): Promise<SweepLauf | undefined> {
   const { rows } = await holePool().query<SweepLaufZeile>(

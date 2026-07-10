@@ -45,10 +45,15 @@ function feld(
   optionen: { pflicht?: boolean; hinweis?: string; typ?: string } = {},
 ): string {
   const wert = werte?.get(name) ?? vorbelegung;
-  const hinweis = optionen.hinweis ? `\n        <span class="hinweis">${optionen.hinweis}</span>` : '';
+  // Hint per aria-describedby ans Feld gebunden, damit er auch beim
+  // Fokussieren vorgelesen wird – visuell hängt er ohnehin am Feld.
+  const hinweis = optionen.hinweis
+    ? `\n        <span class="hinweis" id="p-${name}-hinweis">${optionen.hinweis}</span>`
+    : '';
+  const beschreibung = optionen.hinweis ? ` aria-describedby="p-${name}-hinweis"` : '';
   return `      <fieldset>
         <label class="feld" for="p-${name}">${escapeHtml(label)}</label>${hinweis}
-        <input type="${optionen.typ ?? 'text'}" id="p-${name}" name="${name}" value="${escapeHtml(wert)}"${optionen.pflicht ? ' required' : ''}>
+        <input type="${optionen.typ ?? 'text'}" id="p-${name}" name="${name}" value="${escapeHtml(wert)}"${optionen.pflicht ? ' required' : ''}${beschreibung}>
       </fieldset>`;
 }
 
@@ -112,11 +117,15 @@ function renditeZelle(daten: PortfolioZeileDaten, zielRendite: number): string {
   const gut = vergleich.eigeneRendite >= zielRendite;
   const eigene = `<span${gut ? ' class="ueber-markt"' : ''}>${fmtRendite(vergleich.eigeneRendite)}</span>`;
   const markt = vergleich.rendite;
-  const sub =
-    markt !== undefined
-      ? `Markt ${fmtRendite(markt.marktRendite)} · ${EBENEN_LABEL[markt.ebene]}`
-      : `Markt: zu wenige Vergleiche (&lt; ${MIN_VERGLEICHSOBJEKTE} je Seite)`;
-  return `<td class="num">${eigene}<span class="sub">${markt ? escapeHtml(sub) : sub}</span></td>`;
+  if (markt === undefined) {
+    return `<td class="num">${eigene}<span class="sub">Markt: zu wenige Vergleiche (&lt; ${MIN_VERGLEICHSOBJEKTE} je Seite)</span></td>`;
+  }
+  // Rendite lebt aus Kauf-Median × Miet-Median – beide Zählungen tragen die
+  // Datenbasis (Ehrlichkeits-Prinzip). Die Zählungen stehen als eigene Sub-
+  // Zeile, damit die Zelle in schmalen Spalten nicht mitten im Wort umbricht.
+  const sub = `Markt ${fmtRendite(markt.marktRendite)} · ${EBENEN_LABEL[markt.ebene]}`;
+  const basis = `${nfTage.format(markt.anzahlKauf)} Kauf · ${nfTage.format(markt.anzahlMiete)} Miete`;
+  return `<td class="num">${eigene}<span class="sub">${escapeHtml(sub)}</span><span class="sub">${escapeHtml(basis)}</span></td>`;
 }
 
 function portfolioTabelle(daten: PortfolioSeitenDaten): string {
