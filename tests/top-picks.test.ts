@@ -63,7 +63,7 @@ function fuenfMieten(plz = '9020', praefix = 'm'): Array<BestandInserat & { obje
 describe('topPicks', () => {
   it('rechnet die Rendite aus dem PLZ-Miet-Median (Basis "plz")', () => {
     const alle = objekte([...fuenfMieten(), kauf('k-1', '9020', 2400)]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks).toHaveLength(1);
     expect(picks[0]).toMatchObject({
       inseratId: 'k-1',
@@ -83,7 +83,7 @@ describe('topPicks', () => {
       mieteZeile('m-4', '9021', 12, { bezirk: 'Klagenfurt Stadt' }),
       kauf('k-1', '9020', 2400),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks).toHaveLength(1);
     expect(picks[0]).toMatchObject({ mieteBasis: 'bezirk', medianMieteEurM2: 10 });
   });
@@ -94,7 +94,7 @@ describe('topPicks', () => {
       mieteZeile(`m-${i}`, `950${i}`, wert, { bezirk: `Bezirk ${i}` }),
     );
     const alle = objekte([...mieten, kauf('k-1', '9020', 2400)]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks).toHaveLength(1);
     expect(picks[0]).toMatchObject({ mieteBasis: 'kaernten', medianMieteEurM2: 10 });
   });
@@ -103,7 +103,7 @@ describe('topPicks', () => {
     // Nur 4 Mieten insgesamt — selbst Kärnten bleibt unter der Schwelle.
     const mieten = [8, 9, 10, 11].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert));
     const alle = objekte([...mieten, kauf('k-1', '9020', 2400)]);
-    expect(topPicks(alle, STICHTAG, undefined)).toEqual([]);
+    expect(topPicks(alle, STICHTAG)).toEqual([]);
   });
 
   it('zählt die Schwelle NACH der Ausreißer-Bereinigung', () => {
@@ -115,7 +115,7 @@ describe('topPicks', () => {
       mieteZeile('m-6', '9500', 12, { bezirk: 'Villach Stadt' }),
       kauf('k-1', '9020', 2400),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks).toHaveLength(1);
     expect(picks[0]).toMatchObject({ mieteBasis: 'kaernten', medianMieteEurM2: 10 });
   });
@@ -127,7 +127,7 @@ describe('topPicks', () => {
       ...[8, 9, 10, 11, 12, 1000].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert)),
       kauf('k-1', '9020', 2400),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks[0]).toMatchObject({ mieteBasis: 'plz', medianMieteEurM2: 10 });
   });
 
@@ -142,7 +142,7 @@ describe('topPicks', () => {
       kauf('k-3', '9020', 2600),
       kauf('k-4', '9020', 2700),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks.map((p) => p.inseratId)).toEqual(['k-1', 'k-2', 'k-3', 'k-4']);
   });
 
@@ -152,7 +152,7 @@ describe('topPicks', () => {
       ...fuenfMieten(),
       kauf('k-billig', '9500', 100, { bezirk: 'Villach Stadt' }),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks.map((p) => p.inseratId)).toEqual(['k-billig']);
     expect(picks[0]!.mieteBasis).toBe('kaernten');
   });
@@ -167,7 +167,7 @@ describe('topPicks', () => {
       kauf('o-2', '', 2500),
       kauf('o-3', '', 2600),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks).toHaveLength(4);
     expect(picks[0]!.inseratId).toBe('o-billig');
     // Ohne PLZ greift die Kaskade über den Bezirk.
@@ -188,7 +188,7 @@ describe('topPicks', () => {
       kauf('g-3', '9800', 120, { bezirk: 'Spittal an der Drau' }),
       kauf('g-4', '9800', 130, { bezirk: 'Spittal an der Drau' }),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     const ids = picks.map((p) => p.inseratId);
     expect(ids).toContain('g-1');
     expect(ids).toContain('g-4');
@@ -207,7 +207,7 @@ describe('topPicks', () => {
       kauf('k-1', '9020', 2400),
       kauf('k-2', '9500', 2400, { bezirk: 'Villach Stadt' }),
     ]);
-    const picks = topPicks(alle, STICHTAG, '90');
+    const picks = topPicks(alle, STICHTAG, { plzFilter: '90' });
     expect(picks.map((p) => p.inseratId)).toEqual(['k-1']);
     expect(picks[0]).toMatchObject({ mieteBasis: 'kaernten', medianMieteEurM2: 10 });
   });
@@ -219,7 +219,7 @@ describe('topPicks', () => {
       kauf('k-billig', '9020', 2400),
       kauf('k-mittel', '9020', 2500),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks.map((p) => p.inseratId)).toEqual(['k-billig', 'k-mittel', 'k-teuer']);
   });
 
@@ -232,7 +232,7 @@ describe('topPicks', () => {
       kauf('k-obj2', '9020', 2400, { objektId: 2 }),
       kauf('k-obj1', '9020', 2400, { objektId: 1 }),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined);
+    const picks = topPicks(alle, STICHTAG);
     expect(picks.map((p) => p.inseratId)).toEqual(['k-obj1', 'k-obj2', 'a-1', 'wh-z']);
     expect(picks[0]!.objektId).toBe(1);
     expect(picks[2]!.portal).toBe('immoscout24.at');
@@ -241,10 +241,10 @@ describe('topPicks', () => {
   it('liefert höchstens n Kandidaten (Default 10)', () => {
     const kaeufe = Array.from({ length: 12 }, (_, i) => kauf(`k-${i}`, '9020', 2400 + i * 10));
     const alle = objekte([...fuenfMieten(), ...kaeufe]);
-    expect(topPicks(alle, STICHTAG, undefined)).toHaveLength(10);
-    expect(topPicks(alle, STICHTAG, undefined, 3)).toHaveLength(3);
+    expect(topPicks(alle, STICHTAG)).toHaveLength(10);
+    expect(topPicks(alle, STICHTAG, { n: 3 })).toHaveLength(3);
     // Die Besten (niedrigster €/m²) zuerst.
-    expect(topPicks(alle, STICHTAG, undefined, 3).map((p) => p.inseratId)).toEqual([
+    expect(topPicks(alle, STICHTAG, { n: 3 }).map((p) => p.inseratId)).toEqual([
       'k-0',
       'k-1',
       'k-2',
@@ -254,9 +254,9 @@ describe('topPicks', () => {
   it('respektiert minMietObjekte als Parameter', () => {
     const mieten = [9, 10, 11].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert));
     const alle = objekte([...mieten, kauf('k-1', '9020', 2400)]);
-    expect(topPicks(alle, STICHTAG, undefined)).toEqual([]); // Default 5
+    expect(topPicks(alle, STICHTAG)).toEqual([]); // Default 5
     expect(TOP_PICKS_MIN_MIET_OBJEKTE).toBe(5);
-    const picks = topPicks(alle, STICHTAG, undefined, 10, 3);
+    const picks = topPicks(alle, STICHTAG, { minMietObjekte: 3 });
     expect(picks).toHaveLength(1);
     expect(picks[0]!.medianMieteEurM2).toBe(10);
   });
@@ -270,12 +270,12 @@ describe('topPicks', () => {
       kauf('k-3', '9020', 2600),
       kauf('k-4', '9020', 2700),
     ]);
-    const picks = topPicks(alle, STICHTAG, undefined, undefined, undefined, true);
+    const picks = topPicks(alle, STICHTAG, { ausreisserEinbeziehen: true });
     expect(picks.map((p) => p.inseratId)).toEqual(['k-billig', 'k-1', 'k-2', 'k-3', 'k-4']);
     expect(picks[0]!.istAusreisser).toBe(true);
     expect(picks.slice(1).every((p) => !p.istAusreisser)).toBe(true);
     // Ohne den Schalter tragen alle Picks istAusreisser: false.
-    const ohne = topPicks(alle, STICHTAG, undefined);
+    const ohne = topPicks(alle, STICHTAG);
     expect(ohne.every((p) => !p.istAusreisser)).toBe(true);
   });
 
@@ -286,8 +286,8 @@ describe('topPicks', () => {
       ...[8, 9, 10, 11, 1000].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert)),
       kauf('k-1', '9020', 2400),
     ]);
-    expect(topPicks(alle, STICHTAG, undefined)).toEqual([]); // bereinigt: 4 < 5, keine Kaskade greift
-    const picks = topPicks(alle, STICHTAG, undefined, undefined, undefined, true);
+    expect(topPicks(alle, STICHTAG)).toEqual([]); // bereinigt: 4 < 5, keine Kaskade greift
+    const picks = topPicks(alle, STICHTAG, { ausreisserEinbeziehen: true });
     expect(picks).toHaveLength(1);
     expect(picks[0]).toMatchObject({ mieteBasis: 'plz', medianMieteEurM2: 10 });
   });
@@ -301,17 +301,17 @@ describe('topPicks', () => {
       { portal: 'willhaben.at', inseratId: 'k-1', preis: 2600, erfasstAm: '2026-06-01' },
       { portal: 'willhaben.at', inseratId: 'k-1', preis: 2400, erfasstAm: '2026-06-20' },
     ];
-    const picks = topPicks(objekteAusBestand(bestand, historie), STICHTAG, undefined);
+    const picks = topPicks(objekteAusBestand(bestand, historie), STICHTAG);
     expect(picks[0]).toMatchObject({ kaufpreis: 2400, eurM2: 2400 });
     // Am früheren Stichtag gilt der damalige Preis.
-    const frueher = topPicks(objekteAusBestand(bestand, historie), '2026-06-10', undefined);
+    const frueher = topPicks(objekteAusBestand(bestand, historie), '2026-06-10');
     expect(frueher[0]).toMatchObject({ kaufpreis: 2600, eurM2: 2600 });
   });
 
   it('Randfälle: leerer Bestand, Stichtag vor aller Aktivität, leerer PLZ-Filter', () => {
-    expect(topPicks([], STICHTAG, undefined)).toEqual([]);
+    expect(topPicks([], STICHTAG)).toEqual([]);
     const alle = objekte([...fuenfMieten(), kauf('k-1', '9020', 2400)]);
-    expect(topPicks(alle, '2026-01-01', undefined)).toEqual([]);
-    expect(topPicks(alle, STICHTAG, '')).toEqual(topPicks(alle, STICHTAG, undefined));
+    expect(topPicks(alle, '2026-01-01')).toEqual([]);
+    expect(topPicks(alle, STICHTAG, { plzFilter: '' })).toEqual(topPicks(alle, STICHTAG));
   });
 });

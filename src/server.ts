@@ -185,14 +185,10 @@ async function topPicksSeite(params: URLSearchParams): Promise<string> {
   const ausreisserEinbeziehen = filter.ausreisserEinbeziehen === true;
   const daten = {
     stichtag: sweep.laufDatum,
-    picks: topPicks(
-      objekte,
-      sweep.laufDatum,
-      filter.plz,
-      undefined,
-      undefined,
+    picks: topPicks(objekte, sweep.laufDatum, {
+      plzFilter: filter.plz,
       ausreisserEinbeziehen,
-    ),
+    }),
     ausreisserEinbeziehen,
     zielRendite: ZIEL_RENDITE,
   };
