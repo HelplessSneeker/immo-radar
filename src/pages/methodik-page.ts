@@ -8,6 +8,7 @@ import {
   RELISTING_PREIS_TOLERANZ,
 } from '../matching.js';
 import { MIN_VERGLEICHSOBJEKTE } from '../portfolio-vergleich.js';
+import { TOP_PICKS_MIN_MIET_OBJEKTE } from '../top-picks.js';
 import { fmtRendite, nfPct } from './format.js';
 import { escapeHtml, seite } from './layout.js';
 
@@ -197,6 +198,35 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     <p><strong>Grenzen:</strong> <em>Brutto</em> heißt: ohne Betriebskosten, Instandhaltung,
     Leerstand, Kaufnebenkosten und Steuern – die tatsächliche Netto-Rendite liegt darunter.
     Die Zahl vergleicht außerdem den Miet- mit dem Kauf-Markt, nicht dieselben Wohnungen.</p>`,
+    },
+    {
+      id: 'top-picks',
+      titel: 'Top Picks',
+      inhalt: `
+    <p><strong>Was ist das?</strong> Die <a href="/top-picks">Top-Picks-Seite</a> zeigt die
+    10 aktiven Kauf-Objekte mit der höchsten <em>geschätzten</em> Bruttorendite am letzten
+    Stichtag, filterbar nach PLZ-Präfix. Weil zum Kauf-Inserat keine echte Miete gehört,
+    wird sie aus dem Umfeld geschätzt.</p>
+    <p><strong>Formel:</strong> (Median-Kaltmiete €/m² des Objekt-Gebiets × 12) ÷ eigener
+    Kauf-€/m². Als Gebiet zählt zuerst die PLZ des Objekts; hat sie zu wenige Miet-Objekte,
+    weitet sich die Basis auf den Bezirk, dann auf ganz Kärnten – die verwendete Basis steht
+    als Badge an jeder Zeile („Miete aus PLZ/Bezirk/Kärnten"). Eine Stufe zählt erst, wenn
+    nach der <a href="#ausreisser">1,5×IQR-Bereinigung</a> mindestens
+    ${TOP_PICKS_MIN_MIET_OBJEKTE} Miet-Werte übrig sind; der Miet-Median wird immer über die
+    bereinigten Werte gebildet. Der PLZ-Filter grenzt nur die Kauf-Objekte ein – die
+    Miet-Basis rechnet stets mit allen Miet-Objekten des Gebiets.</p>
+    <p><strong>Ausreißer-Regel fürs Ranking:</strong> Kauf-Objekte, die innerhalb ihrer
+    eigenen PLZ als 1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking – ein Objekt, das nur
+    wegen eines fragwürdigen Preises oben landet, ist kein Kaufsignal, sondern ein
+    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) nichts ausgeschlossen.
+    Der Schalter „Ausreißer einbeziehen" (<code>?ausreisser=an</code>, wie im Dashboard)
+    holt sie mit „▲ Ausreißer"-Markierung ins Ranking zurück und lässt auch die
+    Miet-Mediane unbereinigt rechnen – markierte Zeilen bekommen kein Chance-Grün.</p>
+    <p><strong>Grenzen:</strong> <em>Brutto</em> und geschätzt: keine Betriebskosten,
+    Instandhaltung, Leerstand, Kaufnebenkosten oder Steuern – und die Miete ist eine
+    Gebietsschätzung, keine Aussage über dieses konkrete Objekt (Zustand, Ausstattung und
+    Mikrolage bleiben unberücksichtigt). Die Liste ist eine Momentaufnahme des Stichtags,
+    kein Trend; Objekte ohne belastbare Miet-Basis fehlen ganz.</p>`,
     },
     {
       id: 'portfolio-vergleich',

@@ -40,9 +40,11 @@ import {
   type PortfolioFormFehler,
 } from './pages/portfolio-pages.js';
 import { renderSweepSeite } from './pages/sweep-page.js';
+import { renderTopPicksOhneDatenSeite, renderTopPicksSeite } from './pages/top-picks-page.js';
 import { vergleichePortfolio } from './portfolio-vergleich.js';
 import { ZIEL_RENDITE } from './report.js';
 import { starteZeitplan } from './scheduler.js';
+import { topPicks } from './top-picks.js';
 import {
   parseDashboardFilter,
   parseDatenpunkteSeiten,
@@ -158,6 +160,33 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     datenpunkteOffen: params.has('stichtag'),
     datenpunkteSeiten: parseDatenpunkteSeiten(params),
   });
+}
+
+/** Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten Bruttorendite. */
+async function topPicksSeite(params: URLSearchParams): Promise<string> {
+  const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt
+  const [sweep, laufend] = await Promise.all([letzterFertigerSweep(), laufenderSweep()]);
+  if (!sweep) return renderTopPicksOhneDatenSeite(laufend !== undefined);
+
+  const { bestand, historie } = await objektBestandLaden(KAERNTEN);
+  // UNGEFILTERT an topPicks: der PLZ-Filter grenzt dort nur die Kauf-Kandidaten
+  // ein, die Miet-Mediane der Gebiets-Kaskade brauchen alle Miet-Objekte.
+  const objekte = objekteAusBestand(bestand, historie);
+  const ausreisserEinbeziehen = filter.ausreisserEinbeziehen === true;
+  const daten = {
+    stichtag: sweep.laufDatum,
+    picks: topPicks(
+      objekte,
+      sweep.laufDatum,
+      filter.plz,
+      undefined,
+      undefined,
+      ausreisserEinbeziehen,
+    ),
+    ausreisserEinbeziehen,
+    zielRendite: ZIEL_RENDITE,
+  };
+  return renderTopPicksSeite(filter.plz !== undefined ? { ...daten, filterPlz: filter.plz } : daten);
 }
 
 /** Portfolio-Liste mit Marktvergleich — geteilt von GET /portfolio und dem POST-Fehlerpfad. */
@@ -320,6 +349,10 @@ const server = createServer((req, res) => {
 
     if (url.pathname === '/') {
       sende(res, 200, await dashboardSeite(url.searchParams));
+      return;
+    }
+    if (url.pathname === '/top-picks') {
+      sende(res, 200, await topPicksSeite(url.searchParams));
       return;
     }
     if (url.pathname === '/crawl') {
