@@ -502,14 +502,14 @@ export function renderOhneDatenSeite(optionen: {
   /** <title>-Zusatz, z. B. „Dashboard". */
   titel: string;
   aktiv: NavAktiv;
-  /** h1 — wie im befüllten Zustand der Seite. */
+  /** h1 — wie im befüllten Zustand der Seite (reiner Text, wird escaped). */
   ueberschrift: string;
   /** Meta-Zeile unter der Überschrift (HTML, vom Aufrufer escaped). */
   untertitel: string;
   sweepLaeuft: boolean;
 }): string {
   const inhalt = `  <header>
-    <h1>${optionen.ueberschrift}</h1>
+    <h1>${escapeHtml(optionen.ueberschrift)}</h1>
     <p class="meta">${optionen.untertitel}</p>
   </header>
   <section>

@@ -172,6 +172,25 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
   });
 }
 
+/**
+ * Nur im Dashboard wirksame Parameter, die /top-picks sichtbar als ignoriert
+ * ausweist. Bewusst auf den ROHEN Parametern statt dem nachsichtigen
+ * Filter-Parser: auch ein fehlgeparster Wert („flaeche_min=6o") sieht für
+ * den Absender wie ein aktiver Filter aus. Leere Felder und zeitraum=alle
+ * zählen nicht — das Dashboard-Formular schickt alle Felder immer mit.
+ */
+function ignorierteDashboardFilter(params: URLSearchParams): {
+  flaeche: boolean;
+  zeitraum: boolean;
+} {
+  const gesetzt = (name: string): boolean => (params.get(name)?.trim() ?? '') !== '';
+  const zeitraum = params.get('zeitraum')?.trim().toLowerCase() ?? '';
+  return {
+    flaeche: gesetzt('flaeche_min') || gesetzt('flaeche_max'),
+    zeitraum: gesetzt('von') || gesetzt('bis') || (zeitraum !== '' && zeitraum !== 'alle'),
+  };
+}
+
 /** Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten Bruttorendite. */
 async function topPicksSeite(params: URLSearchParams): Promise<string> {
   const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt, zeitraum nicht
@@ -183,6 +202,9 @@ async function topPicksSeite(params: URLSearchParams): Promise<string> {
   // ein, die Miet-Mediane der Gebiets-Kaskade brauchen alle Miet-Objekte.
   const objekte = objekteAusBestand(bestand, historie);
   const ausreisserEinbeziehen = filter.ausreisserEinbeziehen === true;
+  // Fläche-/Zeitraum-Parameter aus einem umgebogenen Dashboard-Link wirken
+  // hier nicht — die Seite sagt das sichtbar, statt sie still zu verwerfen.
+  const ignoriert = ignorierteDashboardFilter(params);
   const daten = {
     stichtag: sweep.laufDatum,
     picks: topPicks(objekte, sweep.laufDatum, {
@@ -190,9 +212,8 @@ async function topPicksSeite(params: URLSearchParams): Promise<string> {
       ausreisserEinbeziehen,
     }),
     ausreisserEinbeziehen,
-    // Fläche-Parameter aus einem umgebogenen Dashboard-Link wirken hier
-    // nicht — die Seite sagt das sichtbar, statt sie still zu verwerfen.
-    flaecheIgnoriert: filter.flaecheMin !== undefined || filter.flaecheMax !== undefined,
+    flaecheIgnoriert: ignoriert.flaeche,
+    zeitraumIgnoriert: ignoriert.zeitraum,
     zielRendite: ZIEL_RENDITE,
   };
   return renderTopPicksSeite(filter.plz !== undefined ? { ...daten, filterPlz: filter.plz } : daten);

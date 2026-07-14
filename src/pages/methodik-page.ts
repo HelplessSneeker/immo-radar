@@ -236,9 +236,10 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Instandhaltung, Leerstand, Kaufnebenkosten oder Steuern – und die Miete ist eine
     Gebietsschätzung, keine Aussage über dieses konkrete Objekt (Zustand, Ausstattung und
     Mikrolage bleiben unberücksichtigt). Die Liste ist eine Momentaufnahme des Stichtags,
-    kein Trend; Objekte ohne belastbare Miet-Basis fehlen ganz. Bei gleicher Rendite wird
-    das portalübergreifend deduplizierte Objekt vor Solo-Inseraten gerankt – mehrere
-    Sichtungen sind ein schwaches, aber positives Signal.</p>`,
+    kein Trend; Objekte ohne belastbare Miet-Basis fehlen ganz. Bei gleicher Rendite werden
+    Objekte mit Objekt-Zuordnung (portalübergreifend dedupliziert oder als Wiedereinstellung
+    erkannt) vor Solo-Inseraten gerankt, danach entscheidet eine stabile Kennung – ein
+    deterministischer Tiebreak, kein Qualitätsurteil.</p>`,
     },
     {
       id: 'portfolio-vergleich',

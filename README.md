@@ -41,7 +41,9 @@ Server nicht). Die Seiten:
 - **`/top-picks`**: die aktiven Kauf-Objekte mit der höchsten geschätzten
   Bruttorendite am letzten Stichtag, filterbar per PLZ-Präfix. Die Rendite ist
   geschätzt aus der Median-Kaltmiete des Objekt-Gebiets (Kaskade PLZ → Bezirk
-  → Kärnten), die Basis wird pro Zeile ausgewiesen.
+  → Kärnten), die Basis wird pro Zeile ausgewiesen. Kauf-Objekte, die in ihrer
+  PLZ als 1,5×IQR-Ausreißer gelten, fliegen standardmäßig aus dem Ranking;
+  der Ausreißer-Toggle (`?ausreisser=an`) holt sie markiert zurück.
 - **`/inserate`**: der historisierte Roh-Bestand als paginierte, filterbare
   Tabelle – ohne Deduplizierung, mit Preisänderungs-Spalte.
 - **`/portfolio`**: eigene Wohnungen manuell erfassen (Kaufpreis, aktuelle

@@ -18,11 +18,12 @@ export interface TopPicksDaten {
   /** Gesetzter PLZ-Präfix-Filter (?plz=…). */
   filterPlz?: string;
   /**
-   * true = ?flaeche_min/?flaeche_max stehen in der URL (umgebogener
-   * Dashboard-Link): hier ohne Wirkung, das wird sichtbar gesagt statt
-   * still verworfen.
+   * true = ?flaeche_min/?flaeche_max bzw. ?zeitraum/?von/?bis stehen in der
+   * URL (umgebogener Dashboard-Link): hier ohne Wirkung, das wird sichtbar
+   * gesagt statt still verworfen.
    */
   flaecheIgnoriert?: boolean;
+  zeitraumIgnoriert?: boolean;
   /** true = ?ausreisser=an: Kauf-Ausreißer im Ranking, Miet-Mediane unbereinigt. */
   ausreisserEinbeziehen: boolean;
   /** Ziel-Bruttorendite (Anteil), ab der die Rendite-Zelle als "gut" gilt. */
@@ -38,13 +39,23 @@ const TOP_PICKS_CSS = `
 `;
 
 function filterleiste(daten: TopPicksDaten): string {
+  const ignoriert = [
+    ...(daten.flaecheIgnoriert === true ? ['Fläche'] : []),
+    ...(daten.zeitraumIgnoriert === true ? ['Zeitraum'] : []),
+  ];
+  // Auch für nur-ignorierte Parameter: der Reset-Link ist der Weg zur
+  // sauberen, teilbaren URL.
   const zuruecksetzen =
-    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen
+    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen || ignoriert.length > 0
       ? '\n      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>'
       : '';
   const flaecheHinweis =
-    daten.flaecheIgnoriert === true
-      ? '\n    <p class="meta">Der Fläche-Filter wirkt nur im Dashboard und wird hier ignoriert.</p>'
+    ignoriert.length > 0
+      ? `\n    <p class="meta">${
+          ignoriert.length === 2
+            ? 'Fläche- und Zeitraum-Filter wirken nur im Dashboard und werden'
+            : `Der ${ignoriert[0]}-Filter wirkt nur im Dashboard und wird`
+        } hier ignoriert.</p>`
       : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
       <div class="feld">

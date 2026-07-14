@@ -54,8 +54,10 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 - `topPicks` nimmt jetzt ein Options-Objekt (`plzFilter`, `n`,
   `minMietObjekte`, `ausreisserEinbeziehen`) statt einer Positional-
   Kaskade — konsistent zu `berechneObjektTrend`.
-- `/top-picks` weist gesetzte Fläche-Parameter aus dem Dashboard
-  explizit als „hier ignoriert" aus statt sie stumm zu verwerfen.
+- `/top-picks` weist gesetzte Fläche- und Zeitraum-Parameter aus dem
+  Dashboard explizit als „hier ignoriert" aus statt sie stumm zu
+  verwerfen (geprüft auf den rohen URL-Parametern, damit auch
+  fehlgeparste Werte den Hinweis auslösen), inklusive Reset-Link.
 - Site-weite Badge- und Ausreißer-Zeilen-Tokens (`.badge`,
   `.badge-critical`, `.row-outlier`) leben jetzt zentral in
   `layout.ts` statt dreifach; ebenso der „Noch keine Daten"-Leer-State
