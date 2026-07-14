@@ -19,6 +19,7 @@ function pick(overrides: Partial<TopPickKandidat> = {}): TopPickKandidat {
     medianMieteEurM2: 10,
     bruttoRendite: 0.03,
     mieteBasis: 'plz',
+    istAusreisser: false,
     portal: 'willhaben.at',
     inseratId: 'wh-1',
     url: 'https://willhaben.at/wh-1',
@@ -30,6 +31,7 @@ function daten(overrides: Partial<TopPicksDaten> = {}): TopPicksDaten {
   return {
     stichtag: '2026-07-07',
     picks: [pick()],
+    ausreisserEinbeziehen: false,
     zielRendite: 0.04,
     ...overrides,
   };
@@ -72,7 +74,8 @@ describe('renderTopPicksSeite', () => {
     for (const [basis, label] of faelle) {
       const html = renderTopPicksSeite(daten({ picks: [pick({ mieteBasis: basis })] }));
       expect(html).toContain(`<span class="sub badge">${label}</span>`);
-      expect(html).not.toContain('badge-critical');
+      // Nur das Markup prüfen — der Klassenname selbst steht immer im CSS-Block.
+      expect(html).not.toContain('<span class="badge badge-critical">');
     }
   });
 
@@ -99,11 +102,35 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('PLZ 9020');
   });
 
-  it('zeigt ohne Filter keinen Reset-Link und keine Fremd-Felder', () => {
+  it('zeigt ohne Filter keinen Reset-Link und keine Flächen-Felder', () => {
     const html = renderTopPicksSeite(daten());
     expect(html).not.toContain('Filter zurücksetzen');
     expect(html).not.toContain('name="flaeche_min"');
-    expect(html).not.toContain('name="ausreisser"');
+    // Der Ausreißer-Schalter ist da, aber nicht gesetzt.
+    expect(html).toContain('name="ausreisser"');
+    expect(html).not.toContain('checked');
+  });
+
+  it('spiegelt den Ausreißer-Schalter und bietet den Reset-Link', () => {
+    const html = renderTopPicksSeite(daten({ ausreisserEinbeziehen: true }));
+    expect(html).toContain('name="ausreisser" value="an" checked');
+    expect(html).toContain('Filter zurücksetzen');
+    expect(html).toContain('sind einbezogen');
+  });
+
+  it('markiert Ausreißer-Zeilen und verweigert ihnen das Chance-Grün', () => {
+    const html = renderTopPicksSeite(
+      daten({
+        ausreisserEinbeziehen: true,
+        picks: [pick({ istAusreisser: true, bruttoRendite: 0.09 })],
+      }),
+    );
+    expect(html).toContain('class="row-outlier"');
+    expect(html).toContain('▲ Ausreißer');
+    // Trotz Rendite über Ziel: kein Grün, kein Marker — erst prüfen, dann urteilen.
+    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('≥ Ziel 4 %');
+    expect(html).toContain('9,00 %');
   });
 
   it('rendert einen Leer-State statt der Tabelle', () => {

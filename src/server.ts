@@ -164,7 +164,7 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
 
 /** Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten Bruttorendite. */
 async function topPicksSeite(params: URLSearchParams): Promise<string> {
-  const filter = parseDashboardFilter(params); // nur filter.plz wird genutzt
+  const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt
   const [sweep, laufend] = await Promise.all([letzterFertigerSweep(), laufenderSweep()]);
   if (!sweep) return renderTopPicksOhneDatenSeite(laufend !== undefined);
 
@@ -172,9 +172,18 @@ async function topPicksSeite(params: URLSearchParams): Promise<string> {
   // UNGEFILTERT an topPicks: der PLZ-Filter grenzt dort nur die Kauf-Kandidaten
   // ein, die Miet-Mediane der Gebiets-Kaskade brauchen alle Miet-Objekte.
   const objekte = objekteAusBestand(bestand, historie);
+  const ausreisserEinbeziehen = filter.ausreisserEinbeziehen === true;
   const daten = {
     stichtag: sweep.laufDatum,
-    picks: topPicks(objekte, sweep.laufDatum, filter.plz),
+    picks: topPicks(
+      objekte,
+      sweep.laufDatum,
+      filter.plz,
+      undefined,
+      undefined,
+      ausreisserEinbeziehen,
+    ),
+    ausreisserEinbeziehen,
     zielRendite: ZIEL_RENDITE,
   };
   return renderTopPicksSeite(filter.plz !== undefined ? { ...daten, filterPlz: filter.plz } : daten);

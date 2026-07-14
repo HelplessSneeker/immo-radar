@@ -218,7 +218,10 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     <p><strong>Ausreißer-Regel fürs Ranking:</strong> Kauf-Objekte, die innerhalb ihrer
     eigenen PLZ als 1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking – ein Objekt, das nur
     wegen eines fragwürdigen Preises oben landet, ist kein Kaufsignal, sondern ein
-    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) nichts ausgeschlossen.</p>
+    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) nichts ausgeschlossen.
+    Der Schalter „Ausreißer einbeziehen" (<code>?ausreisser=an</code>, wie im Dashboard)
+    holt sie mit „▲ Ausreißer"-Markierung ins Ranking zurück und lässt auch die
+    Miet-Mediane unbereinigt rechnen – markierte Zeilen bekommen kein Chance-Grün.</p>
     <p><strong>Grenzen:</strong> <em>Brutto</em> und geschätzt: keine Betriebskosten,
     Instandhaltung, Leerstand, Kaufnebenkosten oder Steuern – und die Miete ist eine
     Gebietsschätzung, keine Aussage über dieses konkrete Objekt (Zustand, Ausstattung und

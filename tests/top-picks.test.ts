@@ -261,6 +261,37 @@ describe('topPicks', () => {
     expect(picks[0]!.medianMieteEurM2).toBe(10);
   });
 
+  it('holt mit ausreisserEinbeziehen Kauf-Ausreißer markiert ins Ranking zurück', () => {
+    const alle = objekte([
+      ...fuenfMieten(),
+      kauf('k-billig', '9020', 100),
+      kauf('k-1', '9020', 2400),
+      kauf('k-2', '9020', 2500),
+      kauf('k-3', '9020', 2600),
+      kauf('k-4', '9020', 2700),
+    ]);
+    const picks = topPicks(alle, STICHTAG, undefined, undefined, undefined, true);
+    expect(picks.map((p) => p.inseratId)).toEqual(['k-billig', 'k-1', 'k-2', 'k-3', 'k-4']);
+    expect(picks[0]!.istAusreisser).toBe(true);
+    expect(picks.slice(1).every((p) => !p.istAusreisser)).toBe(true);
+    // Ohne den Schalter tragen alle Picks istAusreisser: false.
+    const ohne = topPicks(alle, STICHTAG, undefined);
+    expect(ohne.every((p) => !p.istAusreisser)).toBe(true);
+  });
+
+  it('rechnet mit ausreisserEinbeziehen die Miet-Mediane und die Schwelle unbereinigt', () => {
+    // 5 Mieten mit einem Extremausreißer: bereinigt fällt die PLZ unter die
+    // Schwelle (siehe oben), roh ist sie belastbar — Median über alle 5.
+    const alle = objekte([
+      ...[8, 9, 10, 11, 1000].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert)),
+      kauf('k-1', '9020', 2400),
+    ]);
+    expect(topPicks(alle, STICHTAG, undefined)).toEqual([]); // bereinigt: 4 < 5, keine Kaskade greift
+    const picks = topPicks(alle, STICHTAG, undefined, undefined, undefined, true);
+    expect(picks).toHaveLength(1);
+    expect(picks[0]).toMatchObject({ mieteBasis: 'plz', medianMieteEurM2: 10 });
+  });
+
   it('nutzt den Stichtag-Preis aus der Historie, nicht den letzten', () => {
     const bestand = [...fuenfMieten(), kauf('k-1', '9020', 2600)];
     const historie: PreisPunkt[] = [

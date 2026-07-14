@@ -31,8 +31,10 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   kommt als ausreißerbereinigter Median-Kaltmiete-€/m² des Objekt-Gebiets
   (Kaskade PLZ → Bezirk → Kärnten, min. 5 Werte nach Bereinigung; Basis
   als Badge an jeder Zeile); Kauf-Objekte, die in ihrer PLZ als
-  1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking. Neuer Navbar-Eintrag
-  „Top Picks" und Methodik-Abschnitt `#top-picks`.
+  1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking. Der Schalter
+  „Ausreißer einbeziehen" (`?ausreisser=an`, wie im Dashboard) holt sie
+  markiert zurück und lässt die Miet-Mediane unbereinigt rechnen.
+  Neuer Navbar-Eintrag „Top Picks" und Methodik-Abschnitt `#top-picks`.
 
 ## [1.1.0] - 2026-07-10
 

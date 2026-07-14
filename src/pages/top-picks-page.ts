@@ -6,7 +6,9 @@ import { escapeHtml, seite } from './layout.js';
  * Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten
  * Bruttorendite am Stichtag, filterbar per PLZ-Präfix. Die Miete ist eine
  * Gebietsschätzung (Kaskade PLZ → Bezirk → Kärnten) — die Basis steht als
- * neutraler Badge an jeder Zeile (Herkunft ist Fakt, kein Urteil).
+ * neutraler Badge an jeder Zeile (Herkunft ist Fakt, kein Urteil). Der
+ * Schalter „Ausreißer einbeziehen" (?ausreisser=an, wie im Dashboard) holt
+ * PLZ-lokale Kauf-Ausreißer markiert ins Ranking zurück.
  */
 
 export interface TopPicksDaten {
@@ -15,6 +17,8 @@ export interface TopPicksDaten {
   picks: TopPickKandidat[];
   /** Gesetzter PLZ-Präfix-Filter (?plz=…). */
   filterPlz?: string;
+  /** true = ?ausreisser=an: Kauf-Ausreißer im Ranking, Miet-Mediane unbereinigt. */
+  ausreisserEinbeziehen: boolean;
   /** Ziel-Bruttorendite (Anteil), ab der die Rendite-Zelle als "gut" gilt. */
   zielRendite: number;
 }
@@ -22,20 +26,28 @@ export interface TopPicksDaten {
 const TOP_PICKS_CSS = `
   /* Neutraler Basis-Badge wie im Dashboard (dashboard-page.ts) — Herkunft, kein Urteil. */
   .badge { font-size: 12px; color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   /* Rendite ≥ Ziel: gleiche Gut-Töne wie die Dashboard-Kachel (tile-good). */
   .zelle-gut { background: var(--good-bg); }
   .gut { color: var(--good-text); font-weight: 600; }
+  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .feld-toggle .meta { margin: 0; font-size: 12px; }
 `;
 
-function filterleiste(filterPlz: string | undefined): string {
+function filterleiste(daten: TopPicksDaten): string {
   const zuruecksetzen =
-    filterPlz !== undefined
+    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen
       ? '\n      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>'
       : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
       <div class="feld">
         <label for="f-plz">PLZ (Präfix)</label>
-        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filterPlz ?? '')}" placeholder="z. B. 9020 oder 95">
+        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(daten.filterPlz ?? '')}" placeholder="z. B. 9020 oder 95">
+      </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="ausreisser" value="an"${daten.ausreisserEinbeziehen ? ' checked' : ''}> Ausreißer einbeziehen</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
       <button>Filtern</button>${zuruecksetzen}
     </form>`;
@@ -44,14 +56,19 @@ function filterleiste(filterPlz: string | undefined): string {
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
+  const ausreisserBadge = p.istAusreisser
+    ? ' <span class="badge badge-critical">▲ Ausreißer</span>'
+    : '';
   const erreicht = p.bruttoRendite >= zielRendite;
   // Urteils-Regel: Grün nur mit Text-Marker; unter Ziel bleibt die Zelle
   // neutral — eine niedrigere Rendite ist hier eine Lage, kein Fehler.
-  const renditeZelle = erreicht
-    ? `<td class="num zelle-gut"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
-    : `<td class="num">${fmtRendite(p.bruttoRendite)}</td>`;
-  return `        <tr>
-          <td>${link}<span class="sub">${escapeHtml(p.portal)}</span></td>
+  // Ausreißer bekommen kein Chance-Grün: erst prüfen, dann urteilen.
+  const renditeZelle =
+    erreicht && !p.istAusreisser
+      ? `<td class="num zelle-gut"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
+      : `<td class="num">${fmtRendite(p.bruttoRendite)}</td>`;
+  return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
+          <td>${link}${ausreisserBadge}<span class="sub">${escapeHtml(p.portal)}</span></td>
           <td>${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
           <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num">${nfEur0.format(p.kaufpreis)} €</td>
@@ -105,6 +122,11 @@ export function renderTopPicksSeite(daten: TopPicksDaten): string {
     daten.filterPlz !== undefined
       ? ` · PLZ ${daten.filterPlz}${daten.filterPlz.length < 4 ? '…' : ''}`
       : '';
+  const ausreisserZeile = daten.ausreisserEinbeziehen
+    ? `Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten, sind einbezogen und
+    mit „▲ Ausreißer" markiert; die Miet-Mediane rechnen unbereinigt.`
+    : `Ohne Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten —
+    ein fragwürdiger Preis ist kein Kaufsignal.`;
   const inhalt = `  <header>
     <h1>Top Picks — Bruttorendite je Objekt (Stichtag ${escapeHtml(datumMedium(daten.stichtag))})${escapeHtml(filterZusatz)}</h1>
     <p class="meta">Kauf-Objekte, sortiert nach geschätzter Bruttorendite. Die Miete kommt
@@ -113,7 +135,7 @@ export function renderTopPicksSeite(daten: TopPicksDaten): string {
   </header>
 
   <section>
-${filterleiste(daten.filterPlz)}
+${filterleiste(daten)}
   </section>
 
   <section>
@@ -122,8 +144,7 @@ ${filterleiste(daten.filterPlz)}
         ? `Top ${nfEur0.format(daten.picks.length)} nach Bruttorendite`
         : 'Top Picks nach Bruttorendite'
     }</h2>
-    <p class="meta">Ohne Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten —
-    ein fragwürdiger Preis ist kein Kaufsignal. <a href="/methodik#top-picks">Details</a></p>
+    <p class="meta">${ausreisserZeile} <a href="/methodik#top-picks">Details</a></p>
 ${tabelle(daten, zielProzent)}
   </section>`;
   return seite('Top Picks', inhalt, {

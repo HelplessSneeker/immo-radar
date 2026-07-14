@@ -11,7 +11,10 @@ import {
  * Objekt selbst, sondern als Ausreißer-bereinigter Median-Kaltmiete-€/m²
  * seines Gebiets, mit Fallback-Kette PLZ → Bezirk → ganz Kärnten — die
  * verwendete Basis wird immer mit ausgewiesen (Ehrlichkeits-Prinzip wie
- * beim Portfolio-Vergleich).
+ * beim Portfolio-Vergleich). Der Schalter „Ausreißer einbeziehen"
+ * (?ausreisser=an, wie im Dashboard) stellt die unbereinigte Rechnung
+ * wieder her: Kauf-Ausreißer bleiben dann im Ranking (markiert), die
+ * Miet-Mediane rechnen ungefiltert.
  */
 
 /** Unter so vielen bereinigten Miet-Werten gilt ein Gebiet nicht als belastbar. */
@@ -40,6 +43,11 @@ export interface TopPickKandidat {
   /** Anteil (0.045 = 4,5 %). */
   bruttoRendite: number;
   mieteBasis: MieteBasis;
+  /**
+   * 1,5×IQR-Ausreißer in der eigenen PLZ. Ohne „Ausreißer einbeziehen"
+   * immer false (Ausreißer sind dann ausgeschlossen).
+   */
+  istAusreisser: boolean;
   portal: string;
   inseratId: string;
   url?: string;
@@ -56,43 +64,55 @@ function sammleIn(gruppen: Map<string, number[]>, schluessel: string, wert: numb
   else liste.push(wert);
 }
 
-/** Je Gruppe der bereinigte Median — nur wo nach der Bereinigung ≥ min Werte bleiben. */
-function belastbareMediane(gruppen: Map<string, number[]>, min: number): Map<string, number> {
+/**
+ * Je Gruppe der belastbare Median: standardmäßig über die bereinigten Werte
+ * und nur, wo nach der Bereinigung ≥ min Werte bleiben; mit
+ * `ausreisserEinbeziehen` zählen und rechnen die Rohwerte.
+ */
+function belastbareMediane(
+  gruppen: Map<string, number[]>,
+  min: number,
+  ausreisserEinbeziehen: boolean,
+): Map<string, number> {
   const mediane = new Map<string, number>();
   for (const [schluessel, werte] of gruppen) {
-    const bereinigt = ohneAusreisser(werte);
-    if (bereinigt.length >= min) mediane.set(schluessel, median(bereinigt));
+    const basis = ausreisserEinbeziehen ? werte : ohneAusreisser(werte);
+    if (basis.length >= min) mediane.set(schluessel, median(basis));
   }
   return mediane;
 }
 
 /**
- * Kauf-Ausreißer PLZ-lokal ausschließen: ein Objekt, das nur wegen eines
+ * Kauf-Ausreißer PLZ-lokal flaggen: ein Objekt, das nur wegen eines
  * fragwürdigen Preises oben landen würde, ist kein Kaufsignal. Bewusst
  * nicht das globale istAusreisser-Flag der Datenpunkte — der Maßstab ist
- * die €/m²-Verteilung der eigenen PLZ (unter 4 Werten kein Ausschluss,
+ * die €/m²-Verteilung der eigenen PLZ (unter 4 Werten kein Flag,
  * siehe ausreisserFlags).
  */
-function ohneKaufAusreisser(kandidaten: KaufKandidat[]): KaufKandidat[] {
+function mitPlzAusreisserFlag(
+  kandidaten: KaufKandidat[],
+): Array<{ kandidat: KaufKandidat; istAusreisser: boolean }> {
   const jePlz = new Map<string, KaufKandidat[]>();
   for (const k of kandidaten) {
     const gruppe = jePlz.get(k.objekt.plz);
     if (gruppe === undefined) jePlz.set(k.objekt.plz, [k]);
     else gruppe.push(k);
   }
-  const behalten: KaufKandidat[] = [];
+  const ergebnis: Array<{ kandidat: KaufKandidat; istAusreisser: boolean }> = [];
   for (const [plz, gruppe] of jePlz) {
     // Ohne auswertbare PLZ gibt es keine sinnvolle lokale Verteilung — die
-    // ''-Gruppe wäre ein Pseudo-Gebiet quer durch Kärnten, kein Ausschluss
+    // ''-Gruppe wäre ein Pseudo-Gebiet quer durch Kärnten, kein Flag
     // (wie die Miete-Seite, die '' aus den PLZ-Gruppen heraushält).
     if (plz === '') {
-      behalten.push(...gruppe);
+      for (const k of gruppe) ergebnis.push({ kandidat: k, istAusreisser: false });
       continue;
     }
     const flags = ausreisserFlags(gruppe.map((k) => k.punkt.eurM2));
-    for (const [i, k] of gruppe.entries()) if (!flags[i]) behalten.push(k);
+    for (const [i, k] of gruppe.entries()) {
+      ergebnis.push({ kandidat: k, istAusreisser: flags[i] === true });
+    }
   }
-  return behalten;
+  return ergebnis;
 }
 
 function mieteBasisFuer(
@@ -127,7 +147,9 @@ function identitaetVergleich(a: TopPickKandidat, b: TopPickKandidat): number {
  * `objekte` ist der komplette Kärnten-Bestand (objekteAusBestand), NICHT
  * vorgefiltert: der PLZ-Filter grenzt nur die Kauf-Kandidaten ein, die
  * Miet-Mediane brauchen alle Miet-Objekte, sonst greift die Kaskade auf
- * zu wenig Daten zu.
+ * zu wenig Daten zu. Mit `ausreisserEinbeziehen` bleiben PLZ-lokale
+ * Kauf-Ausreißer im Ranking (als istAusreisser markiert) und die
+ * Miet-Mediane rechnen unbereinigt.
  */
 export function topPicks(
   objekte: ObjektZeitreihe[],
@@ -135,6 +157,7 @@ export function topPicks(
   plzFilter: string | undefined,
   n = 10,
   minMietObjekte = TOP_PICKS_MIN_MIET_OBJEKTE,
+  ausreisserEinbeziehen = false,
 ): TopPickKandidat[] {
   const mietenJePlz = new Map<string, number[]>();
   const mietenJeBezirk = new Map<string, number[]>();
@@ -156,14 +179,16 @@ export function topPicks(
     }
   }
 
-  const medianJePlz = belastbareMediane(mietenJePlz, minMietObjekte);
-  const medianJeBezirk = belastbareMediane(mietenJeBezirk, minMietObjekte);
-  const kaerntenBereinigt = ohneAusreisser(mietenKaernten);
+  const medianJePlz = belastbareMediane(mietenJePlz, minMietObjekte, ausreisserEinbeziehen);
+  const medianJeBezirk = belastbareMediane(mietenJeBezirk, minMietObjekte, ausreisserEinbeziehen);
+  const kaerntenBasis = ausreisserEinbeziehen ? mietenKaernten : ohneAusreisser(mietenKaernten);
   const medianKaernten =
-    kaerntenBereinigt.length >= minMietObjekte ? median(kaerntenBereinigt) : undefined;
+    kaerntenBasis.length >= minMietObjekte ? median(kaerntenBasis) : undefined;
 
   const picks: TopPickKandidat[] = [];
-  for (const { objekt, punkt } of ohneKaufAusreisser(kaufKandidaten)) {
+  for (const { kandidat, istAusreisser } of mitPlzAusreisserFlag(kaufKandidaten)) {
+    if (istAusreisser && !ausreisserEinbeziehen) continue;
+    const { objekt, punkt } = kandidat;
     const basis = mieteBasisFuer(
       objekt.plz,
       objekt.bezirk,
@@ -183,6 +208,7 @@ export function topPicks(
       medianMieteEurM2: basis.medianMieteEurM2,
       bruttoRendite: bruttoRendite(basis.medianMieteEurM2, punkt.eurM2),
       mieteBasis: basis.mieteBasis,
+      istAusreisser,
       portal: punkt.inserat.portal,
       inseratId: punkt.inserat.inseratId,
     };

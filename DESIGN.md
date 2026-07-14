@@ -201,7 +201,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Filterleiste
 - **Style:** `.filterleiste` — inline GET-Formular über Auswertungstabellen: Selects/Textfeld mit 600/13px-Labels darüber, abgeschlossen mit einem Ghost-Button „Filtern". Bricht per `flex-wrap` um.
-- **Schalter-Felder:** native Checkbox im `.feld-toggle` (Label 400 statt 600 — das Label ist hier der klickbare Text, keine Feldüberschrift), darunter ein 12px-Meta-Link auf den passenden `/methodik`-Anker. Beispiel: „Ausreißer einbeziehen" (`?ausreisser=an`) auf dem Dashboard.
+- **Schalter-Felder:** native Checkbox im `.feld-toggle` (Label 400 statt 600 — das Label ist hier der klickbare Text, keine Feldüberschrift), darunter ein 12px-Meta-Link auf den passenden `/methodik`-Anker. Beispiel: „Ausreißer einbeziehen" (`?ausreisser=an`) auf dem Dashboard und den Top Picks.
 - **Regeln:** Filter sind GET-Parameter und funktionieren ohne JS; gesetzte Filter zeigen einen Textlink „Filter zurücksetzen". Eine Auswertungsseite hat keine Primäraktion — der Filter-Button bleibt Ghost.
 
 ### Erklärzeilen (Kennzahl-Herkunft)
