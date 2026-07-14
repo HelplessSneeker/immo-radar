@@ -7,6 +7,12 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-14
+
+Dritte Runde: Kennzahlen rechnen standardmäßig ohne 1,5×IQR-Ausreißer
+(mit Schalter zurück zur unbereinigten Sicht), neue Top-Picks-Seite mit
+Rendite-Ranking, Zeitraum-Filter mit Trend-Pfeilen in den KPI-Kacheln.
+
 ### Geändert
 
 - `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
@@ -159,7 +165,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0
 [0.1.0]: https://github.com/HelplessSneeker/immo-radar/commits/43cc18e
