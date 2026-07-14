@@ -278,16 +278,18 @@ export const BASIS_CSS = `
   }
   .filterleiste .feld { display: grid; gap: 6px; }
   .filterleiste label { font-weight: 600; font-size: 13px; }
-  .filterleiste select, .filterleiste input[type="text"] {
+  .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
     padding: 6px 10px; font: inherit; font-size: 13px;
     color: var(--text-primary); background: var(--page);
     border: 1px solid var(--grid); border-radius: 6px;
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
-  .filterleiste select:hover:not(:focus), .filterleiste input[type="text"]:hover:not(:focus) {
+  .filterleiste select:hover:not(:focus), .filterleiste input[type="text"]:hover:not(:focus),
+  .filterleiste input[type="date"]:hover:not(:focus) {
     border-color: var(--baseline);
   }
-  .filterleiste select:focus, .filterleiste input[type="text"]:focus {
+  .filterleiste select:focus, .filterleiste input[type="text"]:focus,
+  .filterleiste input[type="date"]:focus {
     border-color: var(--akzent);
   }
   .filterleiste button { margin-bottom: 1px; }

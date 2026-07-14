@@ -176,6 +176,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Cards / Containers
 - **Section:** Fläche auf Papier, 1px Kontur, 10px Radius, 20px Innenabstand. Das Grundmodul jeder Seite; Inhaltsbreite 560px (Formulare, `breite: 'schmal'`) bzw. 1080px (Auswertungen, `breite: 'breit'`), zentriert.
 - **Tile (Kennzahl):** 1px Kontur, 8px Radius, 14px/16px Padding. Aufbau: Label (13px gedämpft) → Wert (30px/600) → Badge (12px). `tile-good` bekommt die Gut-Tönung als Fläche.
+- **Tile-Trend (`.tile-trend`):** optionale 12px-Zeile unter dem Wert: Pfeil `↑/↓/→` (600) + textliches Delta (600) + Referenz-Datum („vs. 30.06.2026") in Tinte-gedämpft — das Delta steht immer auch als Text, nie Farbe allein, und der Vergleichspunkt bleibt transparent. Urteils-Grenze: Der **Rendite-Pfeil urteilt** (`trend-pfeil-gut` grün / `trend-pfeil-schlecht` rot — die Rendite-Kachel urteilt ja schon via `tile-good`); **Preis-Pfeile (Kauf/Miete) bleiben Tintenfarbe** — ein teurerer Markt ist ein Fakt, kein Verdikt (siehe Don't „Markt-Tendenz"). Bei `|Δ|` unter der Stabil-Schwelle: `→` neutral. Ohne zweiten Datenpunkt im Zeitraum ersetzt „zu wenig Daten für Trend" (Meta-Text) die Zeile.
 - **Die Kachel-Wand-Schwelle:** Kennzahl-Tiles sind nach Urteil sortiert (beste Rendite zuerst) und auf 8 begrenzt — ab dem 9. Gebiet wird die Sektion zur kompakten Urteils-Tabelle, sonst entsteht genau die KPI-Kachel-Wand, die das System ablehnt.
 - **Verschachtelte Karten sind verboten.** Tiles liegen im Grid nebeneinander, nie ineinander.
 
@@ -202,6 +203,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Filterleiste
 - **Style:** `.filterleiste` — inline GET-Formular über Auswertungstabellen: Selects/Textfeld mit 600/13px-Labels darüber, abgeschlossen mit einem Ghost-Button „Filtern". Bricht per `flex-wrap` um.
 - **Schalter-Felder:** native Checkbox im `.feld-toggle` (Label 400 statt 600 — das Label ist hier der klickbare Text, keine Feldüberschrift), darunter ein 12px-Meta-Link auf den passenden `/methodik`-Anker. Beispiel: „Ausreißer einbeziehen" (`?ausreisser=an`) auf dem Dashboard und den Top Picks.
+- **Preset-Felder (Segmented Control light):** native Radios im `<fieldset class="feld feld-zeitraum">`, Legende als 600/13px-Feldüberschrift, Radio-Labels 400 inline nebeneinander — kein JS, kein Button-Styling. Beispiel: Zeitraum `7 / 30 / 90 Tage / Alle` (`?zeitraum=…`). Gehören Custom-Felder dazu (Von/Bis-Datum), **gewinnt Custom über das Preset**: sind beide Datumsfelder gefüllt, ist bewusst kein Radio aktiv — der Zustand bleibt sichtbar, ohne Disabled-Fake.
 - **Regeln:** Filter sind GET-Parameter und funktionieren ohne JS; gesetzte Filter zeigen einen Textlink „Filter zurücksetzen". Eine Auswertungsseite hat keine Primäraktion — der Filter-Button bleibt Ghost.
 
 ### Erklärzeilen (Kennzahl-Herkunft)
@@ -225,7 +227,7 @@ Chart.js mit striktem Token-Bezug: Serien lesen ihre Farben zur Laufzeit aus den
 - **Don't** Immobilienportal-Optik: keine Foto-Kacheln, Marketing-Badges oder Dringlichkeits-Druck (Anti-Referenz aus PRODUCT.md).
 - **Don't** SaaS-Dashboard-Klischee: keine KPI-Kachel-Wände, Gradient-Akzente oder Icon-Karten-Raster (Anti-Referenz aus PRODUCT.md).
 - **Don't** Schatten verwenden — das System ist flach (Flach-Regel).
-- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel). Präzisierung: Die Preisänderung eines Inserats trägt ein Urteil (Senkung = Kaufchance, grün; Erhöhung rot) — die Markt-Tendenz eines Gebiets (Median-Bewegung, ▲/▼/→) ist dagegen ein neutraler Fakt und bleibt in Tintenfarbe; Pfeil und Vorzeichen tragen die Richtung ohne Farbe.
+- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel). Präzisierung: Die Preisänderung eines Inserats trägt ein Urteil (Senkung = Kaufchance, grün; Erhöhung rot) — die Markt-Tendenz eines Gebiets (Median-Bewegung, ▲/▼/→) ist dagegen ein neutraler Fakt und bleibt in Tintenfarbe; Pfeil und Vorzeichen tragen die Richtung ohne Farbe. Gleiches gilt für die Kauf-/Miete-Trend-Pfeile der KPI-Kacheln; nur der Rendite-Trend-Pfeil urteilt (mehr Rendite = gut), siehe „Tile-Trend".
 - **Don't** farbige Seitenstreifen (`border-left` > 1px) an Karten, Zeilen oder Hinweisen.
 - **Don't** eine zweite Schriftfamilie einführen; Hierarchie kommt aus Größe und Gewicht.
 - **Don't** Tinte-leise (#898781) für Fließtext verwenden — es besteht den 4.5:1-Kontrast auf Papier nicht; nur für 600er Labels ≥13px oder unkritische Fußnoten.
