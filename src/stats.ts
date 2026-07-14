@@ -52,6 +52,12 @@ export function ausreisserFlags(werte: number[]): boolean[] {
   return werte.map((w) => w < untere || w > obere);
 }
 
+/** 1,5×IQR-Ausreißer entfernen; bei n≥4 überlebt mindestens die mittlere Hälfte. */
+export function ohneAusreisser(werte: number[]): number[] {
+  const flags = ausreisserFlags(werte);
+  return werte.filter((_, i) => !flags[i]);
+}
+
 /**
  * Brutto-Mietrendite = (Median-Kaltmiete €/m² × 12) / Median-Kaufpreis €/m².
  * Ergebnis als Anteil (0.04 = 4 %).

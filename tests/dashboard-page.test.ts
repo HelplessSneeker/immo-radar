@@ -19,6 +19,7 @@ function datenpunkt(overrides: Partial<StichtagDatenpunkt> = {}): StichtagDatenp
     inseratId: 'wh-1',
     url: 'https://willhaben.at/wh-1',
     anzahlInserate: 1,
+    istAusreisser: false,
     ...overrides,
   };
 }
@@ -89,6 +90,27 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('Wohnungsmarkt Kärnten · PLZ 9020 · 45–90 m²');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
+  });
+
+  it('rendert den Ausreißer-Schalter: default aus und Kennzahlen als bereinigt beschriftet', () => {
+    const html = renderDashboardSeite(daten());
+    expect(html).toContain('name="ausreisser" value="an">');
+    expect(html).not.toContain('name="ausreisser" value="an" checked');
+    expect(html).toContain('42 aktive Kauf-Objekte (ohne Ausreißer)');
+    expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m² (ohne Ausreißer)');
+    expect(html).toContain('(ohne 1,5×IQR-Ausreißer)');
+    expect(html).not.toContain('Filter zurücksetzen');
+    expect(html).toContain('href="/methodik#ausreisser"');
+  });
+
+  it('checked bei ?ausreisser=an; der Reset-Link erscheint auch für den Schalter allein', () => {
+    const html = renderDashboardSeite(daten({ filter: { ausreisserEinbeziehen: true } }));
+    expect(html).toContain('name="ausreisser" value="an" checked');
+    expect(html).not.toContain('(ohne Ausreißer)');
+    expect(html).toContain('(1,5×IQR-Ausreißer einbezogen)');
+    expect(html).toContain('Filter zurücksetzen');
+    // Der Schalter gehört nicht in die Überschrift (nur PLZ/m² beschreiben die Marktsicht).
+    expect(html).toContain('<h1>Wohnungsmarkt Kärnten</h1>');
   });
 
   it('warnt bei Portal-Ausfällen des Stichtag-Sweeps', () => {
@@ -204,6 +226,48 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('+33,3 %');
   });
 
+  it('badged Ausreißer-Zeilen unabhängig vom Schalter, ohne Chance-Grün; Median folgt dem Schalter', () => {
+    const datenpunkte = {
+      kauf: [
+        // −75 % unter dem bereinigten Median → wäre Chance, ist aber Ausreißer.
+        datenpunkt({ eurM2: 1000, istAusreisser: true }),
+        datenpunkt({ inseratId: 'wh-2', eurM2: 3900 }),
+        datenpunkt({ inseratId: 'wh-3', eurM2: 4100 }),
+      ],
+      miete: [],
+    };
+    const bereinigt = renderDashboardSeite(daten({ datenpunkte }));
+    expect(bereinigt).toContain('▲ Ausreißer');
+    expect(bereinigt).toContain('class="row-outlier"');
+    expect(bereinigt).not.toContain('class="gesenkt"');
+    // Median ohne den geflaggten Punkt: (3900+4100)/2, Anzahl nennt die Ausreißer.
+    expect(bereinigt).toContain(
+      'Kauf · 3 Objekte · davon 1 Ausreißer · Median 4 000 €/m² (ohne Ausreißer)',
+    );
+
+    const einbezogen = renderDashboardSeite(
+      daten({ datenpunkte, filter: { ausreisserEinbeziehen: true } }),
+    );
+    expect(einbezogen).toContain('▲ Ausreißer'); // Badge bleibt sichtbar
+    expect(einbezogen).toContain('Kauf · 3 Objekte · davon 1 Ausreißer · Median 3 900 €/m²');
+    expect(einbezogen).not.toContain('(ohne Ausreißer)');
+  });
+
+  it('Stichtag- und Seiten-Links führen ?ausreisser=an mit', () => {
+    const kauf = Array.from({ length: 50 }, (_, i) =>
+      datenpunkt({ ort: `Ort${i}`, inseratId: `wh-${i}`, eurM2: 3000 + i }),
+    );
+    const html = renderDashboardSeite(
+      daten({
+        filter: { ausreisserEinbeziehen: true },
+        datenpunkte: { kauf, miete: [] },
+        datenpunkteOffen: true,
+      }),
+    );
+    expect(html).toContain('href="/?ausreisser=an&stichtag=2026-06-30#datenpunkte"');
+    expect(html).toContain('href="/?ausreisser=an&stichtag=2026-07-07&kauf_seite=2#dp-kauf"');
+  });
+
   it('paginiert die Tabellen mit 20 Zeilen und hält die Seite der anderen Serie', () => {
     // 50 Kauf-Punkte (aufsteigend sortiert, wie datenpunkteAmStichtag liefert).
     const kauf = Array.from({ length: 50 }, (_, i) =>
@@ -288,6 +352,19 @@ describe('parseDashboardFilter', () => {
     expect(parseDashboardFilter(params('flaeche_min=90&flaeche_max=45'))).toEqual({
       flaecheMin: 45,
       flaecheMax: 90,
+    });
+  });
+
+  it('?ausreisser=an schaltet die Einbeziehung an; alles andere lässt das Feld weg', () => {
+    expect(parseDashboardFilter(params('ausreisser=an'))).toEqual({ ausreisserEinbeziehen: true });
+    expect(parseDashboardFilter(params('ausreisser=AN'))).toEqual({ ausreisserEinbeziehen: true });
+    expect(parseDashboardFilter(params('ausreisser=aus'))).toEqual({});
+    expect(parseDashboardFilter(params('ausreisser=quatsch'))).toEqual({});
+    expect(parseDashboardFilter(params('ausreisser='))).toEqual({});
+    expect(parseDashboardFilter(params(''))).toEqual({});
+    expect(parseDashboardFilter(params('plz=9020&ausreisser=an'))).toEqual({
+      plz: '9020',
+      ausreisserEinbeziehen: true,
     });
   });
 });

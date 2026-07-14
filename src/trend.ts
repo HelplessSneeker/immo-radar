@@ -1,7 +1,7 @@
 import type { BestandInserat, PreisPunkt } from './db/bestand-repo.js';
 import { tageZwischen } from './datum.js';
 import { kanonischerOrt, normalisierePlz } from './normalisierung.js';
-import { bruttoRendite, mean, median } from './stats.js';
+import { ausreisserFlags, bruttoRendite, mean, median, ohneAusreisser } from './stats.js';
 import type { InseratTyp } from './types.js';
 
 /**
@@ -215,10 +215,16 @@ export function stichtageFuerTrend(objekte: ObjektZeitreihe[], sweepTage: string
  * ist (delistet erst, wenn alle weg sind — Relistings halten die Reihe
  * durchgehend). Stichtage vor dem ersten Datenpunkt der übergebenen
  * (ggf. gefilterten) Objekte werden abgeschnitten.
+ *
+ * ausreisserEinbeziehen=false schließt je (Stichtag, Typ) die
+ * 1,5×IQR-Ausreißer der €/m²-Verteilung aus Median UND Anzahl aus
+ * (siehe ausreisserFlags; unter 4 Werten folgenlos). Der Default true
+ * entspricht dem unbereinigten Altverhalten — das Dashboard übergibt false.
  */
 export function berechneObjektTrend(
   objekte: ObjektZeitreihe[],
   stichtage: string[],
+  ausreisserEinbeziehen = true,
 ): TrendPunkt[] {
   if (objekte.length === 0) return [];
   const start = objekte.map((o) => o.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
@@ -231,12 +237,16 @@ export function berechneObjektTrend(
         const wert = objektEurM2AmStichtag(objekt, stichtag);
         if (wert !== undefined) eurM2[objekt.typ].push(wert);
       }
+      const werte = (typ: InseratTyp): number[] =>
+        ausreisserEinbeziehen ? eurM2[typ] : ohneAusreisser(eurM2[typ]);
+      const kauf = werte('kauf');
+      const miete = werte('miete');
       return {
         datum: stichtag,
-        medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
-        medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
-        anzahlKauf: eurM2.kauf.length,
-        anzahlMiete: eurM2.miete.length,
+        medianKaufEurM2: kauf.length > 0 ? median(kauf) : null,
+        medianMieteEurM2: miete.length > 0 ? median(miete) : null,
+        anzahlKauf: kauf.length,
+        anzahlMiete: miete.length,
       };
     });
 }
@@ -261,13 +271,17 @@ export interface StichtagDatenpunkt {
   url?: string;
   /** Am Stichtag aktive Inserate des Objekts (>1 = portalübergreifend dedupliziert). */
   anzahlInserate: number;
+  /** 1,5×IQR-Ausreißer der €/m²-Verteilung seiner Serie (Stichtag × Typ). */
+  istAusreisser: boolean;
 }
 
 /**
  * Die Datenpunkte hinter einem Stichtag: pro dann aktivem Objekt genau der
  * €/m²-Wert, der in berechneObjektTrend in den Median eingeht (dieselbe
  * Kernlogik: objektDatenpunktAmStichtag). Je Serie aufsteigend nach €/m²
- * sortiert (Käufer-Perspektive: günstig zuerst).
+ * sortiert (Käufer-Perspektive: günstig zuerst). Die Punktmenge ist immer
+ * vollständig — Ausreißer werden nur via istAusreisser markiert, damit
+ * Tabelle und Punktwolke sie unabhängig vom Kennzahlen-Toggle zeigen können.
  */
 export function datenpunkteAmStichtag(
   objekte: ObjektZeitreihe[],
@@ -287,10 +301,18 @@ export function datenpunkteAmStichtag(
       portal: wert.inserat.portal,
       inseratId: wert.inserat.inseratId,
       anzahlInserate: wert.anzahlAktive,
+      istAusreisser: false,
     };
     if (objekt.objektId !== undefined) punkt.objektId = objekt.objektId;
     if (wert.inserat.url !== undefined) punkt.url = wert.inserat.url;
     punkte[objekt.typ].push(punkt);
+  }
+  for (const serie of [punkte.kauf, punkte.miete]) {
+    // Gleiche Grundmenge wie berechneObjektTrend, daher deckungsgleiche Flags.
+    const flags = ausreisserFlags(serie.map((p) => p.eurM2));
+    serie.forEach((p, i) => {
+      p.istAusreisser = flags[i] === true;
+    });
   }
   punkte.kauf.sort((a, b) => a.eurM2 - b.eurM2);
   punkte.miete.sort((a, b) => a.eurM2 - b.eurM2);

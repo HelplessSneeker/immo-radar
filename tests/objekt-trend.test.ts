@@ -171,6 +171,40 @@ describe('berechneObjektTrend', () => {
     const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-06-15', '2026-07-01']);
     expect(trend.map((p) => p.datum)).toEqual(['2026-06-15', '2026-07-01']);
   });
+
+  it('ausreisserEinbeziehen=false nimmt 1,5×IQR-Ausreißer aus Median und Anzahl', () => {
+    // €/m²: 3600, 3800, 4000, 4200 und ein Ausreißer mit 20000 (Q3 + 1,5×IQR = 4800).
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+
+    // Default (einbeziehen) = Altverhalten: der Ausreißer verschiebt den Median.
+    const roh = berechneObjektTrend(objekte, ['2026-07-01']);
+    expect(roh[0]).toMatchObject({ medianKaufEurM2: 4000, anzahlKauf: 5 });
+    expect(berechneObjektTrend(objekte, ['2026-07-01'], true)).toEqual(roh);
+
+    const bereinigt = berechneObjektTrend(objekte, ['2026-07-01'], false);
+    expect(bereinigt[0]).toMatchObject({ medianKaufEurM2: 3900, anzahlKauf: 4 });
+  });
+
+  it('unter 4 Werten je Serie ist der Ausreißer-Ausschluss folgenlos', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 200000 }),
+      inserat({ id: 'wh-3', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    expect(berechneObjektTrend(objekte, ['2026-07-01'], false)).toEqual(
+      berechneObjektTrend(objekte, ['2026-07-01'], true),
+    );
+  });
 });
 
 describe('stichtageFuerTrend', () => {
@@ -318,6 +352,57 @@ describe('datenpunkteAmStichtag', () => {
       expect(miete).toHaveLength(punkt.anzahlMiete);
       expect(kauf.length > 0 ? median(kauf.map((p) => p.eurM2)) : null).toBe(punkt.medianKaufEurM2);
       expect(miete.length > 0 ? median(miete.map((p) => p.eurM2)) : null).toBe(punkt.medianMieteEurM2);
+    }
+  });
+
+  it('markiert Ausreißer der €/m²-Verteilung je Serie mit istAusreisser', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }), // 20000 €/m²
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.map((p) => [p.eurM2, p.istAusreisser])).toEqual([
+      [3600, false],
+      [3800, false],
+      [4000, false],
+      [4200, false],
+      [20000, true],
+    ]);
+  });
+
+  it('unter 4 Werten je Serie wird nichts als Ausreißer markiert', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 200000 }),
+      inserat({ id: 'wh-3', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.every((p) => !p.istAusreisser)).toBe(true);
+  });
+
+  it('Konsistenz-Invariante unter ausreisserEinbeziehen=false: Trend = nicht-geflaggte Punkte', () => {
+    // Die Punktmenge bleibt bewusst vollständig (Tabelle/Wolke zeigen alles);
+    // der bereinigte Trend muss exakt den nicht-geflaggten Punkten entsprechen.
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-07-01'], false);
+    for (const punktBereinigt of trend) {
+      const { kauf } = datenpunkteAmStichtag(objekte, punktBereinigt.datum);
+      const ohne = kauf.filter((p) => !p.istAusreisser);
+      expect(ohne).toHaveLength(punktBereinigt.anzahlKauf);
+      expect(median(ohne.map((p) => p.eurM2))).toBe(punktBereinigt.medianKaufEurM2);
     }
   });
 });

@@ -188,7 +188,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Tables
 - **Style:** 13px, linksbündige Textspalten, rechtsbündige Zahlenspalten mit Tabellenziffern. Trennung nur durch 1px Raster-Linien unter den Zeilen — keine Zebra-Streifen, keine Außenkontur.
 - **Header:** Tinte-leise, 600, Basislinien-Unterkante; `scope`-Attribute auf allen Header-Zellen.
-- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung; Sub-Informationen als 12px-Block unter dem Zellenwert.
+- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung plus Text-Badge „▲ Ausreißer" (12px/600 in Kritisch) — im Report wie in den Dashboard-Datenpunkten; Ausreißer-Zeilen bekommen kein Chance-Grün (erst prüfen, dann urteilen). Sub-Informationen als 12px-Block unter dem Zellenwert.
 - **Overflow:** Jede Tabelle liegt in einem `.tabelle-scroll`-Container (`overflow-x: auto`) — auf schmalen Viewports scrollt die Tabelle, nie die Seite.
 
 ### Status-Badges
@@ -200,6 +200,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Filterleiste
 - **Style:** `.filterleiste` — inline GET-Formular über Auswertungstabellen: Selects/Textfeld mit 600/13px-Labels darüber, abgeschlossen mit einem Ghost-Button „Filtern". Bricht per `flex-wrap` um.
+- **Schalter-Felder:** native Checkbox im `.feld-toggle` (Label 400 statt 600 — das Label ist hier der klickbare Text, keine Feldüberschrift), darunter ein 12px-Meta-Link auf den passenden `/methodik`-Anker. Beispiel: „Ausreißer einbeziehen" (`?ausreisser=an`) auf dem Dashboard.
 - **Regeln:** Filter sind GET-Parameter und funktionieren ohne JS; gesetzte Filter zeigen einen Textlink „Filter zurücksetzen". Eine Auswertungsseite hat keine Primäraktion — der Filter-Button bleibt Ghost.
 
 ### Erklärzeilen (Kennzahl-Herkunft)

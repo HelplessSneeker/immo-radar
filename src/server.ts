@@ -128,7 +128,7 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     (d) => d <= sweep.laufDatum,
   );
   const objekte = filterObjekte(alleObjekte, filter);
-  const trend = berechneObjektTrend(objekte, stichtage);
+  const trend = berechneObjektTrend(objekte, stichtage, filter.ausreisserEinbeziehen === true);
   // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
   // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
   const gewuenscht = parseStichtag(params);

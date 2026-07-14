@@ -7,6 +7,26 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+
+- Dashboard-Kennzahlen (Kauf-/Miete-Median, Bruttorendite, alle Trend-Charts
+  und die Median-Linie der Punktwolken) rechnen 1,5×IQR-Ausreißer jetzt
+  standardmäßig heraus, bestimmt je Stichtag und Markt (Kauf/Miete) auf der
+  €/m²-Verteilung nach dem PLZ-/m²-Filter; die Objekt-Anzahlen beziehen sich
+  auf die bereinigte Menge. Unter 4 Werten je Gruppe wird wie bisher nichts
+  ausgeschlossen.
+
+### Hinzugefügt
+
+- Filterleisten-Schalter „Ausreißer einbeziehen" (`?ausreisser=an`, teilbar,
+  überlebt Stichtag-Wechsel und Pagination; „Filter zurücksetzen" entfernt
+  ihn) stellt die unbereinigten Kennzahlen wieder her.
+- Datenpunkte-Tabellen markieren Ausreißer unabhängig vom Schalter mit
+  „▲ Ausreißer"; Ausreißer-Zeilen bekommen kein Chance-Grün mehr, die
+  Serien-Überschrift nennt die Anzahl der Ausreißer.
+- Methodik-Abschnitt „Ausreißer (1,5×IQR)" erklärt Tukey-Regel,
+  Berechnungsbasis und Schalter-Semantik.
+
 ## [1.1.0] - 2026-07-10
 
 Zweite Runde: Dashboard-Zeitreihen an echte Läufe geknüpft, neue
