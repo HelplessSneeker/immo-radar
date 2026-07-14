@@ -157,6 +157,23 @@ describe('topPicks', () => {
     expect(picks[0]!.mieteBasis).toBe('kaernten');
   });
 
+  it('schließt in der Gruppe ohne auswertbare PLZ nichts aus', () => {
+    // 4 Käufe ohne PLZ bilden kein echtes Gebiet — der billige darf nicht
+    // gegen die anderen drei IQR-geflaggt werden.
+    const alle = objekte([
+      ...fuenfMieten(),
+      kauf('o-billig', '', 100),
+      kauf('o-1', '', 2400),
+      kauf('o-2', '', 2500),
+      kauf('o-3', '', 2600),
+    ]);
+    const picks = topPicks(alle, STICHTAG, undefined);
+    expect(picks).toHaveLength(4);
+    expect(picks[0]!.inseratId).toBe('o-billig');
+    // Ohne PLZ greift die Kaskade über den Bezirk.
+    expect(picks[0]!.mieteBasis).toBe('bezirk');
+  });
+
   it('prüft Ausreißer PLZ-lokal, nicht gegen die Gesamtverteilung', () => {
     // Die 9800er-Käufe wären gegen die 9020-Werte globale Ausreißer,
     // sind in ihrer eigenen PLZ aber unauffällig — alle bleiben drin.

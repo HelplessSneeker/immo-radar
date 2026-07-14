@@ -110,6 +110,14 @@ describe('renderTopPicksSeite', () => {
     const html = renderTopPicksSeite(daten({ picks: [] }));
     expect(html).not.toContain('<table');
     expect(html).toContain('Keine Kauf-Objekte mit belastbarer Miet-Vergleichsbasis');
+    // Die Überschrift behauptet keine Trefferzahl, die es nicht gibt.
+    expect(html).not.toContain('Top 10');
+    expect(html).toContain('Top Picks nach Bruttorendite');
+  });
+
+  it('nennt in der Überschrift die tatsächliche Trefferzahl', () => {
+    const html = renderTopPicksSeite(daten({ picks: [pick(), pick({ inseratId: 'wh-2' })] }));
+    expect(html).toContain('Top 2 nach Bruttorendite');
   });
 
   it('verlinkt im gefilterten Leer-State auf das Zurücksetzen', () => {

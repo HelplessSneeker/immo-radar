@@ -117,7 +117,11 @@ ${filterleiste(daten.filterPlz)}
   </section>
 
   <section>
-    <h2>Top ${nfEur0.format(daten.picks.length > 0 ? daten.picks.length : 10)} nach Bruttorendite</h2>
+    <h2>${
+      daten.picks.length > 0
+        ? `Top ${nfEur0.format(daten.picks.length)} nach Bruttorendite`
+        : 'Top Picks nach Bruttorendite'
+    }</h2>
     <p class="meta">Ohne Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten —
     ein fragwürdiger Preis ist kein Kaufsignal. <a href="/methodik#top-picks">Details</a></p>
 ${tabelle(daten, zielProzent)}

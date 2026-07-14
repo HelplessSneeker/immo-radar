@@ -81,7 +81,14 @@ function ohneKaufAusreisser(kandidaten: KaufKandidat[]): KaufKandidat[] {
     else gruppe.push(k);
   }
   const behalten: KaufKandidat[] = [];
-  for (const gruppe of jePlz.values()) {
+  for (const [plz, gruppe] of jePlz) {
+    // Ohne auswertbare PLZ gibt es keine sinnvolle lokale Verteilung — die
+    // ''-Gruppe wäre ein Pseudo-Gebiet quer durch Kärnten, kein Ausschluss
+    // (wie die Miete-Seite, die '' aus den PLZ-Gruppen heraushält).
+    if (plz === '') {
+      behalten.push(...gruppe);
+      continue;
+    }
     const flags = ausreisserFlags(gruppe.map((k) => k.punkt.eurM2));
     for (const [i, k] of gruppe.entries()) if (!flags[i]) behalten.push(k);
   }
@@ -132,7 +139,7 @@ export function topPicks(
   const mietenJePlz = new Map<string, number[]>();
   const mietenJeBezirk = new Map<string, number[]>();
   const mietenKaernten: number[] = [];
-  let kaufKandidaten: KaufKandidat[] = [];
+  const kaufKandidaten: KaufKandidat[] = [];
 
   for (const objekt of objekte) {
     const punkt = objektDatenpunktAmStichtag(objekt, stichtag);
@@ -141,7 +148,10 @@ export function topPicks(
       if (objekt.plz !== '') sammleIn(mietenJePlz, objekt.plz, punkt.eurM2);
       if (objekt.bezirk !== '') sammleIn(mietenJeBezirk, objekt.bezirk, punkt.eurM2);
       mietenKaernten.push(punkt.eurM2);
-    } else {
+    } else if (plzFilter === undefined || plzFilter === '' || objekt.plz.startsWith(plzFilter)) {
+      // Schon hier filtern ist äquivalent zur Prüfung nach dem Ausreißer-
+      // Ausschluss (der Präfix-Filter zerschneidet exakte PLZ-Gruppen nie)
+      // und spart die IQR-Rechnung für ausgefilterte Gebiete.
       kaufKandidaten.push({ objekt, punkt });
     }
   }
@@ -152,13 +162,8 @@ export function topPicks(
   const medianKaernten =
     kaerntenBereinigt.length >= minMietObjekte ? median(kaerntenBereinigt) : undefined;
 
-  kaufKandidaten = ohneKaufAusreisser(kaufKandidaten);
-  if (plzFilter !== undefined && plzFilter !== '') {
-    kaufKandidaten = kaufKandidaten.filter((k) => k.objekt.plz.startsWith(plzFilter));
-  }
-
   const picks: TopPickKandidat[] = [];
-  for (const { objekt, punkt } of kaufKandidaten) {
+  for (const { objekt, punkt } of ohneKaufAusreisser(kaufKandidaten)) {
     const basis = mieteBasisFuer(
       objekt.plz,
       objekt.bezirk,
