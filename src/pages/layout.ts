@@ -357,10 +357,11 @@ export const FORMULAR_CSS = `
 `;
 
 /** Eintrag der Hauptnavigation, der als aktuelle Seite markiert wird. */
-export type NavAktiv = 'dashboard' | 'inserate' | 'portfolio' | 'crawl';
+export type NavAktiv = 'dashboard' | 'top-picks' | 'inserate' | 'portfolio' | 'crawl';
 
 const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
   ['dashboard', '/', 'Dashboard'],
+  ['top-picks', '/top-picks', 'Top Picks'],
   ['inserate', '/inserate', 'Inserate'],
   ['portfolio', '/portfolio', 'Portfolio'],
   ['crawl', '/crawl', 'Crawl-Läufe'],

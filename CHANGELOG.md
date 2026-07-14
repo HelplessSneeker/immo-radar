@@ -26,6 +26,13 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   Serien-Überschrift nennt die Anzahl der Ausreißer.
 - Methodik-Abschnitt „Ausreißer (1,5×IQR)" erklärt Tukey-Regel,
   Berechnungsbasis und Schalter-Semantik.
+- Neue Seite `/top-picks`: die 10 aktiven Kauf-Objekte mit der höchsten
+  geschätzten Bruttorendite am Stichtag, mit PLZ-Präfix-Filter. Die Miete
+  kommt als ausreißerbereinigter Median-Kaltmiete-€/m² des Objekt-Gebiets
+  (Kaskade PLZ → Bezirk → Kärnten, min. 5 Werte nach Bereinigung; Basis
+  als Badge an jeder Zeile); Kauf-Objekte, die in ihrer PLZ als
+  1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking. Neuer Navbar-Eintrag
+  „Top Picks" und Methodik-Abschnitt `#top-picks`.
 
 ## [1.1.0] - 2026-07-10
 
