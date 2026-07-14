@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { BestandInserat, PreisPunkt } from '../src/db/bestand-repo.js';
 import { median } from '../src/stats.js';
 import {
+  berechneKpiDelta,
   berechneObjektTrend,
+  berechneRenditeKpiDelta,
   berechneRenditeTrend,
   datenpunkteAmStichtag,
   filterObjekte,
@@ -10,6 +12,7 @@ import {
   stichtageFuerTrend,
   streuungJeStichtag,
   type ObjektZeitreihe,
+  type TrendPunkt,
 } from '../src/trend.js';
 
 function inserat(
@@ -171,6 +174,46 @@ describe('berechneObjektTrend', () => {
     const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-06-15', '2026-07-01']);
     expect(trend.map((p) => p.datum)).toEqual(['2026-06-15', '2026-07-01']);
   });
+
+  it('ausreisserEinbeziehen=false nimmt 1,5×IQR-Ausreißer aus Median und Anzahl', () => {
+    // €/m²: 3600, 3800, 4000, 4200 und ein Ausreißer mit 20000 (Q3 + 1,5×IQR = 4800).
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+
+    // Default (einbeziehen) = Altverhalten: der Ausreißer verschiebt den Median.
+    const roh = berechneObjektTrend(objekte, ['2026-07-01']);
+    expect(roh[0]).toMatchObject({ medianKaufEurM2: 4000, anzahlKauf: 5 });
+    expect(berechneObjektTrend(objekte, ['2026-07-01'], { ausreisserEinbeziehen: true })).toEqual(
+      roh,
+    );
+    // Leeres Options-Objekt = Altverhalten (Default true).
+    expect(berechneObjektTrend(objekte, ['2026-07-01'], {})).toEqual(roh);
+
+    const bereinigt = berechneObjektTrend(objekte, ['2026-07-01'], {
+      ausreisserEinbeziehen: false,
+    });
+    expect(bereinigt[0]).toMatchObject({ medianKaufEurM2: 3900, anzahlKauf: 4 });
+  });
+
+  it('unter 4 Werten je Serie ist der Ausreißer-Ausschluss folgenlos', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 200000 }),
+      inserat({ id: 'wh-3', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    expect(berechneObjektTrend(objekte, ['2026-07-01'], { ausreisserEinbeziehen: false })).toEqual(
+      berechneObjektTrend(objekte, ['2026-07-01'], { ausreisserEinbeziehen: true }),
+    );
+  });
 });
 
 describe('stichtageFuerTrend', () => {
@@ -320,6 +363,59 @@ describe('datenpunkteAmStichtag', () => {
       expect(miete.length > 0 ? median(miete.map((p) => p.eurM2)) : null).toBe(punkt.medianMieteEurM2);
     }
   });
+
+  it('markiert Ausreißer der €/m²-Verteilung je Serie mit istAusreisser', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }), // 20000 €/m²
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.map((p) => [p.eurM2, p.istAusreisser])).toEqual([
+      [3600, false],
+      [3800, false],
+      [4000, false],
+      [4200, false],
+      [20000, true],
+    ]);
+  });
+
+  it('unter 4 Werten je Serie wird nichts als Ausreißer markiert', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 200000 }),
+      inserat({ id: 'wh-3', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.every((p) => !p.istAusreisser)).toBe(true);
+  });
+
+  it('Konsistenz-Invariante unter ausreisserEinbeziehen=false: Trend = nicht-geflaggte Punkte', () => {
+    // Die Punktmenge bleibt bewusst vollständig (Tabelle/Wolke zeigen alles);
+    // der bereinigte Trend muss exakt den nicht-geflaggten Punkten entsprechen.
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    const trend = berechneObjektTrend(objekte, ['2026-06-01', '2026-07-01'], {
+      ausreisserEinbeziehen: false,
+    });
+    for (const punktBereinigt of trend) {
+      const { kauf } = datenpunkteAmStichtag(objekte, punktBereinigt.datum);
+      const ohne = kauf.filter((p) => !p.istAusreisser);
+      expect(ohne).toHaveLength(punktBereinigt.anzahlKauf);
+      expect(median(ohne.map((p) => p.eurM2))).toBe(punktBereinigt.medianKaufEurM2);
+    }
+  });
 });
 
 describe('streuungJeStichtag', () => {
@@ -362,6 +458,110 @@ describe('berechneRenditeTrend', () => {
       { datum: '2026-06-01', bruttoRendite: 0.03 }, // 120 / 4000
       { datum: '2026-06-08', bruttoRendite: null },
     ]);
+  });
+});
+
+function trendPunkt(
+  datum: string,
+  kauf: number | null,
+  miete: number | null = null,
+): TrendPunkt {
+  return {
+    datum,
+    medianKaufEurM2: kauf,
+    medianMieteEurM2: miete,
+    anzahlKauf: kauf === null ? 0 : 1,
+    anzahlMiete: miete === null ? 0 : 1,
+  };
+}
+
+describe('berechneKpiDelta', () => {
+  it('leerer Trend oder nur null-Werte → null', () => {
+    expect(berechneKpiDelta([], 'medianKaufEurM2')).toBeNull();
+    expect(berechneKpiDelta([trendPunkt('2026-06-01', null)], 'medianKaufEurM2')).toBeNull();
+  });
+
+  it('nur ein Punkt mit Wert → kein Referenzpunkt, kein Delta', () => {
+    expect(berechneKpiDelta([trendPunkt('2026-06-01', 4000)], 'medianKaufEurM2')).toEqual({
+      aktuell: 4000,
+      referenzWert: null,
+      referenzDatum: null,
+    });
+    // Zwei Punkte, aber nur der letzte hat einen Wert: derselbe Punkt darf
+    // nicht zugleich Referenz sein.
+    expect(
+      berechneKpiDelta(
+        [trendPunkt('2026-06-01', null), trendPunkt('2026-07-01', 4000)],
+        'medianKaufEurM2',
+      ),
+    ).toEqual({ aktuell: 4000, referenzWert: null, referenzDatum: null });
+  });
+
+  it('2+ Punkte → Delta gegen den ersten nicht-null-Wert samt Referenz-Datum', () => {
+    const trend = [
+      trendPunkt('2026-06-01', null),
+      trendPunkt('2026-06-08', 4000),
+      trendPunkt('2026-07-01', 4200),
+    ];
+    const delta = berechneKpiDelta(trend, 'medianKaufEurM2');
+    expect(delta).toMatchObject({
+      aktuell: 4200,
+      referenzWert: 4000,
+      referenzDatum: '2026-06-08', // erster Punkt MIT Wert, nicht der erste Punkt
+      deltaAbsolut: 200,
+    });
+    expect(delta?.deltaAnteil).toBeCloseTo(0.05, 10);
+  });
+
+  it('null am Ende: der letzte nicht-null-Wert ist der aktuelle', () => {
+    const trend = [
+      trendPunkt('2026-06-01', 4000),
+      trendPunkt('2026-06-08', 4100),
+      trendPunkt('2026-07-01', null),
+    ];
+    expect(berechneKpiDelta(trend, 'medianKaufEurM2')).toMatchObject({
+      aktuell: 4100,
+      referenzWert: 4000,
+    });
+  });
+
+  it('Referenzwert 0 → deltaAnteil undefined (keine Division durch null)', () => {
+    const delta = berechneKpiDelta(
+      [trendPunkt('2026-06-01', 0), trendPunkt('2026-07-01', 100)],
+      'medianKaufEurM2',
+    );
+    expect(delta).toMatchObject({ aktuell: 100, referenzWert: 0, deltaAbsolut: 100 });
+    expect(delta?.deltaAnteil).toBeUndefined();
+  });
+
+  it('liest das gewünschte Feld (Miete)', () => {
+    const trend = [trendPunkt('2026-06-01', 4000, 10), trendPunkt('2026-07-01', 4200, 11)];
+    expect(berechneKpiDelta(trend, 'medianMieteEurM2')).toMatchObject({
+      aktuell: 11,
+      referenzWert: 10,
+      deltaAbsolut: 1,
+    });
+  });
+});
+
+describe('berechneRenditeKpiDelta', () => {
+  it('vergleicht bruttoRendite über null-Lücken hinweg', () => {
+    const trend = [
+      { datum: '2026-06-01', bruttoRendite: 0.03 },
+      { datum: '2026-06-08', bruttoRendite: null },
+      { datum: '2026-07-01', bruttoRendite: 0.032 },
+    ];
+    expect(berechneRenditeKpiDelta(trend)).toMatchObject({
+      aktuell: 0.032,
+      referenzWert: 0.03,
+      referenzDatum: '2026-06-01',
+    });
+    expect(berechneRenditeKpiDelta(trend)?.deltaAbsolut).toBeCloseTo(0.002, 10);
+  });
+
+  it('leer oder nur null → null', () => {
+    expect(berechneRenditeKpiDelta([])).toBeNull();
+    expect(berechneRenditeKpiDelta([{ datum: '2026-06-01', bruttoRendite: null }])).toBeNull();
   });
 });
 

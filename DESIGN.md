@@ -162,7 +162,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Navbar (Hauptnavigation)
 - **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 12px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
-- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die vier Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Vier Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
+- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die fünf Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Top Picks** (`/top-picks`, die Rendite-Rangliste je Objekt — Auswertung vor Roh-Sicht), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Fünf Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
 - **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`) dürfen ohne Markierung bleiben.
 - **Ausnahme:** Statisch exportierte CLI-Reports rendern ohne Navbar — ihre Links liefen ohne laufenden Server ins Leere.
 - Quelle: `renderNavbar`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Navbar.
@@ -176,6 +176,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Cards / Containers
 - **Section:** Fläche auf Papier, 1px Kontur, 10px Radius, 20px Innenabstand. Das Grundmodul jeder Seite; Inhaltsbreite 560px (Formulare, `breite: 'schmal'`) bzw. 1080px (Auswertungen, `breite: 'breit'`), zentriert.
 - **Tile (Kennzahl):** 1px Kontur, 8px Radius, 14px/16px Padding. Aufbau: Label (13px gedämpft) → Wert (30px/600) → Badge (12px). `tile-good` bekommt die Gut-Tönung als Fläche.
+- **Tile-Trend (`.tile-trend`):** optionale 12px-Zeile unter dem Wert: Pfeil `↑/↓/→` (600) + textliches Delta (600) + Referenz-Datum („vs. 30.06.2026") in Tinte-gedämpft — das Delta steht immer auch als Text, nie Farbe allein, und der Vergleichspunkt bleibt transparent. Urteils-Grenze: Der **Rendite-Pfeil urteilt** (`trend-pfeil-gut` grün / `trend-pfeil-schlecht` rot — die Rendite-Kachel urteilt ja schon via `tile-good`); **Preis-Pfeile (Kauf/Miete) bleiben Tintenfarbe** — ein teurerer Markt ist ein Fakt, kein Verdikt (siehe Don't „Markt-Tendenz"). Bei `|Δ|` unter der Stabil-Schwelle: `→` neutral. Ohne zweiten Datenpunkt im Zeitraum ersetzt „zu wenig Daten für Trend" (Meta-Text) die Zeile.
 - **Die Kachel-Wand-Schwelle:** Kennzahl-Tiles sind nach Urteil sortiert (beste Rendite zuerst) und auf 8 begrenzt — ab dem 9. Gebiet wird die Sektion zur kompakten Urteils-Tabelle, sonst entsteht genau die KPI-Kachel-Wand, die das System ablehnt.
 - **Verschachtelte Karten sind verboten.** Tiles liegen im Grid nebeneinander, nie ineinander.
 
@@ -188,7 +189,8 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Tables
 - **Style:** 13px, linksbündige Textspalten, rechtsbündige Zahlenspalten mit Tabellenziffern. Trennung nur durch 1px Raster-Linien unter den Zeilen — keine Zebra-Streifen, keine Außenkontur.
 - **Header:** Tinte-leise, 600, Basislinien-Unterkante; `scope`-Attribute auf allen Header-Zellen.
-- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung; Sub-Informationen als 12px-Block unter dem Zellenwert.
+- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung plus Text-Badge „▲ Ausreißer" (12px/600 in Kritisch) — site-weit, aus dem Basis-CSS (`.badge`/`.badge-critical`/`.row-outlier` in `src/pages/layout.ts`); Ausreißer-Zeilen bekommen kein Chance-Grün (erst prüfen, dann urteilen). Sub-Informationen als 12px-Block unter dem Zellenwert.
+- **Herkunfts-Badge (neutral):** Wo ein Wert aus einer Vergleichsbasis geschätzt ist (Top Picks: „Miete aus PLZ/Bezirk/Kärnten"), steht die Basis als 12px-Badge in Tinte-gedämpft unter dem Wert — Herkunft ist Fakt, kein Urteil, daher keine Statusfarbe (Ehrlichkeits-Prinzip wie die Vergleichsebene im Portfolio). Urteilszellen in Tabellen (Top Picks: Rendite ≥ Ziel) nutzen dieselben Töne wie `tile-good` — Gut-Tönung als Zellfläche plus `good-text`/600 auf dem Wert — und tragen das Urteil zusätzlich als Text („≥ Ziel 4 %"), nie als Farbe allein.
 - **Overflow:** Jede Tabelle liegt in einem `.tabelle-scroll`-Container (`overflow-x: auto`) — auf schmalen Viewports scrollt die Tabelle, nie die Seite.
 
 ### Status-Badges
@@ -200,6 +202,8 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ### Filterleiste
 - **Style:** `.filterleiste` — inline GET-Formular über Auswertungstabellen: Selects/Textfeld mit 600/13px-Labels darüber, abgeschlossen mit einem Ghost-Button „Filtern". Bricht per `flex-wrap` um.
+- **Schalter-Felder:** native Checkbox im `.feld-toggle` (Label 400 statt 600 — das Label ist hier der klickbare Text, keine Feldüberschrift), darunter ein 12px-Meta-Link auf den passenden `/methodik`-Anker. Beispiel: „Ausreißer einbeziehen" (`?ausreisser=an`) auf dem Dashboard und den Top Picks.
+- **Preset-Felder (Segmented Control light):** native Radios im `<fieldset class="feld feld-zeitraum">`, Legende als 600/13px-Feldüberschrift, Radio-Labels 400 inline nebeneinander — kein JS, kein Button-Styling. Beispiel: Zeitraum `7 / 30 / 90 Tage / Alle` (`?zeitraum=…`). Gehören Custom-Felder dazu (Von/Bis-Datum), **gewinnt Custom über das Preset**: sind beide Datumsfelder gefüllt, ist bewusst kein Radio aktiv — der Zustand bleibt sichtbar, ohne Disabled-Fake.
 - **Regeln:** Filter sind GET-Parameter und funktionieren ohne JS; gesetzte Filter zeigen einen Textlink „Filter zurücksetzen". Eine Auswertungsseite hat keine Primäraktion — der Filter-Button bleibt Ghost.
 
 ### Erklärzeilen (Kennzahl-Herkunft)
@@ -223,7 +227,7 @@ Chart.js mit striktem Token-Bezug: Serien lesen ihre Farben zur Laufzeit aus den
 - **Don't** Immobilienportal-Optik: keine Foto-Kacheln, Marketing-Badges oder Dringlichkeits-Druck (Anti-Referenz aus PRODUCT.md).
 - **Don't** SaaS-Dashboard-Klischee: keine KPI-Kachel-Wände, Gradient-Akzente oder Icon-Karten-Raster (Anti-Referenz aus PRODUCT.md).
 - **Don't** Schatten verwenden — das System ist flach (Flach-Regel).
-- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel). Präzisierung: Die Preisänderung eines Inserats trägt ein Urteil (Senkung = Kaufchance, grün; Erhöhung rot) — die Markt-Tendenz eines Gebiets (Median-Bewegung, ▲/▼/→) ist dagegen ein neutraler Fakt und bleibt in Tintenfarbe; Pfeil und Vorzeichen tragen die Richtung ohne Farbe.
+- **Don't** Statusfarben dekorativ einsetzen; Rot/Grün nur, wenn die Zahl ein Urteil trägt (Urteils-Regel). Präzisierung: Die Preisänderung eines Inserats trägt ein Urteil (Senkung = Kaufchance, grün; Erhöhung rot) — die Markt-Tendenz eines Gebiets (Median-Bewegung, ▲/▼/→) ist dagegen ein neutraler Fakt und bleibt in Tintenfarbe; Pfeil und Vorzeichen tragen die Richtung ohne Farbe. Gleiches gilt für die Kauf-/Miete-Trend-Pfeile der KPI-Kacheln; nur der Rendite-Trend-Pfeil urteilt (mehr Rendite = gut), siehe „Tile-Trend".
 - **Don't** farbige Seitenstreifen (`border-left` > 1px) an Karten, Zeilen oder Hinweisen.
 - **Don't** eine zweite Schriftfamilie einführen; Hierarchie kommt aus Größe und Gewicht.
 - **Don't** Tinte-leise (#898781) für Fließtext verwenden — es besteht den 4.5:1-Kontrast auf Papier nicht; nur für 600er Labels ≥13px oder unkritische Fußnoten.

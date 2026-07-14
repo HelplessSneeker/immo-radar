@@ -19,6 +19,7 @@ function datenpunkt(overrides: Partial<StichtagDatenpunkt> = {}): StichtagDatenp
     inseratId: 'wh-1',
     url: 'https://willhaben.at/wh-1',
     anzahlInserate: 1,
+    istAusreisser: false,
     ...overrides,
   };
 }
@@ -89,6 +90,28 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('Wohnungsmarkt Kärnten · PLZ 9020 · 45–90 m²');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
+  });
+
+  it('rendert den Ausreißer-Schalter: default aus und Kennzahlen als bereinigt beschriftet', () => {
+    const html = renderDashboardSeite(daten());
+    expect(html).toContain('name="ausreisser" value="an">');
+    expect(html).not.toContain('name="ausreisser" value="an" checked');
+    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt');
+    expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m², Ausreißer nicht mitgezählt');
+    expect(html).toContain('(ohne 1,5×IQR-Ausreißer)');
+    expect(html).not.toContain('Filter zurücksetzen');
+    expect(html).toContain('href="/methodik#ausreisser"');
+  });
+
+  it('checked bei ?ausreisser=an; der Reset-Link erscheint auch für den Schalter allein', () => {
+    const html = renderDashboardSeite(daten({ filter: { ausreisserEinbeziehen: true } }));
+    expect(html).toContain('name="ausreisser" value="an" checked');
+    expect(html).not.toContain('(ohne Ausreißer)');
+    expect(html).not.toContain('Ausreißer nicht mitgezählt');
+    expect(html).toContain('(1,5×IQR-Ausreißer einbezogen)');
+    expect(html).toContain('Filter zurücksetzen');
+    // Der Schalter gehört nicht in die Überschrift (nur PLZ/m² beschreiben die Marktsicht).
+    expect(html).toContain('<h1>Wohnungsmarkt Kärnten</h1>');
   });
 
   it('warnt bei Portal-Ausfällen des Stichtag-Sweeps', () => {
@@ -204,6 +227,48 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('+33,3 %');
   });
 
+  it('badged Ausreißer-Zeilen unabhängig vom Schalter, ohne Chance-Grün; Median folgt dem Schalter', () => {
+    const datenpunkte = {
+      kauf: [
+        // −75 % unter dem bereinigten Median → wäre Chance, ist aber Ausreißer.
+        datenpunkt({ eurM2: 1000, istAusreisser: true }),
+        datenpunkt({ inseratId: 'wh-2', eurM2: 3900 }),
+        datenpunkt({ inseratId: 'wh-3', eurM2: 4100 }),
+      ],
+      miete: [],
+    };
+    const bereinigt = renderDashboardSeite(daten({ datenpunkte }));
+    expect(bereinigt).toContain('▲ Ausreißer');
+    expect(bereinigt).toContain('class="row-outlier"');
+    expect(bereinigt).not.toContain('class="gesenkt"');
+    // Median ohne den geflaggten Punkt: (3900+4100)/2, Anzahl nennt die Ausreißer.
+    expect(bereinigt).toContain(
+      'Kauf · 3 Objekte · davon 1 Ausreißer · Median 4 000 €/m² (ohne Ausreißer)',
+    );
+
+    const einbezogen = renderDashboardSeite(
+      daten({ datenpunkte, filter: { ausreisserEinbeziehen: true } }),
+    );
+    expect(einbezogen).toContain('▲ Ausreißer'); // Badge bleibt sichtbar
+    expect(einbezogen).toContain('Kauf · 3 Objekte · davon 1 Ausreißer · Median 3 900 €/m²');
+    expect(einbezogen).not.toContain('(ohne Ausreißer)');
+  });
+
+  it('Stichtag- und Seiten-Links führen ?ausreisser=an mit', () => {
+    const kauf = Array.from({ length: 50 }, (_, i) =>
+      datenpunkt({ ort: `Ort${i}`, inseratId: `wh-${i}`, eurM2: 3000 + i }),
+    );
+    const html = renderDashboardSeite(
+      daten({
+        filter: { ausreisserEinbeziehen: true },
+        datenpunkte: { kauf, miete: [] },
+        datenpunkteOffen: true,
+      }),
+    );
+    expect(html).toContain('href="/?ausreisser=an&stichtag=2026-06-30#datenpunkte"');
+    expect(html).toContain('href="/?ausreisser=an&stichtag=2026-07-07&kauf_seite=2#dp-kauf"');
+  });
+
   it('paginiert die Tabellen mit 20 Zeilen und hält die Seite der anderen Serie', () => {
     // 50 Kauf-Punkte (aufsteigend sortiert, wie datenpunkteAmStichtag liefert).
     const kauf = Array.from({ length: 50 }, (_, i) =>
@@ -260,6 +325,139 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
   });
 });
 
+describe('renderDashboardSeite – Zeitraum-Filter & Trend-Pfeile', () => {
+  it('Default: Preset "Alle" checked, Datumsfelder leer, kein Reset-Link', () => {
+    const html = renderDashboardSeite(daten());
+    expect(html).toContain('name="zeitraum" value="alle" checked');
+    expect(html).toContain('name="zeitraum" value="7d">');
+    expect(html).toContain('name="zeitraum" value="30d">');
+    expect(html).toContain('name="zeitraum" value="90d">');
+    expect(html).toContain('name="von" value=""');
+    expect(html).toContain('name="bis" value=""');
+    expect(html).not.toContain('Filter zurücksetzen');
+  });
+
+  it('aktives Preset ist checked und zeigt den Reset-Link', () => {
+    const html = renderDashboardSeite(daten({ filter: { zeitraum: { preset: '30d' } } }));
+    expect(html).toContain('name="zeitraum" value="30d" checked');
+    expect(html).not.toContain('value="alle" checked');
+    expect(html).toContain('Filter zurücksetzen');
+  });
+
+  it('endet der Zeitraum vor dem Seiten-Stichtag, nennen die Kacheln den Stand des Werts', () => {
+    // Seiten-Stichtag 14.07., geklemmter Trend endet 07.07. (Custom-Zeitraum
+    // in der Vergangenheit): "aktive Objekte" darf nicht als heute lesbar sein.
+    const html = renderDashboardSeite(
+      daten({
+        stichtag: '2026-07-14',
+        filter: { zeitraum: { von: '2026-06-01', bis: '2026-07-07' } },
+      }),
+    );
+    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    expect(html).toContain('31 aktive Miet-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    expect(html).toContain('je €/m², Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    // Ohne Klemmen (Stichtag = letzter Trend-Punkt) kein Stand-Zusatz an den
+    // Kacheln (die Kopfzeile "… · Stand <Stichtag>" zählt nicht).
+    expect(renderDashboardSeite(daten())).not.toContain('mitgezählt · Stand');
+  });
+
+  it('Custom Von/Bis: kein Preset checked, Datumsfelder befüllt', () => {
+    const html = renderDashboardSeite(
+      daten({ filter: { zeitraum: { von: '2026-06-01', bis: '2026-07-07' } } }),
+    );
+    expect(html).not.toContain('checked>');
+    expect(html).not.toContain(' checked'); // kein Radio und kein Ausreißer-Haken
+    expect(html).toContain('name="von" value="2026-06-01"');
+    expect(html).toContain('name="bis" value="2026-07-07"');
+    expect(html).toContain('Filter zurücksetzen');
+  });
+
+  it('KPI-Kacheln: Pfeil, textliches Delta und Referenz-Datum', () => {
+    const html = renderDashboardSeite(daten());
+    // Kauf: 3900 → 4000 = +2,6 %, neutraler Pfeil ohne Urteils-Klasse.
+    expect(html).toContain(
+      '<span class="trend-pfeil" aria-label="steigend">↑</span> <span class="trend-delta">+2,6 %</span> <span class="trend-ref">vs. 30.06.2026</span>',
+    );
+    // Miete: 9,8 → 10 = +2,0 %.
+    expect(html).toContain('<span class="trend-delta">+2,0 %</span>');
+    // Rendite: 3,02 % → 3,00 % = −0,02 %-Pkt. → unter der Schwelle, stabil.
+    expect(html).toContain('<span class="trend-pfeil" aria-label="stabil">→</span>');
+    expect(html).toContain('±0,0 %-Pkt.');
+    // Keine Urteils-Klasse an einem Pfeil (die CSS-Regeln stehen immer im Head).
+    expect(html).not.toContain('class="trend-pfeil trend-pfeil-gut"');
+    expect(html).not.toContain('class="trend-pfeil trend-pfeil-schlecht"');
+  });
+
+  it('Rendite-Pfeil urteilt: gestiegen grün, gefallen rot — in %-Punkten', () => {
+    const gestiegen = renderDashboardSeite(
+      daten({
+        renditeTrend: [
+          { datum: '2026-06-30', bruttoRendite: 0.03 },
+          { datum: '2026-07-07', bruttoRendite: 0.035 },
+        ],
+      }),
+    );
+    expect(gestiegen).toContain(
+      '<span class="trend-pfeil trend-pfeil-gut" aria-label="steigend">↑</span>',
+    );
+    expect(gestiegen).toContain('+0,5 %-Pkt.');
+
+    const gefallen = renderDashboardSeite(
+      daten({
+        renditeTrend: [
+          { datum: '2026-06-30', bruttoRendite: 0.035 },
+          { datum: '2026-07-07', bruttoRendite: 0.03 },
+        ],
+      }),
+    );
+    expect(gefallen).toContain(
+      '<span class="trend-pfeil trend-pfeil-schlecht" aria-label="fallend">↓</span>',
+    );
+    expect(gefallen).toContain('−0,5 %-Pkt.');
+    // Preis-Pfeile bleiben auch bei fallenden Preisen ohne Urteils-Klasse.
+    const preiseGefallen = renderDashboardSeite(
+      daten({
+        trend: [
+          { datum: '2026-06-30', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 40, anzahlMiete: 30 },
+          { datum: '2026-07-07', medianKaufEurM2: 3900, medianMieteEurM2: 9.8, anzahlKauf: 42, anzahlMiete: 31 },
+        ],
+      }),
+    );
+    expect(preiseGefallen).toContain('<span class="trend-pfeil" aria-label="fallend">↓</span>');
+    expect(preiseGefallen).toContain('−2,5 %');
+  });
+
+  it('bei nur einem Trend-Punkt: Fallback-Text statt Pfeil', () => {
+    const html = renderDashboardSeite(
+      daten({
+        trend: [
+          { datum: '2026-07-07', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 42, anzahlMiete: 31 },
+        ],
+        renditeTrend: [{ datum: '2026-07-07', bruttoRendite: 0.03 }],
+      }),
+    );
+    expect(html).toContain('zu wenig Daten für Trend');
+    expect(html).not.toContain('class="trend-pfeil"');
+  });
+
+  it('Stichtag-Links führen den Zeitraum mit (Preset und Custom)', () => {
+    const preset = renderDashboardSeite(
+      daten({ filter: { zeitraum: { preset: '30d' } }, datenpunkteOffen: true }),
+    );
+    expect(preset).toContain('href="/?zeitraum=30d&stichtag=2026-06-30#datenpunkte"');
+
+    const custom = renderDashboardSeite(
+      daten({
+        filter: { zeitraum: { von: '2026-06-01', bis: '2026-07-07' } },
+        datenpunkteOffen: true,
+      }),
+    );
+    expect(custom).toContain(
+      'href="/?von=2026-06-01&bis=2026-07-07&stichtag=2026-06-30#datenpunkte"',
+    );
+  });
+});
+
 describe('renderDashboardOhneDatenSeite', () => {
   it('unterscheidet "läuft gerade" von "steht aus"', () => {
     expect(renderDashboardOhneDatenSeite(true)).toContain('läuft gerade');
@@ -288,6 +486,50 @@ describe('parseDashboardFilter', () => {
     expect(parseDashboardFilter(params('flaeche_min=90&flaeche_max=45'))).toEqual({
       flaecheMin: 45,
       flaecheMax: 90,
+    });
+  });
+
+  it('?ausreisser=an schaltet die Einbeziehung an; alles andere lässt das Feld weg', () => {
+    expect(parseDashboardFilter(params('ausreisser=an'))).toEqual({ ausreisserEinbeziehen: true });
+    expect(parseDashboardFilter(params('ausreisser=AN'))).toEqual({ ausreisserEinbeziehen: true });
+    expect(parseDashboardFilter(params('ausreisser=aus'))).toEqual({});
+    expect(parseDashboardFilter(params('ausreisser=quatsch'))).toEqual({});
+    expect(parseDashboardFilter(params('ausreisser='))).toEqual({});
+    expect(parseDashboardFilter(params(''))).toEqual({});
+    expect(parseDashboardFilter(params('plz=9020&ausreisser=an'))).toEqual({
+      plz: '9020',
+      ausreisserEinbeziehen: true,
+    });
+  });
+
+  it('?zeitraum=Preset case-insensitiv; Unfug wird still verworfen', () => {
+    expect(parseDashboardFilter(params('zeitraum=7d'))).toEqual({ zeitraum: { preset: '7d' } });
+    expect(parseDashboardFilter(params('zeitraum=30D'))).toEqual({ zeitraum: { preset: '30d' } });
+    // 'alle' ist der Default und wird normalisiert (kein Sonderzustand).
+    expect(parseDashboardFilter(params('zeitraum=alle'))).toEqual({});
+    expect(parseDashboardFilter(params('zeitraum=quatsch'))).toEqual({});
+    expect(parseDashboardFilter(params('zeitraum='))).toEqual({});
+  });
+
+  it('von/bis nur paarweise und gültig; sonst still verworfen', () => {
+    expect(parseDashboardFilter(params('von=2026-06-01&bis=2026-07-01'))).toEqual({
+      zeitraum: { von: '2026-06-01', bis: '2026-07-01' },
+    });
+    expect(parseDashboardFilter(params('von=2026-06-01'))).toEqual({});
+    expect(parseDashboardFilter(params('bis=2026-07-01'))).toEqual({});
+    expect(parseDashboardFilter(params('von=2026-07-01&bis=2026-06-01'))).toEqual({}); // von > bis
+    expect(parseDashboardFilter(params('von=quatsch&bis=2026-07-01'))).toEqual({});
+    expect(parseDashboardFilter(params('von=01.06.2026&bis=2026-07-01'))).toEqual({});
+    expect(parseDashboardFilter(params('von=2026-13-40&bis=2026-13-41'))).toEqual({}); // Format ok, kein Datum
+    expect(parseDashboardFilter(params('von=&bis='))).toEqual({});
+  });
+
+  it('vollständiges von/bis schlägt das Preset; unvollständiges lässt es gelten', () => {
+    expect(parseDashboardFilter(params('zeitraum=7d&von=2026-06-01&bis=2026-07-01'))).toEqual({
+      zeitraum: { von: '2026-06-01', bis: '2026-07-01' },
+    });
+    expect(parseDashboardFilter(params('zeitraum=7d&von=2026-06-01'))).toEqual({
+      zeitraum: { preset: '7d' },
     });
   });
 });

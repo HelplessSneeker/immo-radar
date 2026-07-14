@@ -1,7 +1,7 @@
 import type { BestandInserat, PreisPunkt } from './db/bestand-repo.js';
 import { tageZwischen } from './datum.js';
 import { kanonischerOrt, normalisierePlz } from './normalisierung.js';
-import { bruttoRendite, mean, median } from './stats.js';
+import { ausreisserFlags, bruttoRendite, mean, median, ohneAusreisser } from './stats.js';
 import type { InseratTyp } from './types.js';
 
 /**
@@ -215,11 +215,23 @@ export function stichtageFuerTrend(objekte: ObjektZeitreihe[], sweepTage: string
  * ist (delistet erst, wenn alle weg sind — Relistings halten die Reihe
  * durchgehend). Stichtage vor dem ersten Datenpunkt der übergebenen
  * (ggf. gefilterten) Objekte werden abgeschnitten.
+ *
+ * ausreisserEinbeziehen=false schließt je (Stichtag, Typ) die
+ * 1,5×IQR-Ausreißer der €/m²-Verteilung aus Median UND Anzahl aus
+ * (siehe ausreisserFlags; unter 4 Werten folgenlos). Der Default true
+ * entspricht dem unbereinigten Altverhalten — das Dashboard übergibt false.
  */
+export interface BerechneObjektTrendOptionen {
+  /** Default true (Altverhalten): Ausreißer in die Mediane einrechnen. */
+  ausreisserEinbeziehen?: boolean;
+}
+
 export function berechneObjektTrend(
   objekte: ObjektZeitreihe[],
   stichtage: string[],
+  optionen: BerechneObjektTrendOptionen = {},
 ): TrendPunkt[] {
+  const { ausreisserEinbeziehen = true } = optionen;
   if (objekte.length === 0) return [];
   const start = objekte.map((o) => o.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
 
@@ -231,12 +243,16 @@ export function berechneObjektTrend(
         const wert = objektEurM2AmStichtag(objekt, stichtag);
         if (wert !== undefined) eurM2[objekt.typ].push(wert);
       }
+      const werte = (typ: InseratTyp): number[] =>
+        ausreisserEinbeziehen ? eurM2[typ] : ohneAusreisser(eurM2[typ]);
+      const kauf = werte('kauf');
+      const miete = werte('miete');
       return {
         datum: stichtag,
-        medianKaufEurM2: eurM2.kauf.length > 0 ? median(eurM2.kauf) : null,
-        medianMieteEurM2: eurM2.miete.length > 0 ? median(eurM2.miete) : null,
-        anzahlKauf: eurM2.kauf.length,
-        anzahlMiete: eurM2.miete.length,
+        medianKaufEurM2: kauf.length > 0 ? median(kauf) : null,
+        medianMieteEurM2: miete.length > 0 ? median(miete) : null,
+        anzahlKauf: kauf.length,
+        anzahlMiete: miete.length,
       };
     });
 }
@@ -261,13 +277,17 @@ export interface StichtagDatenpunkt {
   url?: string;
   /** Am Stichtag aktive Inserate des Objekts (>1 = portalübergreifend dedupliziert). */
   anzahlInserate: number;
+  /** 1,5×IQR-Ausreißer der €/m²-Verteilung seiner Serie (Stichtag × Typ). */
+  istAusreisser: boolean;
 }
 
 /**
  * Die Datenpunkte hinter einem Stichtag: pro dann aktivem Objekt genau der
  * €/m²-Wert, der in berechneObjektTrend in den Median eingeht (dieselbe
  * Kernlogik: objektDatenpunktAmStichtag). Je Serie aufsteigend nach €/m²
- * sortiert (Käufer-Perspektive: günstig zuerst).
+ * sortiert (Käufer-Perspektive: günstig zuerst). Die Punktmenge ist immer
+ * vollständig — Ausreißer werden nur via istAusreisser markiert, damit
+ * Tabelle und Punktwolke sie unabhängig vom Kennzahlen-Toggle zeigen können.
  */
 export function datenpunkteAmStichtag(
   objekte: ObjektZeitreihe[],
@@ -287,10 +307,18 @@ export function datenpunkteAmStichtag(
       portal: wert.inserat.portal,
       inseratId: wert.inserat.inseratId,
       anzahlInserate: wert.anzahlAktive,
+      istAusreisser: false,
     };
     if (objekt.objektId !== undefined) punkt.objektId = objekt.objektId;
     if (wert.inserat.url !== undefined) punkt.url = wert.inserat.url;
     punkte[objekt.typ].push(punkt);
+  }
+  for (const serie of [punkte.kauf, punkte.miete]) {
+    // Gleiche Grundmenge wie berechneObjektTrend, daher deckungsgleiche Flags.
+    const flags = ausreisserFlags(serie.map((p) => p.eurM2));
+    serie.forEach((p, i) => {
+      p.istAusreisser = flags[i] === true;
+    });
   }
   punkte.kauf.sort((a, b) => a.eurM2 - b.eurM2);
   punkte.miete.sort((a, b) => a.eurM2 - b.eurM2);
@@ -338,6 +366,54 @@ export function berechneRenditeTrend(trend: TrendPunkt[]): RenditeTrendPunkt[] {
         ? bruttoRendite(punkt.medianMieteEurM2, punkt.medianKaufEurM2)
         : null,
   }));
+}
+
+/**
+ * Entwicklung einer KPI über den (ggf. zeitraum-geklemmten) Trend:
+ * letzter nicht-null-Wert vs. erster nicht-null-Wert. referenzWert null =
+ * kein zweiter Datenpunkt (Single-Point-Trend oder nur ein Punkt mit Wert)
+ * — dann gibt es kein Delta und die Kachel zeigt den Fallback-Text.
+ */
+export interface KpiDelta {
+  aktuell: number;
+  referenzWert: number | null;
+  /** Stichtag des Referenzwerts, fürs transparente „vs. …" in der Kachel. */
+  referenzDatum: string | null;
+  /** aktuell − referenz; undefined, wenn referenzWert null ist. */
+  deltaAbsolut?: number;
+  /** aktuell/referenz − 1; undefined bei referenzWert null oder 0. */
+  deltaAnteil?: number;
+}
+
+function kpiDeltaAusReihe(reihe: { datum: string; wert: number | null }[]): KpiDelta | null {
+  const mitWert = reihe.filter((p): p is { datum: string; wert: number } => p.wert !== null);
+  const letzter = mitWert.at(-1);
+  if (letzter === undefined) return null;
+  const erster = mitWert[0];
+  if (erster === undefined || erster === letzter) {
+    return { aktuell: letzter.wert, referenzWert: null, referenzDatum: null };
+  }
+  const delta: KpiDelta = {
+    aktuell: letzter.wert,
+    referenzWert: erster.wert,
+    referenzDatum: erster.datum,
+    deltaAbsolut: letzter.wert - erster.wert,
+  };
+  if (erster.wert !== 0) delta.deltaAnteil = letzter.wert / erster.wert - 1;
+  return delta;
+}
+
+/** KPI-Delta für die Preis-Kacheln (Kauf-/Miete-Median). */
+export function berechneKpiDelta(
+  trend: TrendPunkt[],
+  feld: 'medianKaufEurM2' | 'medianMieteEurM2',
+): KpiDelta | null {
+  return kpiDeltaAusReihe(trend.map((p) => ({ datum: p.datum, wert: p[feld] })));
+}
+
+/** KPI-Delta für die Rendite-Kachel — eigene Funktion statt Überladung. */
+export function berechneRenditeKpiDelta(trend: RenditeTrendPunkt[]): KpiDelta | null {
+  return kpiDeltaAusReihe(trend.map((p) => ({ datum: p.datum, wert: p.bruttoRendite })));
 }
 
 export interface ObjektFilter {

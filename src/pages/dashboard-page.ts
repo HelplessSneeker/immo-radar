@@ -1,13 +1,25 @@
 import type { DashboardFilter } from '../search.js';
 import { median } from '../stats.js';
-import type {
-  RenditeTrendPunkt,
-  StichtagDatenpunkt,
-  StreuungsPunkt,
-  TrendPunkt,
+import {
+  berechneKpiDelta,
+  berechneRenditeKpiDelta,
+  type KpiDelta,
+  type RenditeTrendPunkt,
+  type StichtagDatenpunkt,
+  type StreuungsPunkt,
+  type TrendPunkt,
 } from '../trend.js';
-import { fmtRendite, datumMedium, nfEur0, nfEur2, nfPct, nfTage } from './format.js';
-import { escapeHtml, seite } from './layout.js';
+import {
+  DELTA_STABIL_SCHWELLE,
+  fmtDelta,
+  fmtRendite,
+  datumMedium,
+  nfEur0,
+  nfEur2,
+  nfPct,
+  nfTage,
+} from './format.js';
+import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
  * Die Startseite: der Kärntner Wohnungsmarkt als Zeitreihe — Bruttorendite,
@@ -69,6 +81,22 @@ const DASHBOARD_CSS = `
   .datenpunkte summary h2 { display: inline; margin: 0; }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
+  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .feld-toggle .meta { margin: 0; font-size: 12px; }
+  /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
+     Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
+  .feld-zeitraum { border: 0; padding: 0; margin: 0; }
+  .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }
+  .feld-zeitraum .presets label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; font-size: 13px; }
+  /* Trend-Zeile der KPI-Kacheln: direkt unter dem Wert (vor Badge/Sub),
+     Pfeil + textliches Delta + Referenz-Datum. Nur der Rendite-Pfeil
+     urteilt (gut/schlecht) — Preis-Pfeile bleiben Tinte. */
+  .tile-trend { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+  .trend-pfeil { font-weight: 600; }
+  .trend-pfeil-gut { color: var(--good-text); }
+  .trend-pfeil-schlecht { color: var(--status-critical); }
+  .trend-delta { font-weight: 600; }
+  .trend-ref { color: var(--text-secondary); }
 `;
 
 /** Ab dieser Abweichung unter dem Serien-Median gilt ein Datenpunkt als Chance (grün). */
@@ -91,10 +119,18 @@ function filterBeschreibung(filter: DashboardFilter): string {
 function filterleiste(daten: DashboardDaten): string {
   const filter = daten.filter;
   const zuruecksetzen =
-    filterBeschreibung(filter) !== ''
+    filterBeschreibung(filter) !== '' ||
+    filter.ausreisserEinbeziehen === true ||
+    filter.zeitraum !== undefined
       ? '\n      <p class="meta"><a href="/">Filter zurücksetzen</a></p>'
       : '';
   const zahlWert = (n: number | undefined): string => (n === undefined ? '' : String(n));
+  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
+  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
+  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
+  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
+  const preset = (wert: string, label: string): string =>
+    `<label><input type="radio" name="zeitraum" value="${wert}"${aktivesPreset === wert ? ' checked' : ''}> ${label}</label>`;
   // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
   // aus dem neuen Trend, greift der stille Fallback im Handler.
   const stichtagFeld =
@@ -114,8 +150,72 @@ function filterleiste(daten: DashboardDaten): string {
         <label for="f-flaeche-max">Fläche bis (m²)</label>
         <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="z. B. 90">
       </div>
+      <fieldset class="feld feld-zeitraum">
+        <legend>Zeitraum</legend>
+        <div class="presets">
+          ${preset('7d', '7 Tage')}
+          ${preset('30d', '30 Tage')}
+          ${preset('90d', '90 Tage')}
+          ${preset('alle', 'Alle')}
+        </div>
+      </fieldset>
+      <div class="feld">
+        <label for="f-von">Von</label>
+        <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}">
+      </div>
+      <div class="feld">
+        <label for="f-bis">Bis</label>
+        <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}">
+      </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
       <button>Filtern</button>${zuruecksetzen}
     </form>`;
+}
+
+/**
+ * Trend-Zeile einer KPI-Kachel: Pfeil + Delta vs. Anfang des gewählten
+ * Zeitraums, mit Referenz-Datum (Prinzip 4: der Vergleich bleibt transparent).
+ * einheit wählt den Delta-Wert: Rendite vergleicht in %-Punkten (absolut),
+ * Preise relativ. urteil färbt nur den Rendite-Pfeil — ein teurerer Markt
+ * ist kein Verdikt, eine bessere Rendite schon.
+ */
+function kachelTrend(
+  delta: KpiDelta | null,
+  einheit: 'prozent' | 'prozentpunkte',
+  urteil: boolean,
+): string {
+  const wert = einheit === 'prozentpunkte' ? delta?.deltaAbsolut : delta?.deltaAnteil;
+  if (delta === null || delta.referenzDatum === null || wert === undefined) {
+    return `<div class="tile-trend meta">zu wenig Daten für Trend</div>`;
+  }
+  const stabil = Math.abs(wert) < DELTA_STABIL_SCHWELLE;
+  const pfeil = stabil ? '→' : wert > 0 ? '↑' : '↓';
+  const label = stabil ? 'stabil' : wert > 0 ? 'steigend' : 'fallend';
+  const klasse = urteil && !stabil ? (wert > 0 ? ' trend-pfeil-gut' : ' trend-pfeil-schlecht') : '';
+  return `<div class="tile-trend"><span class="trend-pfeil${klasse}" aria-label="${label}">${pfeil}</span> <span class="trend-delta">${fmtDelta(wert, einheit)}</span> <span class="trend-ref">vs. ${escapeHtml(datumMedium(delta.referenzDatum))}</span></div>`;
+}
+
+/**
+ * "· Stand DD.MM.YYYY" für die tile-sub, wenn der angezeigte Wert nicht vom
+ * Seiten-Stichtag stammt (Zeitraum endet vor dem letzten Sweep) — sonst
+ * liest sich "N aktive Objekte" als heutiger Marktstand (Prinzip 4).
+ */
+function standZusatz(datum: string | undefined, seitenStichtag: string): string {
+  return datum !== undefined && datum !== seitenStichtag
+    ? ` · Stand ${escapeHtml(datumMedium(datum))}`
+    : '';
+}
+
+/**
+ * Beschriftungs-Suffix der KPI-Kacheln: Kennzahlen rechnen standardmäßig
+ * bereinigt. „Ausreißer nicht mitgezählt" statt „(ohne Ausreißer)" — Letzteres
+ * las sich auch als „die N sind Nicht-Ausreißer" (Karte-01-Review).
+ */
+function bereinigtSuffix(filter: DashboardFilter): string {
+  return filter.ausreisserEinbeziehen === true ? '' : ', Ausreißer nicht mitgezählt';
 }
 
 function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
@@ -125,15 +225,18 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
     return `      <div class="tile">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">–</div>
-        <div class="tile-sub">braucht Kauf- und Miet-Objekte im Filter</div>
+        <div class="tile-sub">braucht Kauf- und Miet-Objekte im gewählten Filter und Zeitraum</div>
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
+  const bereinigt = bereinigtSuffix(daten.filter);
+  const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">${fmtRendite(rendite)}</div>
+        ${kachelTrend(berechneRenditeKpiDelta(daten.renditeTrend), 'prozentpunkte', true)}
         <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>
-        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²</div>
+        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}${stand}</div>
       </div>`;
 }
 
@@ -141,6 +244,8 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.trend.at(-1);
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
+  const bereinigt = bereinigtSuffix(daten.filter);
+  const stand = standZusatz(letzter?.datum, daten.stichtag);
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0
       ? `\n    <p class="warnung">Beim letzten Sweep waren ${daten.portalAusfaelle.length} Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>`
@@ -149,12 +254,14 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
 ${renditeKachel(daten, zielProzent)}      <div class="tile">
         <div class="tile-label">Kaufpreis (Median)</div>
         <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte` : 'keine Daten'}</div>
+        ${kauf != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianKaufEurM2'), 'prozent', false) : ''}
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Kaltmiete (Median)</div>
         <div class="tile-value">${miete != null ? `${nfEur2.format(miete)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte` : 'keine Daten'}</div>
+        ${miete != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianMieteEurM2'), 'prozent', false) : ''}
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Letzter Sweep</div>
@@ -167,7 +274,7 @@ ${renditeKachel(daten, zielProzent)}      <div class="tile">
 
 function chartSektion(trend: TrendPunkt[]): string {
   if (trend.length === 0) {
-    return `    <p class="meta">Keine Objekte im gewählten Filter – Filter lockern oder
+    return `    <p class="meta">Keine Objekte im gewählten Filter oder Zeitraum – Filter lockern oder
     <a href="/">zurücksetzen</a>.</p>`;
   }
   return `    <div class="charts-3">
@@ -201,6 +308,13 @@ function dashboardUrl(
   if (filter.plz) params.set('plz', filter.plz);
   if (filter.flaecheMin !== undefined) params.set('flaeche_min', String(filter.flaecheMin));
   if (filter.flaecheMax !== undefined) params.set('flaeche_max', String(filter.flaecheMax));
+  if (filter.ausreisserEinbeziehen === true) params.set('ausreisser', 'an');
+  if (filter.zeitraum?.von !== undefined && filter.zeitraum.bis !== undefined) {
+    params.set('von', filter.zeitraum.von);
+    params.set('bis', filter.zeitraum.bis);
+  } else if (filter.zeitraum?.preset !== undefined) {
+    params.set('zeitraum', filter.zeitraum.preset);
+  }
   params.set('stichtag', stichtag);
   if (seiten !== undefined && seiten.kauf > 1) params.set('kauf_seite', String(seiten.kauf));
   if (seiten !== undefined && seiten.miete > 1) params.set('miete_seite', String(seiten.miete));
@@ -231,15 +345,19 @@ function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: bool
   const dedup =
     p.anzahlInserate > 1 ? ` · ${nfEur0.format(p.anzahlInserate)} Inserate (dedupliziert)` : '';
   const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${dedup}`;
+  const badge = p.istAusreisser ? ' <span class="badge badge-critical">▲ Ausreißer</span>' : '';
   const abweichung = p.eurM2 / serienMedian - 1;
   const zeichen = abweichung < 0 ? '−' : '+';
   const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
   // Käufer-Perspektive: deutlich unter dem Median = Chance (grün). Kein Rot
-  // für "teuer" – teuer ist kein Verdikt, nur eine Lage.
+  // für "teuer" – teuer ist kein Verdikt, nur eine Lage. Ausreißer bekommen
+  // kein Chance-Grün: erst prüfen (Tippfehler? Sonderfall?), dann freuen.
   const abwZelle =
-    abweichung <= CHANCE_SCHWELLE ? `<span class="gesenkt">${abwText}</span>` : abwText;
-  return `        <tr>
-          <td>${link}<span class="sub">${sub}</span></td>
+    abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
+      ? `<span class="gesenkt">${abwText}</span>`
+      : abwText;
+  return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
+          <td>${link}${badge}<span class="sub">${sub}</span></td>
           <td class="num">${nfEur0.format(p.preis)} €</td>
           <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num">${kauf ? nfEur0.format(p.eurM2) : nfEur2.format(p.eurM2)}</td>
@@ -255,8 +373,13 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
     return `      <h3 id="${anker}">${label}</h3>
       <p class="meta">Keine aktiven ${label}-Objekte an diesem Stichtag.</p>`;
   }
-  // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite.
-  const serienMedian = median(punkte.map((p) => p.eurM2));
+  // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite. Er folgt
+  // dem Ausreißer-Toggle (wie die KPI-Kacheln); nie leer, weil ausreisserFlags
+  // bei n≥4 die mittlere Hälfte stehen lässt und bei n<4 nichts flaggt.
+  const einbeziehen = daten.filter.ausreisserEinbeziehen === true;
+  const imMedian = einbeziehen ? punkte : punkte.filter((p) => !p.istAusreisser);
+  const serienMedian = median(imMedian.map((p) => p.eurM2));
+  const anzahlAusreisser = punkte.filter((p) => p.istAusreisser).length;
   const medianText = kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian);
   const gesamtSeiten = Math.max(1, Math.ceil(punkte.length / DATENPUNKTE_PRO_SEITE));
   const gewuenscht = kauf ? daten.datenpunkteSeiten.kauf : daten.datenpunkteSeiten.miete;
@@ -281,7 +404,9 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
         ${seite < gesamtSeiten ? `<a href="${url(seite + 1)}">Weiter →</a>` : '<span></span>'}
       </nav>`
       : '';
-  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte · Median ${medianText} €/m²</h3>
+  const ausreisserText =
+    anzahlAusreisser > 0 ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer` : '';
+  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText} · Median ${medianText} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}</h3>
       <div class="tabelle-scroll">
       <table>
         <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
@@ -300,7 +425,8 @@ function datenpunkteSektion(daten: DashboardDaten): string {
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
       <summary><h2>Datenpunkte (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
-      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe.
+      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe. Die Wolke zeigt
+      immer alle Objekte; die Median-Linie folgt dem Ausreißer-Filter.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">
@@ -312,8 +438,9 @@ function datenpunkteSektion(daten: DashboardDaten): string {
           <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
         </div>
       </div>
-      <p class="meta">Die Tabellen zeigen die Punkte des gewählten Stichtags – zum
-      Nachschlagen und Prüfen einzelner Ausreißer.</p>
+      <p class="meta">Die Tabellen zeigen alle Punkte des gewählten Stichtags –
+      Ausreißer (1,5×IQR) sind markiert und zählen nur mit „Ausreißer einbeziehen"
+      in die Kennzahlen. <a href="/methodik#ausreisser">Details</a></p>
 ${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}
 ${serieBlock(daten, stichtag, false)}
@@ -324,23 +451,15 @@ ${serieBlock(daten, stichtag, false)}
 
 /** Startseite ohne Daten: noch kein fertiger Sweep. */
 export function renderDashboardOhneDatenSeite(sweepLaeuft: boolean): string {
-  // Selbe Meta-Zeile wie im befüllten Zustand (ohne "Stand …"), damit der
-  // Kopf nicht als isolierter Titel wirkt und der Ton zwischen leer und
-  // befüllt konsistent bleibt.
-  const inhalt = `  <header>
-    <h1>Wohnungsmarkt Kärnten</h1>
-    <p class="meta">Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
-    täglich vollständig gecrawlt und zu Objekten dedupliziert.</p>
-  </header>
-  <section>
-    <h2>Noch keine Daten</h2>
-    <p class="meta">${
-      sweepLaeuft
-        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
-        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
-    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
-  </section>`;
-  return seite('Dashboard', inhalt, { aktiv: 'dashboard' });
+  // Selbe Meta-Zeile wie im befüllten Zustand (ohne "Stand …").
+  return renderOhneDatenSeite({
+    titel: 'Dashboard',
+    aktiv: 'dashboard',
+    ueberschrift: 'Wohnungsmarkt Kärnten',
+    untertitel: `Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
+    täglich vollständig gecrawlt und zu Objekten dedupliziert.`,
+    sweepLaeuft,
+  });
 }
 
 export function renderDashboardSeite(daten: DashboardDaten): string {
@@ -379,8 +498,12 @@ ${kpiZeile(daten, zielProzent)}
   <section>
     <h2>Zeitreihen (je Crawl-Lauf)</h2>
     <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
-    Objekte; ein Objekt zählt einmal, auch wenn es auf beiden Portalen inseriert ist.
-    <a href="/methodik#objekte">Details</a></p>
+    Objekte (${
+      daten.filter.ausreisserEinbeziehen === true
+        ? '1,5×IQR-Ausreißer einbezogen'
+        : 'ohne 1,5×IQR-Ausreißer'
+    }); ein Objekt zählt einmal, auch wenn
+    es auf beiden Portalen inseriert ist. <a href="/methodik#objekte">Details</a></p>
 ${chartSektion(daten.trend)}
   </section>
 ${datenpunkteSektion(daten)}

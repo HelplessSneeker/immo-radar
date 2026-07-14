@@ -40,9 +40,11 @@ import {
   type PortfolioFormFehler,
 } from './pages/portfolio-pages.js';
 import { renderSweepSeite } from './pages/sweep-page.js';
+import { renderTopPicksOhneDatenSeite, renderTopPicksSeite } from './pages/top-picks-page.js';
 import { vergleichePortfolio } from './portfolio-vergleich.js';
 import { ZIEL_RENDITE } from './report.js';
 import { starteZeitplan } from './scheduler.js';
+import { topPicks } from './top-picks.js';
 import {
   parseDashboardFilter,
   parseDatenpunkteSeiten,
@@ -61,6 +63,7 @@ import {
   stichtageFuerTrend,
   streuungJeStichtag,
 } from './trend.js';
+import { zeitraumZuGrenzen } from './zeitraum.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -128,7 +131,16 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     (d) => d <= sweep.laufDatum,
   );
   const objekte = filterObjekte(alleObjekte, filter);
-  const trend = berechneObjektTrend(objekte, stichtage);
+  // Zeitraum klemmt nur die Stichtag-Liste — berechneObjektTrend bleibt bei
+  // "berechnet, was du reingibst". Alles Downstream (Rendite-Trend, Streuung,
+  // Datenpunkte-Nav) folgt dem geklemmten Trend automatisch.
+  const grenzen = zeitraumZuGrenzen(filter.zeitraum, sweep.laufDatum);
+  const stichtageImZeitraum = grenzen
+    ? stichtage.filter((d) => d >= grenzen.von && d <= grenzen.bis)
+    : stichtage;
+  const trend = berechneObjektTrend(objekte, stichtageImZeitraum, {
+    ausreisserEinbeziehen: filter.ausreisserEinbeziehen === true,
+  });
   // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
   // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
   const gewuenscht = parseStichtag(params);
@@ -158,6 +170,53 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     datenpunkteOffen: params.has('stichtag'),
     datenpunkteSeiten: parseDatenpunkteSeiten(params),
   });
+}
+
+/**
+ * Nur im Dashboard wirksame Parameter, die /top-picks sichtbar als ignoriert
+ * ausweist. Bewusst auf den ROHEN Parametern statt dem nachsichtigen
+ * Filter-Parser: auch ein fehlgeparster Wert („flaeche_min=6o") sieht für
+ * den Absender wie ein aktiver Filter aus. Leere Felder und zeitraum=alle
+ * zählen nicht — das Dashboard-Formular schickt alle Felder immer mit.
+ */
+function ignorierteDashboardFilter(params: URLSearchParams): {
+  flaeche: boolean;
+  zeitraum: boolean;
+} {
+  const gesetzt = (name: string): boolean => (params.get(name)?.trim() ?? '') !== '';
+  const zeitraum = params.get('zeitraum')?.trim().toLowerCase() ?? '';
+  return {
+    flaeche: gesetzt('flaeche_min') || gesetzt('flaeche_max'),
+    zeitraum: gesetzt('von') || gesetzt('bis') || (zeitraum !== '' && zeitraum !== 'alle'),
+  };
+}
+
+/** Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten Bruttorendite. */
+async function topPicksSeite(params: URLSearchParams): Promise<string> {
+  const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt, zeitraum nicht
+  const [sweep, laufend] = await Promise.all([letzterFertigerSweep(), laufenderSweep()]);
+  if (!sweep) return renderTopPicksOhneDatenSeite(laufend !== undefined);
+
+  const { bestand, historie } = await objektBestandLaden(KAERNTEN);
+  // UNGEFILTERT an topPicks: der PLZ-Filter grenzt dort nur die Kauf-Kandidaten
+  // ein, die Miet-Mediane der Gebiets-Kaskade brauchen alle Miet-Objekte.
+  const objekte = objekteAusBestand(bestand, historie);
+  const ausreisserEinbeziehen = filter.ausreisserEinbeziehen === true;
+  // Fläche-/Zeitraum-Parameter aus einem umgebogenen Dashboard-Link wirken
+  // hier nicht — die Seite sagt das sichtbar, statt sie still zu verwerfen.
+  const ignoriert = ignorierteDashboardFilter(params);
+  const daten = {
+    stichtag: sweep.laufDatum,
+    picks: topPicks(objekte, sweep.laufDatum, {
+      plzFilter: filter.plz,
+      ausreisserEinbeziehen,
+    }),
+    ausreisserEinbeziehen,
+    flaecheIgnoriert: ignoriert.flaeche,
+    zeitraumIgnoriert: ignoriert.zeitraum,
+    zielRendite: ZIEL_RENDITE,
+  };
+  return renderTopPicksSeite(filter.plz !== undefined ? { ...daten, filterPlz: filter.plz } : daten);
 }
 
 /** Portfolio-Liste mit Marktvergleich — geteilt von GET /portfolio und dem POST-Fehlerpfad. */
@@ -320,6 +379,10 @@ const server = createServer((req, res) => {
 
     if (url.pathname === '/') {
       sende(res, 200, await dashboardSeite(url.searchParams));
+      return;
+    }
+    if (url.pathname === '/top-picks') {
+      sende(res, 200, await topPicksSeite(url.searchParams));
       return;
     }
     if (url.pathname === '/crawl') {

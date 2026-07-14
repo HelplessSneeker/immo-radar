@@ -1,5 +1,7 @@
+import { istIsoDatum } from './datum.js';
 import type { InserateFilter, InserateSortierung } from './db/bestand-repo.js';
 import type { InseratTyp } from './types.js';
+import type { ZeitraumFilter } from './zeitraum.js';
 
 /** Bundesland-Slug (URL-Pfad beider Portale) → Anzeigename. */
 export const BUNDESLAENDER: Record<string, string> = {
@@ -135,7 +137,7 @@ export function parsePortfolioForm(params: URLSearchParams): PortfolioFormWerte 
 
   const kaufdatum = params.get('kaufdatum')?.trim();
   if (kaufdatum) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(kaufdatum) || Number.isNaN(Date.parse(kaufdatum))) {
+    if (!istIsoDatum(kaufdatum)) {
       throw new SuchKriterienFehler(`Das Kaufdatum muss YYYY-MM-DD sein, ist "${kaufdatum}".`);
     }
     werte.kaufdatum = kaufdatum;
@@ -161,12 +163,19 @@ export interface DashboardFilter {
   plz?: string;
   flaecheMin?: number;
   flaecheMax?: number;
+  /** true = 1,5×IQR-Ausreißer in die Kennzahlen einrechnen; fehlt = ausgeschlossen. */
+  ausreisserEinbeziehen?: boolean;
+  /** Zeitraum-Preset oder Custom-Range; fehlt = "Alle". */
+  zeitraum?: ZeitraumFilter;
 }
 
 /**
- * Der kleine Dashboard-Filter (PLZ-Präfix + m²-Bereich). Bewusst nachsichtig
- * wie parseInserateAnfrage: die URLs sind teilbare GET-Links, ungültige
- * Werte werden still verworfen; ein verdrehter Bereich wird umgedreht.
+ * Der kleine Dashboard-Filter (PLZ-Präfix + m²-Bereich + Zeitraum). Bewusst
+ * nachsichtig wie parseInserateAnfrage: die URLs sind teilbare GET-Links,
+ * ungültige Werte werden still verworfen; ein verdrehter Bereich wird
+ * umgedreht. Von/Bis zählt nur paarweise und schlägt dann das Preset;
+ * das Klemmen von bis auf den Sweep-Stichtag macht zeitraumZuGrenzen
+ * (der Parser kennt das Sweep-Datum nicht).
  */
 export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
   const filter: DashboardFilter = {};
@@ -186,6 +195,25 @@ export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
   if (min !== undefined) filter.flaecheMin = min;
   if (max !== undefined) filter.flaecheMax = max;
 
+  if (params.get('ausreisser')?.trim().toLowerCase() === 'an') {
+    filter.ausreisserEinbeziehen = true;
+  }
+
+  const datum = (name: string): string | undefined => {
+    const roh = params.get(name)?.trim();
+    return roh && istIsoDatum(roh) ? roh : undefined;
+  };
+  const von = datum('von');
+  const bis = datum('bis');
+  const preset = params.get('zeitraum')?.trim().toLowerCase();
+  if (von !== undefined && bis !== undefined && von <= bis) {
+    filter.zeitraum = { von, bis };
+  } else if (preset === '7d' || preset === '30d' || preset === '90d') {
+    // 'alle' wird bewusst NICHT gespeichert: es ist der Default (kein
+    // Zeitraum) — sonst müsste jeder Konsument den Sonderfall behandeln.
+    filter.zeitraum = { preset };
+  }
+
   return filter;
 }
 
@@ -196,7 +224,7 @@ export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
  */
 export function parseStichtag(params: URLSearchParams): string | undefined {
   const roh = params.get('stichtag')?.trim();
-  return roh && /^\d{4}-\d{2}-\d{2}$/.test(roh) ? roh : undefined;
+  return roh && istIsoDatum(roh) ? roh : undefined;
 }
 
 /**

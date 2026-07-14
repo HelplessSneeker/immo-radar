@@ -7,6 +7,73 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-14
+
+Dritte Runde: Kennzahlen rechnen standardmäßig ohne 1,5×IQR-Ausreißer
+(mit Schalter zurück zur unbereinigten Sicht), neue Top-Picks-Seite mit
+Rendite-Ranking, Zeitraum-Filter mit Trend-Pfeilen in den KPI-Kacheln.
+
+### Geändert
+
+- `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
+  Positional-Args (`{ ausreisserEinbeziehen }`) — verhindert
+  Positional-Arg-Wildwuchs, wenn weitere Optionen dazukommen.
+- Dashboard-Kennzahlen (Kauf-/Miete-Median, Bruttorendite, alle Trend-Charts
+  und die Median-Linie der Punktwolken) rechnen 1,5×IQR-Ausreißer jetzt
+  standardmäßig heraus, bestimmt je Stichtag und Markt (Kauf/Miete) auf der
+  €/m²-Verteilung nach dem PLZ-/m²-Filter; die Objekt-Anzahlen beziehen sich
+  auf die bereinigte Menge. Unter 4 Werten je Gruppe wird wie bisher nichts
+  ausgeschlossen.
+
+### Hinzugefügt
+
+- Filterleisten-Schalter „Ausreißer einbeziehen" (`?ausreisser=an`, teilbar,
+  überlebt Stichtag-Wechsel und Pagination; „Filter zurücksetzen" entfernt
+  ihn) stellt die unbereinigten Kennzahlen wieder her.
+- Datenpunkte-Tabellen markieren Ausreißer unabhängig vom Schalter mit
+  „▲ Ausreißer"; Ausreißer-Zeilen bekommen kein Chance-Grün mehr, die
+  Serien-Überschrift nennt die Anzahl der Ausreißer.
+- Methodik-Abschnitt „Ausreißer (1,5×IQR)" erklärt Tukey-Regel,
+  Berechnungsbasis und Schalter-Semantik.
+- Neue Seite `/top-picks`: die 10 aktiven Kauf-Objekte mit der höchsten
+  geschätzten Bruttorendite am Stichtag, mit PLZ-Präfix-Filter. Die Miete
+  kommt als ausreißerbereinigter Median-Kaltmiete-€/m² des Objekt-Gebiets
+  (Kaskade PLZ → Bezirk → Kärnten, min. 5 Werte nach Bereinigung; Basis
+  als Badge an jeder Zeile); Kauf-Objekte, die in ihrer PLZ als
+  1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking. Der Schalter
+  „Ausreißer einbeziehen" (`?ausreisser=an`, wie im Dashboard) holt sie
+  markiert zurück und lässt die Miet-Mediane unbereinigt rechnen.
+  Neuer Navbar-Eintrag „Top Picks" und Methodik-Abschnitt `#top-picks`.
+- Dashboard-Filterleiste um einen Zeitraum-Filter erweitert: Presets
+  `7 / 30 / 90 Tage / Alle` (`?zeitraum=7d|30d|90d|alle`, relativ zum
+  letzten Sweep) plus Custom Von/Bis (`?von=…&bis=…`, absolut; gewinnt
+  über das Preset). Ungültige Datumsangaben werden still verworfen, ein
+  „Bis" in der Zukunft wird auf den letzten Sweep geklemmt; Zeitreihen,
+  Punktwolke und Datenpunkte-Stichtag-Navigation folgen dem Zeitraum.
+- KPI-Kacheln zeigen einen Trend-Pfeil mit textlichem Delta und
+  Referenz-Datum vs. Anfang des gewählten Zeitraums: Rendite mit Urteil
+  (`↑` grün / `↓` rot, in %-Punkten), Kauf/Miete neutral (relative
+  Änderung in %); bei ≤ 1 Trend-Punkt „zu wenig Daten für Trend".
+
+### Aufgeräumt
+
+- `topPicks` nimmt jetzt ein Options-Objekt (`plzFilter`, `n`,
+  `minMietObjekte`, `ausreisserEinbeziehen`) statt einer Positional-
+  Kaskade — konsistent zu `berechneObjektTrend`.
+- `/top-picks` weist gesetzte Fläche- und Zeitraum-Parameter aus dem
+  Dashboard explizit als „hier ignoriert" aus statt sie stumm zu
+  verwerfen (geprüft auf den rohen URL-Parametern, damit auch
+  fehlgeparste Werte den Hinweis auslösen), inklusive Reset-Link.
+- Site-weite Badge- und Ausreißer-Zeilen-Tokens (`.badge`,
+  `.badge-critical`, `.row-outlier`) leben jetzt zentral in
+  `layout.ts` statt dreifach; ebenso der „Noch keine Daten"-Leer-State
+  von Dashboard und Top Picks.
+- KPI-Kachel-Beschriftung präzisiert: „…, Ausreißer nicht mitgezählt"
+  statt des doppeldeutigen „(ohne Ausreißer)"; Methodik nennt jetzt
+  den Top-Picks-Tiebreak (dedupliziertes Objekt vor Solo-Inserat).
+- README/CLAUDE.md auf den 1.2-Stand: Zeitraum-Filter, Ausreißer-
+  Toggle, Top Picks, Kennzahlen-Semantik und Konventionen dokumentiert.
+
 ## [1.1.0] - 2026-07-10
 
 Zweite Runde: Dashboard-Zeitreihen an echte Läufe geknüpft, neue
@@ -98,7 +165,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0
 [0.1.0]: https://github.com/HelplessSneeker/immo-radar/commits/43cc18e

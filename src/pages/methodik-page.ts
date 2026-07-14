@@ -8,6 +8,7 @@ import {
   RELISTING_PREIS_TOLERANZ,
 } from '../matching.js';
 import { MIN_VERGLEICHSOBJEKTE } from '../portfolio-vergleich.js';
+import { TOP_PICKS_MIN_MIET_OBJEKTE } from '../top-picks.js';
 import { fmtRendite, nfPct } from './format.js';
 import { escapeHtml, seite } from './layout.js';
 
@@ -91,7 +92,17 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     bleibt getrennt. Jede Zuordnung ist mit Regel und Abweichungen protokolliert; nach
     Regeländerungen wird die gesamte Zuordnung deterministisch neu aufgebaut
     (<code>pnpm objekte:rebuild</code>). Die Roh-Inserate bleiben unangetastet und sind unter
-    <a href="/inserate">Inserate</a> einsehbar.</p>`,
+    <a href="/inserate">Inserate</a> einsehbar.</p>
+    <p><strong>Zeitraum-Filter &amp; Trend-Pfeile:</strong> Der Zeitraum-Filter des Dashboards
+    klemmt die Zeitreihe: Presets (7/30/90 Tage) rechnen relativ zum letzten fertigen Sweep,
+    ein eigenes Von/Bis ist absolut; ein „Bis" in der Zukunft wird auf den letzten Sweep
+    geklemmt, ein Zeitraum ganz in der Zukunft enthält keine Stichtage und zeigt den
+    Leer-Zustand. Die Kennzahl-Kacheln zeigen den letzten Wert <em>im Zeitraum</em>; endet
+    er vor dem letzten Sweep, steht der Stichtag des Werts dabei („Stand …"). Die
+    Trend-Pfeile vergleichen diesen Wert mit dem ersten im Zeitraum – der Rendite-Pfeil
+    urteilt (grün = gestiegen, rot = gefallen, in %-Punkten), Kauf- und Miete-Pfeile sind
+    neutrale Fakten (relative Änderung in %). Liegt nur ein Stichtag im Zeitraum, gibt es
+    kein Delta („zu wenig Daten für Trend").</p>`,
     },
     {
       id: 'aktive-inserate',
@@ -135,12 +146,38 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     (fehlgeschlagene Läufe erhalten keinen Punkt); pro Stichtag zählt ein Objekt, wenn es
     damals aktiv war, mit seinem damaligen Preis (aus der
     <a href="#preisaenderungen">Preishistorie</a> rekonstruiert). Der PLZ-/m²-Filter des
-    Dashboards schränkt die Objektmenge ein, bevor gerechnet wird.</p>
+    Dashboards schränkt die Objektmenge ein, bevor gerechnet wird; danach bleiben
+    <a href="#ausreisser">Ausreißer</a> standardmäßig außen vor.</p>
     <p><strong>Grenzen:</strong> Bei engen Filtern hängt der Median an wenigen Objekten – die
     Anzahl pro Punkt steht im Diagramm-Tooltip. Sprünge können auch daher kommen, dass teure
     oder billige Objekte dazukommen bzw. verschwinden, nicht nur aus echten Preisänderungen.
     Fällt bei einem sonst fertigen Lauf ein Portal-Segment aus, kann der neueste Punkt zu
     niedrig ausfallen; er heilt rückwirkend, sobald die Inserate wieder gesehen werden.</p>`,
+    },
+    {
+      id: 'ausreisser',
+      titel: 'Ausreißer (1,5×IQR)',
+      inhalt: `
+    <p><strong>Was ist das?</strong> Einzelne Inserate mit unplausiblem €/m² – Tippfehler,
+    Luxus-Sonderfälle, falsch erfasste Flächen – würden Median und Rendite verzerren. Das
+    Dashboard rechnet sie deshalb standardmäßig aus allen Kennzahlen heraus; die Checkbox
+    „Ausreißer einbeziehen" in der Filterleiste (URL-Parameter <code>?ausreisser=an</code>)
+    schaltet sie wieder dazu.</p>
+    <p><strong>Formel:</strong> Je Stichtag und Markt (Kauf bzw. Miete) wird über die
+    €/m²-Werte der aktiven Objekte – nach dem PLZ-/m²-Filter – der Interquartilsabstand
+    gebildet: IQR = Q3 − Q1. Ausreißer ist, was unter Q1 − 1,5×IQR oder über
+    Q3 + 1,5×IQR liegt (die klassische Tukey-Regel).</p>
+    <p class="beispiel">Beispiel: liegen die mittleren 50 % der Kauf-Objekte zwischen
+    2.500 und 4.500 €/m² (IQR = 2.000), gelten Werte unter −500 bzw. über 7.500 €/m²
+    als Ausreißer.</p>
+    <p><strong>Grenzen:</strong> Unter 4 Werten je Stichtag und Markt ist der IQR nicht
+    belastbar – dann wird nichts ausgeschlossen und der Schalter ist folgenlos. Sind die
+    mittleren 50 % der Werte identisch (IQR = 0), urteilt die Regel umgekehrt streng:
+    alles abseits dieses Werts gilt als Ausreißer – bei engen Filtern mit runden Mieten
+    lohnt der Blick auf die markierten Punkte. In der Datenpunkte-Tabelle sind Ausreißer
+    mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der Schalter
+    steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer ist ein
+    Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -164,12 +201,45 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     ein investierter Kauf-Euro? Ab ${zielProzent} gilt das Ziel als erreicht und der Wert wird
     grün hervorgehoben.</p>
     <p><strong>Formel:</strong> (Median-Kaltmiete €/m² × 12) ÷ Median-Kaufpreis €/m², jeweils
-    über die aktiven Objekte im gewählten Filter; als Zeitreihe je Lauf-Stichtag.</p>
+    über die aktiven Objekte im gewählten Filter – standardmäßig ohne
+    <a href="#ausreisser">Ausreißer</a>; als Zeitreihe je Lauf-Stichtag.</p>
     <p class="beispiel">Beispiel: 10 €/m² Kaltmiete × 12 = 120 €/m² Jahresmiete;
     120 ÷ 3.000 €/m² Kaufpreis = 4 %.</p>
     <p><strong>Grenzen:</strong> <em>Brutto</em> heißt: ohne Betriebskosten, Instandhaltung,
     Leerstand, Kaufnebenkosten und Steuern – die tatsächliche Netto-Rendite liegt darunter.
     Die Zahl vergleicht außerdem den Miet- mit dem Kauf-Markt, nicht dieselben Wohnungen.</p>`,
+    },
+    {
+      id: 'top-picks',
+      titel: 'Top Picks',
+      inhalt: `
+    <p><strong>Was ist das?</strong> Die <a href="/top-picks">Top-Picks-Seite</a> zeigt die
+    10 aktiven Kauf-Objekte mit der höchsten <em>geschätzten</em> Bruttorendite am letzten
+    Stichtag, filterbar nach PLZ-Präfix. Weil zum Kauf-Inserat keine echte Miete gehört,
+    wird sie aus dem Umfeld geschätzt.</p>
+    <p><strong>Formel:</strong> (Median-Kaltmiete €/m² des Objekt-Gebiets × 12) ÷ eigener
+    Kauf-€/m². Als Gebiet zählt zuerst die PLZ des Objekts; hat sie zu wenige Miet-Objekte,
+    weitet sich die Basis auf den Bezirk, dann auf ganz Kärnten – die verwendete Basis steht
+    als Badge an jeder Zeile („Miete aus PLZ/Bezirk/Kärnten"). Eine Stufe zählt erst, wenn
+    nach der <a href="#ausreisser">1,5×IQR-Bereinigung</a> mindestens
+    ${TOP_PICKS_MIN_MIET_OBJEKTE} Miet-Werte übrig sind; der Miet-Median wird immer über die
+    bereinigten Werte gebildet. Der PLZ-Filter grenzt nur die Kauf-Objekte ein – die
+    Miet-Basis rechnet stets mit allen Miet-Objekten des Gebiets.</p>
+    <p><strong>Ausreißer-Regel fürs Ranking:</strong> Kauf-Objekte, die innerhalb ihrer
+    eigenen PLZ als 1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking – ein Objekt, das nur
+    wegen eines fragwürdigen Preises oben landet, ist kein Kaufsignal, sondern ein
+    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) nichts ausgeschlossen.
+    Der Schalter „Ausreißer einbeziehen" (<code>?ausreisser=an</code>, wie im Dashboard)
+    holt sie mit „▲ Ausreißer"-Markierung ins Ranking zurück und lässt auch die
+    Miet-Mediane unbereinigt rechnen – markierte Zeilen bekommen kein Chance-Grün.</p>
+    <p><strong>Grenzen:</strong> <em>Brutto</em> und geschätzt: keine Betriebskosten,
+    Instandhaltung, Leerstand, Kaufnebenkosten oder Steuern – und die Miete ist eine
+    Gebietsschätzung, keine Aussage über dieses konkrete Objekt (Zustand, Ausstattung und
+    Mikrolage bleiben unberücksichtigt). Die Liste ist eine Momentaufnahme des Stichtags,
+    kein Trend; Objekte ohne belastbare Miet-Basis fehlen ganz. Bei gleicher Rendite werden
+    Objekte mit Objekt-Zuordnung (portalübergreifend dedupliziert oder als Wiedereinstellung
+    erkannt) vor Solo-Inseraten gerankt, danach entscheidet eine stabile Kennung – ein
+    deterministischer Tiebreak, kein Qualitätsurteil.</p>`,
     },
     {
       id: 'portfolio-vergleich',
