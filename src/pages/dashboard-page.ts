@@ -209,6 +209,15 @@ function standZusatz(datum: string | undefined, seitenStichtag: string): string 
     : '';
 }
 
+/**
+ * Beschriftungs-Suffix der KPI-Kacheln: Kennzahlen rechnen standardmäßig
+ * bereinigt. „Ausreißer nicht mitgezählt" statt „(ohne Ausreißer)" — Letzteres
+ * las sich auch als „die N sind Nicht-Ausreißer" (Karte-01-Review).
+ */
+function bereinigtSuffix(filter: DashboardFilter): string {
+  return filter.ausreisserEinbeziehen === true ? '' : ', Ausreißer nicht mitgezählt';
+}
+
 function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.renditeTrend.at(-1);
   const rendite = letzter?.bruttoRendite ?? null;
@@ -220,7 +229,7 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
-  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
@@ -235,7 +244,7 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.trend.at(-1);
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
-  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0

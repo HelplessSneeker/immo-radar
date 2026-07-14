@@ -96,8 +96,8 @@ describe('renderDashboardSeite', () => {
     const html = renderDashboardSeite(daten());
     expect(html).toContain('name="ausreisser" value="an">');
     expect(html).not.toContain('name="ausreisser" value="an" checked');
-    expect(html).toContain('42 aktive Kauf-Objekte (ohne Ausreißer)');
-    expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m² (ohne Ausreißer)');
+    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt');
+    expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m², Ausreißer nicht mitgezählt');
     expect(html).toContain('(ohne 1,5×IQR-Ausreißer)');
     expect(html).not.toContain('Filter zurücksetzen');
     expect(html).toContain('href="/methodik#ausreisser"');
@@ -107,6 +107,7 @@ describe('renderDashboardSeite', () => {
     const html = renderDashboardSeite(daten({ filter: { ausreisserEinbeziehen: true } }));
     expect(html).toContain('name="ausreisser" value="an" checked');
     expect(html).not.toContain('(ohne Ausreißer)');
+    expect(html).not.toContain('Ausreißer nicht mitgezählt');
     expect(html).toContain('(1,5×IQR-Ausreißer einbezogen)');
     expect(html).toContain('Filter zurücksetzen');
     // Der Schalter gehört nicht in die Überschrift (nur PLZ/m² beschreiben die Marktsicht).
@@ -352,12 +353,12 @@ describe('renderDashboardSeite – Zeitraum-Filter & Trend-Pfeile', () => {
         filter: { zeitraum: { von: '2026-06-01', bis: '2026-07-07' } },
       }),
     );
-    expect(html).toContain('42 aktive Kauf-Objekte (ohne Ausreißer) · Stand 07.07.2026');
-    expect(html).toContain('31 aktive Miet-Objekte (ohne Ausreißer) · Stand 07.07.2026');
-    expect(html).toContain('je €/m² (ohne Ausreißer) · Stand 07.07.2026');
+    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    expect(html).toContain('31 aktive Miet-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    expect(html).toContain('je €/m², Ausreißer nicht mitgezählt · Stand 07.07.2026');
     // Ohne Klemmen (Stichtag = letzter Trend-Punkt) kein Stand-Zusatz an den
     // Kacheln (die Kopfzeile "… · Stand <Stichtag>" zählt nicht).
-    expect(renderDashboardSeite(daten())).not.toContain('Ausreißer) · Stand');
+    expect(renderDashboardSeite(daten())).not.toContain('mitgezählt · Stand');
   });
 
   it('Custom Von/Bis: kein Preset checked, Datumsfelder befüllt', () => {
