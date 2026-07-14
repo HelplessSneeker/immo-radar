@@ -19,7 +19,7 @@ import {
   nfPct,
   nfTage,
 } from './format.js';
-import { escapeHtml, seite } from './layout.js';
+import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
  * Die Startseite: der Kärntner Wohnungsmarkt als Zeitreihe — Bruttorendite,
@@ -81,10 +81,6 @@ const DASHBOARD_CSS = `
   .datenpunkte summary h2 { display: inline; margin: 0; }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
-  /* Ausreißer-Kennzeichnung wie im Report (report.ts), gleiche Status-Tokens. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
@@ -213,6 +209,15 @@ function standZusatz(datum: string | undefined, seitenStichtag: string): string 
     : '';
 }
 
+/**
+ * Beschriftungs-Suffix der KPI-Kacheln: Kennzahlen rechnen standardmäßig
+ * bereinigt. „Ausreißer nicht mitgezählt" statt „(ohne Ausreißer)" — Letzteres
+ * las sich auch als „die N sind Nicht-Ausreißer" (Karte-01-Review).
+ */
+function bereinigtSuffix(filter: DashboardFilter): string {
+  return filter.ausreisserEinbeziehen === true ? '' : ', Ausreißer nicht mitgezählt';
+}
+
 function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.renditeTrend.at(-1);
   const rendite = letzter?.bruttoRendite ?? null;
@@ -224,7 +229,7 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
-  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
@@ -239,7 +244,7 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.trend.at(-1);
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
-  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0
@@ -446,23 +451,15 @@ ${serieBlock(daten, stichtag, false)}
 
 /** Startseite ohne Daten: noch kein fertiger Sweep. */
 export function renderDashboardOhneDatenSeite(sweepLaeuft: boolean): string {
-  // Selbe Meta-Zeile wie im befüllten Zustand (ohne "Stand …"), damit der
-  // Kopf nicht als isolierter Titel wirkt und der Ton zwischen leer und
-  // befüllt konsistent bleibt.
-  const inhalt = `  <header>
-    <h1>Wohnungsmarkt Kärnten</h1>
-    <p class="meta">Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
-    täglich vollständig gecrawlt und zu Objekten dedupliziert.</p>
-  </header>
-  <section>
-    <h2>Noch keine Daten</h2>
-    <p class="meta">${
-      sweepLaeuft
-        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
-        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
-    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
-  </section>`;
-  return seite('Dashboard', inhalt, { aktiv: 'dashboard' });
+  // Selbe Meta-Zeile wie im befüllten Zustand (ohne "Stand …").
+  return renderOhneDatenSeite({
+    titel: 'Dashboard',
+    aktiv: 'dashboard',
+    ueberschrift: 'Wohnungsmarkt Kärnten',
+    untertitel: `Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
+    täglich vollständig gecrawlt und zu Objekten dedupliziert.`,
+    sweepLaeuft,
+  });
 }
 
 export function renderDashboardSeite(daten: DashboardDaten): string {

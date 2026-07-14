@@ -111,6 +111,25 @@ describe('renderTopPicksSeite', () => {
     expect(html).not.toContain('checked');
   });
 
+  it('weist gesetzte Fläche-Parameter sichtbar als hier ignoriert aus', () => {
+    const html = renderTopPicksSeite(daten({ flaecheIgnoriert: true }));
+    expect(html).toContain('Der Fläche-Filter wirkt nur im Dashboard und wird hier ignoriert.');
+    // Der Reset-Link ist der Weg zur sauberen URL — auch ohne wirksamen Filter.
+    expect(html).toContain('Filter zurücksetzen');
+    expect(renderTopPicksSeite(daten())).not.toContain('hier ignoriert');
+  });
+
+  it('weist Zeitraum-Parameter aus, einzeln und kombiniert mit Fläche', () => {
+    const nurZeitraum = renderTopPicksSeite(daten({ zeitraumIgnoriert: true }));
+    expect(nurZeitraum).toContain(
+      'Der Zeitraum-Filter wirkt nur im Dashboard und wird hier ignoriert.',
+    );
+    const beide = renderTopPicksSeite(daten({ flaecheIgnoriert: true, zeitraumIgnoriert: true }));
+    expect(beide).toContain(
+      'Fläche- und Zeitraum-Filter wirken nur im Dashboard und werden hier ignoriert.',
+    );
+  });
+
   it('spiegelt den Ausreißer-Schalter und bietet den Reset-Link', () => {
     const html = renderTopPicksSeite(daten({ ausreisserEinbeziehen: true }));
     expect(html).toContain('name="ausreisser" value="an" checked');

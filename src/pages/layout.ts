@@ -171,6 +171,12 @@ export const BASIS_CSS = `
      kritisch. Das Vorzeichen trägt das Urteil auch ohne Farbe. */
   .gesenkt { color: var(--status-good); font-weight: 600; }
   .gestiegen { color: var(--status-critical); font-weight: 600; }
+  /* Site-weite Badges und Ausreißer-Zeilen (Dashboard-Datenpunkte, Top Picks,
+     Report): .badge ist neutrale Herkunft/Fakt, .badge-critical das Urteil
+     „auffällig", .row-outlier hinterlegt die ganze Zeile leise kritisch. */
+  .badge { font-size: 12px; color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }
@@ -483,6 +489,38 @@ export interface SeitenOptionen {
   aktiv?: NavAktiv;
   /** false = ganz ohne Navbar (statisch exportierte Reports ohne laufenden Server). */
   navbar?: boolean;
+}
+
+/**
+ * Leer-Zustand der Auswertungsseiten (Dashboard, Top Picks), solange noch
+ * kein Sweep fertig ist: gleicher Kopf wie im befüllten Zustand (damit der
+ * Ton zwischen leer und befüllt konsistent bleibt), identische
+ * Sweep-Erklärung mit Fortschritts-Link — nur Titel, Überschrift und
+ * Untertitel unterscheiden sich je Seite.
+ */
+export function renderOhneDatenSeite(optionen: {
+  /** <title>-Zusatz, z. B. „Dashboard". */
+  titel: string;
+  aktiv: NavAktiv;
+  /** h1 — wie im befüllten Zustand der Seite (reiner Text, wird escaped). */
+  ueberschrift: string;
+  /** Meta-Zeile unter der Überschrift (HTML, vom Aufrufer escaped). */
+  untertitel: string;
+  sweepLaeuft: boolean;
+}): string {
+  const inhalt = `  <header>
+    <h1>${escapeHtml(optionen.ueberschrift)}</h1>
+    <p class="meta">${optionen.untertitel}</p>
+  </header>
+  <section>
+    <h2>Noch keine Daten</h2>
+    <p class="meta">${
+      optionen.sweepLaeuft
+        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
+        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
+    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
+  </section>`;
+  return seite(optionen.titel, inhalt, { aktiv: optionen.aktiv });
 }
 
 export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}): string {

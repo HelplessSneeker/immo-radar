@@ -142,6 +142,17 @@ function identitaetVergleich(a: TopPickKandidat, b: TopPickKandidat): number {
   return a.portal.localeCompare(b.portal) || a.inseratId.localeCompare(b.inseratId);
 }
 
+export interface TopPicksOptionen {
+  /** PLZ-Präfix, der die Kauf-Kandidaten eingrenzt (Miet-Mediane bleiben ungefiltert). */
+  plzFilter?: string;
+  /** Länge des Rankings. */
+  n?: number;
+  /** Unter so vielen bereinigten Miet-Werten gilt ein Gebiet nicht als belastbar. */
+  minMietObjekte?: number;
+  /** true = Kauf-Ausreißer im Ranking (markiert), Miet-Mediane unbereinigt. */
+  ausreisserEinbeziehen?: boolean;
+}
+
 /**
  * Die n Kauf-Objekte mit der höchsten geschätzten Bruttorendite am Stichtag.
  * `objekte` ist der komplette Kärnten-Bestand (objekteAusBestand), NICHT
@@ -154,11 +165,14 @@ function identitaetVergleich(a: TopPickKandidat, b: TopPickKandidat): number {
 export function topPicks(
   objekte: ObjektZeitreihe[],
   stichtag: string,
-  plzFilter: string | undefined,
-  n = 10,
-  minMietObjekte = TOP_PICKS_MIN_MIET_OBJEKTE,
-  ausreisserEinbeziehen = false,
+  optionen: TopPicksOptionen = {},
 ): TopPickKandidat[] {
+  const {
+    plzFilter,
+    n = 10,
+    minMietObjekte = TOP_PICKS_MIN_MIET_OBJEKTE,
+    ausreisserEinbeziehen = false,
+  } = optionen;
   const mietenJePlz = new Map<string, number[]>();
   const mietenJeBezirk = new Map<string, number[]>();
   const mietenKaernten: number[] = [];

@@ -1,6 +1,6 @@
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
 import { datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
-import { escapeHtml, seite } from './layout.js';
+import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
  * Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten
@@ -17,6 +17,13 @@ export interface TopPicksDaten {
   picks: TopPickKandidat[];
   /** Gesetzter PLZ-Präfix-Filter (?plz=…). */
   filterPlz?: string;
+  /**
+   * true = ?flaeche_min/?flaeche_max bzw. ?zeitraum/?von/?bis stehen in der
+   * URL (umgebogener Dashboard-Link): hier ohne Wirkung, das wird sichtbar
+   * gesagt statt still verworfen.
+   */
+  flaecheIgnoriert?: boolean;
+  zeitraumIgnoriert?: boolean;
   /** true = ?ausreisser=an: Kauf-Ausreißer im Ranking, Miet-Mediane unbereinigt. */
   ausreisserEinbeziehen: boolean;
   /** Ziel-Bruttorendite (Anteil), ab der die Rendite-Zelle als "gut" gilt. */
@@ -24,10 +31,6 @@ export interface TopPicksDaten {
 }
 
 const TOP_PICKS_CSS = `
-  /* Neutraler Basis-Badge wie im Dashboard (dashboard-page.ts) — Herkunft, kein Urteil. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   /* Rendite ≥ Ziel: gleiche Gut-Töne wie die Dashboard-Kachel (tile-good). */
   .zelle-gut { background: var(--good-bg); }
   .gut { color: var(--good-text); font-weight: 600; }
@@ -36,9 +39,23 @@ const TOP_PICKS_CSS = `
 `;
 
 function filterleiste(daten: TopPicksDaten): string {
+  const ignoriert = [
+    ...(daten.flaecheIgnoriert === true ? ['Fläche'] : []),
+    ...(daten.zeitraumIgnoriert === true ? ['Zeitraum'] : []),
+  ];
+  // Auch für nur-ignorierte Parameter: der Reset-Link ist der Weg zur
+  // sauberen, teilbaren URL.
   const zuruecksetzen =
-    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen
+    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen || ignoriert.length > 0
       ? '\n      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>'
+      : '';
+  const flaecheHinweis =
+    ignoriert.length > 0
+      ? `\n    <p class="meta">${
+          ignoriert.length === 2
+            ? 'Fläche- und Zeitraum-Filter wirken nur im Dashboard und werden'
+            : `Der ${ignoriert[0]}-Filter wirkt nur im Dashboard und wird`
+        } hier ignoriert.</p>`
       : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
       <div class="feld">
@@ -50,7 +67,7 @@ function filterleiste(daten: TopPicksDaten): string {
         <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
       <button>Filtern</button>${zuruecksetzen}
-    </form>`;
+    </form>${flaecheHinweis}`;
 }
 
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
@@ -100,20 +117,14 @@ ${zeilen}
 
 /** Top-Picks-Seite ohne Daten: noch kein fertiger Sweep (wie das Dashboard). */
 export function renderTopPicksOhneDatenSeite(sweepLaeuft: boolean): string {
-  const inhalt = `  <header>
-    <h1>Top Picks</h1>
-    <p class="meta">Die Kauf-Objekte mit der höchsten geschätzten Bruttorendite —
-    sobald der erste Sweep Daten liefert.</p>
-  </header>
-  <section>
-    <h2>Noch keine Daten</h2>
-    <p class="meta">${
-      sweepLaeuft
-        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
-        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
-    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
-  </section>`;
-  return seite('Top Picks', inhalt, { aktiv: 'top-picks' });
+  return renderOhneDatenSeite({
+    titel: 'Top Picks',
+    aktiv: 'top-picks',
+    ueberschrift: 'Top Picks',
+    untertitel: `Die Kauf-Objekte mit der höchsten geschätzten Bruttorendite —
+    sobald der erste Sweep Daten liefert.`,
+    sweepLaeuft,
+  });
 }
 
 export function renderTopPicksSeite(daten: TopPicksDaten): string {

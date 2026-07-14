@@ -189,7 +189,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ### Tables
 - **Style:** 13px, linksbündige Textspalten, rechtsbündige Zahlenspalten mit Tabellenziffern. Trennung nur durch 1px Raster-Linien unter den Zeilen — keine Zebra-Streifen, keine Außenkontur.
 - **Header:** Tinte-leise, 600, Basislinien-Unterkante; `scope`-Attribute auf allen Header-Zellen.
-- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung plus Text-Badge „▲ Ausreißer" (12px/600 in Kritisch) — im Report wie in den Dashboard-Datenpunkten; Ausreißer-Zeilen bekommen kein Chance-Grün (erst prüfen, dann urteilen). Sub-Informationen als 12px-Block unter dem Zellenwert.
+- **Urteil in der Zeile:** Ausreißer-Zeilen mit 6 % Rot-Tönung plus Text-Badge „▲ Ausreißer" (12px/600 in Kritisch) — site-weit, aus dem Basis-CSS (`.badge`/`.badge-critical`/`.row-outlier` in `src/pages/layout.ts`); Ausreißer-Zeilen bekommen kein Chance-Grün (erst prüfen, dann urteilen). Sub-Informationen als 12px-Block unter dem Zellenwert.
 - **Herkunfts-Badge (neutral):** Wo ein Wert aus einer Vergleichsbasis geschätzt ist (Top Picks: „Miete aus PLZ/Bezirk/Kärnten"), steht die Basis als 12px-Badge in Tinte-gedämpft unter dem Wert — Herkunft ist Fakt, kein Urteil, daher keine Statusfarbe (Ehrlichkeits-Prinzip wie die Vergleichsebene im Portfolio). Urteilszellen in Tabellen (Top Picks: Rendite ≥ Ziel) nutzen dieselben Töne wie `tile-good` — Gut-Tönung als Zellfläche plus `good-text`/600 auf dem Wert — und tragen das Urteil zusätzlich als Text („≥ Ziel 4 %"), nie als Farbe allein.
 - **Overflow:** Jede Tabelle liegt in einem `.tabelle-scroll`-Container (`overflow-x: auto`) — auf schmalen Viewports scrollt die Tabelle, nie die Seite.
 
