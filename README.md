@@ -33,8 +33,15 @@ Server nicht). Die Seiten:
 - **`/` – Dashboard** (Startseite): Bruttorendite, Median-Kauf-€/m² und
   Median-Kaltmiete-€/m² als Zeitreihen (ein Punkt je Crawl-Lauf) über die deduplizierten
   Objekte, dazu die aktuellen Kennzahlen mit Urteil (Ziel-Rendite ≥ 4 %
-  hervorgehoben). Kleiner Filter: PLZ-Präfix (`9020` exakt, `9` Region) und
-  m²-Bereich – als GET-Parameter, Links sind teilbar.
+  hervorgehoben) und Trend-Pfeilen in den KPI-Kacheln. Filter: PLZ-Präfix
+  (`9020` exakt, `9` Region), m²-Bereich, Ausreißer-Toggle (Kennzahlen rechnen
+  standardmäßig ohne 1,5×IQR-Ausreißer; `?ausreisser=an` stellt die
+  unbereinigte Sicht her) und Zeitraum (Presets 7/30/90 Tage oder Custom
+  Von/Bis) – alles GET-Parameter, Links sind teilbar.
+- **`/top-picks`**: die aktiven Kauf-Objekte mit der höchsten geschätzten
+  Bruttorendite am letzten Stichtag, filterbar per PLZ-Präfix. Die Rendite ist
+  geschätzt aus der Median-Kaltmiete des Objekt-Gebiets (Kaskade PLZ → Bezirk
+  → Kärnten), die Basis wird pro Zeile ausgewiesen.
 - **`/inserate`**: der historisierte Roh-Bestand als paginierte, filterbare
   Tabelle – ohne Deduplizierung, mit Preisänderungs-Spalte.
 - **`/portfolio`**: eigene Wohnungen manuell erfassen (Kaufpreis, aktuelle
@@ -239,6 +246,8 @@ src/
   stats.ts                  Median, Quantile, IQR-Ausreißer, Bruttorendite
   analyze.ts                Gruppierung nach Gebiet, Kennzahlen (CLI-Report)
   trend.ts                  Zeitreihen: Objekt-Trend je Lauf-Stichtag, Rendite-Reihe, Filter
+  zeitraum.ts               Zeitraum-Filter: Presets (7/30/90 Tage) und Von/Bis-Grenzen
+  top-picks.ts              Top Picks: Rendite-Ranking mit Gebiets-Miet-Kaskade (pure Funktionen)
   report.ts                 Statischer HTML-Report der CLI (Chart.js via CDN)
   db/client.ts              Lazy Postgres-Pool (braucht DATABASE_URL)
   db/migrieren.ts           Migrations-Runner (migrations/*.sql)
@@ -249,6 +258,7 @@ src/
   db/portfolio-repo.ts      Eigene Objekte (CRUD)
   pages/layout.ts           Gemeinsames Seitengerüst + Design-Tokens + CSS
   pages/dashboard-page.ts   Startseite: KPI-Zeile + drei Zeitreihen-Charts + Filter
+  pages/top-picks-page.ts   Top Picks: Rendite-Ranking als Tabelle
   pages/inserate-page.ts    Roh-Bestand als paginierte Tabelle
   pages/portfolio-pages.ts  Portfolio-Liste mit Marktvergleich + Formulare
   pages/sweep-page.ts       Crawl-Läufe + Segment-Status

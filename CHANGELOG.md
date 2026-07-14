@@ -49,6 +49,23 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   (`↑` grün / `↓` rot, in %-Punkten), Kauf/Miete neutral (relative
   Änderung in %); bei ≤ 1 Trend-Punkt „zu wenig Daten für Trend".
 
+### Aufgeräumt
+
+- `topPicks` nimmt jetzt ein Options-Objekt (`plzFilter`, `n`,
+  `minMietObjekte`, `ausreisserEinbeziehen`) statt einer Positional-
+  Kaskade — konsistent zu `berechneObjektTrend`.
+- `/top-picks` weist gesetzte Fläche-Parameter aus dem Dashboard
+  explizit als „hier ignoriert" aus statt sie stumm zu verwerfen.
+- Site-weite Badge- und Ausreißer-Zeilen-Tokens (`.badge`,
+  `.badge-critical`, `.row-outlier`) leben jetzt zentral in
+  `layout.ts` statt dreifach; ebenso der „Noch keine Daten"-Leer-State
+  von Dashboard und Top Picks.
+- KPI-Kachel-Beschriftung präzisiert: „…, Ausreißer nicht mitgezählt"
+  statt des doppeldeutigen „(ohne Ausreißer)"; Methodik nennt jetzt
+  den Top-Picks-Tiebreak (dedupliziertes Objekt vor Solo-Inserat).
+- README/CLAUDE.md auf den 1.2-Stand: Zeitraum-Filter, Ausreißer-
+  Toggle, Top Picks, Kennzahlen-Semantik und Konventionen dokumentiert.
+
 ## [1.1.0] - 2026-07-10
 
 Zweite Runde: Dashboard-Zeitreihen an echte Läufe geknüpft, neue
