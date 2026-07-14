@@ -1,12 +1,24 @@
 import type { DashboardFilter } from '../search.js';
 import { median } from '../stats.js';
-import type {
-  RenditeTrendPunkt,
-  StichtagDatenpunkt,
-  StreuungsPunkt,
-  TrendPunkt,
+import {
+  berechneKpiDelta,
+  berechneRenditeKpiDelta,
+  type KpiDelta,
+  type RenditeTrendPunkt,
+  type StichtagDatenpunkt,
+  type StreuungsPunkt,
+  type TrendPunkt,
 } from '../trend.js';
-import { fmtRendite, datumMedium, nfEur0, nfEur2, nfPct, nfTage } from './format.js';
+import {
+  DELTA_STABIL_SCHWELLE,
+  fmtDelta,
+  fmtRendite,
+  datumMedium,
+  nfEur0,
+  nfEur2,
+  nfPct,
+  nfTage,
+} from './format.js';
 import { escapeHtml, seite } from './layout.js';
 
 /**
@@ -75,6 +87,20 @@ const DASHBOARD_CSS = `
   .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   .feld-toggle .meta { margin: 0; font-size: 12px; }
+  /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
+     Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
+  .feld-zeitraum { border: 0; padding: 0; margin: 0; }
+  .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }
+  .feld-zeitraum .presets label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; font-size: 13px; }
+  /* Trend-Zeile der KPI-Kacheln: direkt unter dem Wert (vor Badge/Sub),
+     Pfeil + textliches Delta + Referenz-Datum. Nur der Rendite-Pfeil
+     urteilt (gut/schlecht) — Preis-Pfeile bleiben Tinte. */
+  .tile-trend { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+  .trend-pfeil { font-weight: 600; }
+  .trend-pfeil-gut { color: var(--good-text); }
+  .trend-pfeil-schlecht { color: var(--status-critical); }
+  .trend-delta { font-weight: 600; }
+  .trend-ref { color: var(--text-secondary); }
 `;
 
 /** Ab dieser Abweichung unter dem Serien-Median gilt ein Datenpunkt als Chance (grün). */
@@ -97,10 +123,18 @@ function filterBeschreibung(filter: DashboardFilter): string {
 function filterleiste(daten: DashboardDaten): string {
   const filter = daten.filter;
   const zuruecksetzen =
-    filterBeschreibung(filter) !== '' || filter.ausreisserEinbeziehen === true
+    filterBeschreibung(filter) !== '' ||
+    filter.ausreisserEinbeziehen === true ||
+    filter.zeitraum !== undefined
       ? '\n      <p class="meta"><a href="/">Filter zurücksetzen</a></p>'
       : '';
   const zahlWert = (n: number | undefined): string => (n === undefined ? '' : String(n));
+  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
+  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
+  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
+  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
+  const preset = (wert: string, label: string): string =>
+    `<label><input type="radio" name="zeitraum" value="${wert}"${aktivesPreset === wert ? ' checked' : ''}> ${label}</label>`;
   // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
   // aus dem neuen Trend, greift der stille Fallback im Handler.
   const stichtagFeld =
@@ -120,12 +154,63 @@ function filterleiste(daten: DashboardDaten): string {
         <label for="f-flaeche-max">Fläche bis (m²)</label>
         <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="z. B. 90">
       </div>
+      <fieldset class="feld feld-zeitraum">
+        <legend>Zeitraum</legend>
+        <div class="presets">
+          ${preset('7d', '7 Tage')}
+          ${preset('30d', '30 Tage')}
+          ${preset('90d', '90 Tage')}
+          ${preset('alle', 'Alle')}
+        </div>
+      </fieldset>
+      <div class="feld">
+        <label for="f-von">Von</label>
+        <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}">
+      </div>
+      <div class="feld">
+        <label for="f-bis">Bis</label>
+        <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}">
+      </div>
       <div class="feld feld-toggle">
         <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
         <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
       <button>Filtern</button>${zuruecksetzen}
     </form>`;
+}
+
+/**
+ * Trend-Zeile einer KPI-Kachel: Pfeil + Delta vs. Anfang des gewählten
+ * Zeitraums, mit Referenz-Datum (Prinzip 4: der Vergleich bleibt transparent).
+ * einheit wählt den Delta-Wert: Rendite vergleicht in %-Punkten (absolut),
+ * Preise relativ. urteil färbt nur den Rendite-Pfeil — ein teurerer Markt
+ * ist kein Verdikt, eine bessere Rendite schon.
+ */
+function kachelTrend(
+  delta: KpiDelta | null,
+  einheit: 'prozent' | 'prozentpunkte',
+  urteil: boolean,
+): string {
+  const wert = einheit === 'prozentpunkte' ? delta?.deltaAbsolut : delta?.deltaAnteil;
+  if (delta === null || delta.referenzDatum === null || wert === undefined) {
+    return `<div class="tile-trend meta">zu wenig Daten für Trend</div>`;
+  }
+  const stabil = Math.abs(wert) < DELTA_STABIL_SCHWELLE;
+  const pfeil = stabil ? '→' : wert > 0 ? '↑' : '↓';
+  const label = stabil ? 'stabil' : wert > 0 ? 'steigend' : 'fallend';
+  const klasse = urteil && !stabil ? (wert > 0 ? ' trend-pfeil-gut' : ' trend-pfeil-schlecht') : '';
+  return `<div class="tile-trend"><span class="trend-pfeil${klasse}" aria-label="${label}">${pfeil}</span> <span class="trend-delta">${fmtDelta(wert, einheit)}</span> <span class="trend-ref">vs. ${escapeHtml(datumMedium(delta.referenzDatum))}</span></div>`;
+}
+
+/**
+ * "· Stand DD.MM.YYYY" für die tile-sub, wenn der angezeigte Wert nicht vom
+ * Seiten-Stichtag stammt (Zeitraum endet vor dem letzten Sweep) — sonst
+ * liest sich "N aktive Objekte" als heutiger Marktstand (Prinzip 4).
+ */
+function standZusatz(datum: string | undefined, seitenStichtag: string): string {
+  return datum !== undefined && datum !== seitenStichtag
+    ? ` · Stand ${escapeHtml(datumMedium(datum))}`
+    : '';
 }
 
 function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
@@ -135,16 +220,18 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
     return `      <div class="tile">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">–</div>
-        <div class="tile-sub">braucht Kauf- und Miet-Objekte im Filter</div>
+        <div class="tile-sub">braucht Kauf- und Miet-Objekte im gewählten Filter und Zeitraum</div>
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
   const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">${fmtRendite(rendite)}</div>
+        ${kachelTrend(berechneRenditeKpiDelta(daten.renditeTrend), 'prozentpunkte', true)}
         <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>
-        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}</div>
+        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}${stand}</div>
       </div>`;
 }
 
@@ -153,6 +240,7 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
   const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
+  const stand = standZusatz(letzter?.datum, daten.stichtag);
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0
       ? `\n    <p class="warnung">Beim letzten Sweep waren ${daten.portalAusfaelle.length} Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>`
@@ -161,12 +249,14 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
 ${renditeKachel(daten, zielProzent)}      <div class="tile">
         <div class="tile-label">Kaufpreis (Median)</div>
         <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}` : 'keine Daten'}</div>
+        ${kauf != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianKaufEurM2'), 'prozent', false) : ''}
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Kaltmiete (Median)</div>
         <div class="tile-value">${miete != null ? `${nfEur2.format(miete)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}` : 'keine Daten'}</div>
+        ${miete != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianMieteEurM2'), 'prozent', false) : ''}
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Letzter Sweep</div>
@@ -179,7 +269,7 @@ ${renditeKachel(daten, zielProzent)}      <div class="tile">
 
 function chartSektion(trend: TrendPunkt[]): string {
   if (trend.length === 0) {
-    return `    <p class="meta">Keine Objekte im gewählten Filter – Filter lockern oder
+    return `    <p class="meta">Keine Objekte im gewählten Filter oder Zeitraum – Filter lockern oder
     <a href="/">zurücksetzen</a>.</p>`;
   }
   return `    <div class="charts-3">
@@ -214,6 +304,12 @@ function dashboardUrl(
   if (filter.flaecheMin !== undefined) params.set('flaeche_min', String(filter.flaecheMin));
   if (filter.flaecheMax !== undefined) params.set('flaeche_max', String(filter.flaecheMax));
   if (filter.ausreisserEinbeziehen === true) params.set('ausreisser', 'an');
+  if (filter.zeitraum?.von !== undefined && filter.zeitraum.bis !== undefined) {
+    params.set('von', filter.zeitraum.von);
+    params.set('bis', filter.zeitraum.bis);
+  } else if (filter.zeitraum?.preset !== undefined) {
+    params.set('zeitraum', filter.zeitraum.preset);
+  }
   params.set('stichtag', stichtag);
   if (seiten !== undefined && seiten.kauf > 1) params.set('kauf_seite', String(seiten.kauf));
   if (seiten !== undefined && seiten.miete > 1) params.set('miete_seite', String(seiten.miete));

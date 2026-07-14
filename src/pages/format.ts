@@ -30,6 +30,33 @@ export function fmtRendite(anteil: number): string {
   return `${nfProzent2.format(anteil * 100)} %`;
 }
 
+const nfProzent1 = new Intl.NumberFormat('de-AT', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+/**
+ * Unter diesem Betrag (0,05 % bzw. 0,05 %-Pkt.) gilt ein Delta als „stabil":
+ * fmtDelta rendert „±0,0 …" und die KPI-Kachel zeigt den →-Pfeil — eine
+ * Konstante für beide, damit Pfeil und Text nie auseinanderlaufen.
+ */
+export const DELTA_STABIL_SCHWELLE = 0.0005;
+
+/**
+ * Delta-Anteil mit Vorzeichen: 0.023 → „+2,3 %" bzw. „+2,3 %-Pkt."
+ * (prozentpunkte für Rendite-Deltas). Minus als U+2212 wie aenderungsZelle.
+ */
+export function fmtDelta(
+  wert: number,
+  einheit: 'prozent' | 'prozentpunkte',
+  schwelle = DELTA_STABIL_SCHWELLE,
+): string {
+  const suffix = einheit === 'prozent' ? ' %' : ' %-Pkt.';
+  if (Math.abs(wert) < schwelle) return `±0,0${suffix}`;
+  const zeichen = wert < 0 ? '−' : '+';
+  return `${zeichen}${nfProzent1.format(Math.abs(wert) * 100)}${suffix}`;
+}
+
 /** YYYY-MM-DD als lokales Datum formatieren (T00:00:00 verhindert UTC-Tagessprung). */
 export function datumMedium(datum: string): string {
   return nfZeit.format(new Date(`${datum}T00:00:00`));

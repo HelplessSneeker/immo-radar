@@ -63,6 +63,7 @@ import {
   stichtageFuerTrend,
   streuungJeStichtag,
 } from './trend.js';
+import { zeitraumZuGrenzen } from './zeitraum.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_BODY_BYTES = 16 * 1024;
@@ -130,7 +131,16 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     (d) => d <= sweep.laufDatum,
   );
   const objekte = filterObjekte(alleObjekte, filter);
-  const trend = berechneObjektTrend(objekte, stichtage, filter.ausreisserEinbeziehen === true);
+  // Zeitraum klemmt nur die Stichtag-Liste — berechneObjektTrend bleibt bei
+  // "berechnet, was du reingibst". Alles Downstream (Rendite-Trend, Streuung,
+  // Datenpunkte-Nav) folgt dem geklemmten Trend automatisch.
+  const grenzen = zeitraumZuGrenzen(filter.zeitraum, sweep.laufDatum);
+  const stichtageImZeitraum = grenzen
+    ? stichtage.filter((d) => d >= grenzen.von && d <= grenzen.bis)
+    : stichtage;
+  const trend = berechneObjektTrend(objekte, stichtageImZeitraum, {
+    ausreisserEinbeziehen: filter.ausreisserEinbeziehen === true,
+  });
   // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
   // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
   const gewuenscht = parseStichtag(params);
@@ -164,7 +174,7 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
 
 /** Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten Bruttorendite. */
 async function topPicksSeite(params: URLSearchParams): Promise<string> {
-  const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt
+  const filter = parseDashboardFilter(params); // nur filter.plz + ausreisser werden genutzt, zeitraum nicht
   const [sweep, laufend] = await Promise.all([letzterFertigerSweep(), laufenderSweep()]);
   if (!sweep) return renderTopPicksOhneDatenSeite(laufend !== undefined);
 

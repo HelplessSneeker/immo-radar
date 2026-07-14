@@ -92,7 +92,17 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     bleibt getrennt. Jede Zuordnung ist mit Regel und Abweichungen protokolliert; nach
     Regeländerungen wird die gesamte Zuordnung deterministisch neu aufgebaut
     (<code>pnpm objekte:rebuild</code>). Die Roh-Inserate bleiben unangetastet und sind unter
-    <a href="/inserate">Inserate</a> einsehbar.</p>`,
+    <a href="/inserate">Inserate</a> einsehbar.</p>
+    <p><strong>Zeitraum-Filter &amp; Trend-Pfeile:</strong> Der Zeitraum-Filter des Dashboards
+    klemmt die Zeitreihe: Presets (7/30/90 Tage) rechnen relativ zum letzten fertigen Sweep,
+    ein eigenes Von/Bis ist absolut; ein „Bis" in der Zukunft wird auf den letzten Sweep
+    geklemmt, ein Zeitraum ganz in der Zukunft enthält keine Stichtage und zeigt den
+    Leer-Zustand. Die Kennzahl-Kacheln zeigen den letzten Wert <em>im Zeitraum</em>; endet
+    er vor dem letzten Sweep, steht der Stichtag des Werts dabei („Stand …"). Die
+    Trend-Pfeile vergleichen diesen Wert mit dem ersten im Zeitraum – der Rendite-Pfeil
+    urteilt (grün = gestiegen, rot = gefallen, in %-Punkten), Kauf- und Miete-Pfeile sind
+    neutrale Fakten (relative Änderung in %). Liegt nur ein Stichtag im Zeitraum, gibt es
+    kein Delta („zu wenig Daten für Trend").</p>`,
     },
     {
       id: 'aktive-inserate',

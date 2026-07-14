@@ -221,11 +221,17 @@ export function stichtageFuerTrend(objekte: ObjektZeitreihe[], sweepTage: string
  * (siehe ausreisserFlags; unter 4 Werten folgenlos). Der Default true
  * entspricht dem unbereinigten Altverhalten — das Dashboard übergibt false.
  */
+export interface BerechneObjektTrendOptionen {
+  /** Default true (Altverhalten): Ausreißer in die Mediane einrechnen. */
+  ausreisserEinbeziehen?: boolean;
+}
+
 export function berechneObjektTrend(
   objekte: ObjektZeitreihe[],
   stichtage: string[],
-  ausreisserEinbeziehen = true,
+  optionen: BerechneObjektTrendOptionen = {},
 ): TrendPunkt[] {
+  const { ausreisserEinbeziehen = true } = optionen;
   if (objekte.length === 0) return [];
   const start = objekte.map((o) => o.zuerstGesehen).reduce((a, b) => (a < b ? a : b));
 
@@ -360,6 +366,54 @@ export function berechneRenditeTrend(trend: TrendPunkt[]): RenditeTrendPunkt[] {
         ? bruttoRendite(punkt.medianMieteEurM2, punkt.medianKaufEurM2)
         : null,
   }));
+}
+
+/**
+ * Entwicklung einer KPI über den (ggf. zeitraum-geklemmten) Trend:
+ * letzter nicht-null-Wert vs. erster nicht-null-Wert. referenzWert null =
+ * kein zweiter Datenpunkt (Single-Point-Trend oder nur ein Punkt mit Wert)
+ * — dann gibt es kein Delta und die Kachel zeigt den Fallback-Text.
+ */
+export interface KpiDelta {
+  aktuell: number;
+  referenzWert: number | null;
+  /** Stichtag des Referenzwerts, fürs transparente „vs. …" in der Kachel. */
+  referenzDatum: string | null;
+  /** aktuell − referenz; undefined, wenn referenzWert null ist. */
+  deltaAbsolut?: number;
+  /** aktuell/referenz − 1; undefined bei referenzWert null oder 0. */
+  deltaAnteil?: number;
+}
+
+function kpiDeltaAusReihe(reihe: { datum: string; wert: number | null }[]): KpiDelta | null {
+  const mitWert = reihe.filter((p): p is { datum: string; wert: number } => p.wert !== null);
+  const letzter = mitWert.at(-1);
+  if (letzter === undefined) return null;
+  const erster = mitWert[0];
+  if (erster === undefined || erster === letzter) {
+    return { aktuell: letzter.wert, referenzWert: null, referenzDatum: null };
+  }
+  const delta: KpiDelta = {
+    aktuell: letzter.wert,
+    referenzWert: erster.wert,
+    referenzDatum: erster.datum,
+    deltaAbsolut: letzter.wert - erster.wert,
+  };
+  if (erster.wert !== 0) delta.deltaAnteil = letzter.wert / erster.wert - 1;
+  return delta;
+}
+
+/** KPI-Delta für die Preis-Kacheln (Kauf-/Miete-Median). */
+export function berechneKpiDelta(
+  trend: TrendPunkt[],
+  feld: 'medianKaufEurM2' | 'medianMieteEurM2',
+): KpiDelta | null {
+  return kpiDeltaAusReihe(trend.map((p) => ({ datum: p.datum, wert: p[feld] })));
+}
+
+/** KPI-Delta für die Rendite-Kachel — eigene Funktion statt Überladung. */
+export function berechneRenditeKpiDelta(trend: RenditeTrendPunkt[]): KpiDelta | null {
+  return kpiDeltaAusReihe(trend.map((p) => ({ datum: p.datum, wert: p.bruttoRendite })));
 }
 
 export interface ObjektFilter {

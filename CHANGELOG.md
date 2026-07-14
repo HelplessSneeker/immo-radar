@@ -9,6 +9,9 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Geändert
 
+- `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
+  Positional-Args (`{ ausreisserEinbeziehen }`) — verhindert
+  Positional-Arg-Wildwuchs, wenn weitere Optionen dazukommen.
 - Dashboard-Kennzahlen (Kauf-/Miete-Median, Bruttorendite, alle Trend-Charts
   und die Median-Linie der Punktwolken) rechnen 1,5×IQR-Ausreißer jetzt
   standardmäßig heraus, bestimmt je Stichtag und Markt (Kauf/Miete) auf der
@@ -35,6 +38,16 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   „Ausreißer einbeziehen" (`?ausreisser=an`, wie im Dashboard) holt sie
   markiert zurück und lässt die Miet-Mediane unbereinigt rechnen.
   Neuer Navbar-Eintrag „Top Picks" und Methodik-Abschnitt `#top-picks`.
+- Dashboard-Filterleiste um einen Zeitraum-Filter erweitert: Presets
+  `7 / 30 / 90 Tage / Alle` (`?zeitraum=7d|30d|90d|alle`, relativ zum
+  letzten Sweep) plus Custom Von/Bis (`?von=…&bis=…`, absolut; gewinnt
+  über das Preset). Ungültige Datumsangaben werden still verworfen, ein
+  „Bis" in der Zukunft wird auf den letzten Sweep geklemmt; Zeitreihen,
+  Punktwolke und Datenpunkte-Stichtag-Navigation folgen dem Zeitraum.
+- KPI-Kacheln zeigen einen Trend-Pfeil mit textlichem Delta und
+  Referenz-Datum vs. Anfang des gewählten Zeitraums: Rendite mit Urteil
+  (`↑` grün / `↓` rot, in %-Punkten), Kauf/Miete neutral (relative
+  Änderung in %); bei ≤ 1 Trend-Punkt „zu wenig Daten für Trend".
 
 ## [1.1.0] - 2026-07-10
 

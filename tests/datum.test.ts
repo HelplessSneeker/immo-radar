@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { heutigesDatum, tageZwischen } from '../src/datum.js';
+import { heutigesDatum, minusTage, tageZwischen } from '../src/datum.js';
 
 describe('heutigesDatum', () => {
   it('liefert ein YYYY-MM-DD-Datum', () => {
@@ -21,5 +21,18 @@ describe('tageZwischen', () => {
   it('kommt über Monats- und Jahresgrenzen', () => {
     expect(tageZwischen('2025-12-31', '2026-01-01')).toBe(1);
     expect(tageZwischen('2026-02-28', '2026-03-01')).toBe(1); // 2026 kein Schaltjahr
+  });
+});
+
+describe('minusTage', () => {
+  it('zieht ganze Tage ab, 0 bleibt der Tag selbst', () => {
+    expect(minusTage('2026-07-14', 0)).toBe('2026-07-14');
+    expect(minusTage('2026-07-14', 6)).toBe('2026-07-08');
+  });
+
+  it('kommt über Monats- und Jahresgrenzen', () => {
+    expect(minusTage('2026-03-01', 1)).toBe('2026-02-28'); // 2026 kein Schaltjahr
+    expect(minusTage('2026-01-01', 1)).toBe('2025-12-31');
+    expect(minusTage('2026-07-14', 89)).toBe('2026-04-16');
   });
 });
