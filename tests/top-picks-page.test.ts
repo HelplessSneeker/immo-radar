@@ -111,6 +111,12 @@ describe('renderTopPicksSeite', () => {
     expect(html).not.toContain('checked');
   });
 
+  it('weist gesetzte Fläche-Parameter sichtbar als hier ignoriert aus', () => {
+    const html = renderTopPicksSeite(daten({ flaecheIgnoriert: true }));
+    expect(html).toContain('Der Fläche-Filter wirkt nur im Dashboard und wird hier ignoriert.');
+    expect(renderTopPicksSeite(daten())).not.toContain('wird hier ignoriert');
+  });
+
   it('spiegelt den Ausreißer-Schalter und bietet den Reset-Link', () => {
     const html = renderTopPicksSeite(daten({ ausreisserEinbeziehen: true }));
     expect(html).toContain('name="ausreisser" value="an" checked');

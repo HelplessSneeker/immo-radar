@@ -190,6 +190,9 @@ async function topPicksSeite(params: URLSearchParams): Promise<string> {
       ausreisserEinbeziehen,
     }),
     ausreisserEinbeziehen,
+    // Fläche-Parameter aus einem umgebogenen Dashboard-Link wirken hier
+    // nicht — die Seite sagt das sichtbar, statt sie still zu verwerfen.
+    flaecheIgnoriert: filter.flaecheMin !== undefined || filter.flaecheMax !== undefined,
     zielRendite: ZIEL_RENDITE,
   };
   return renderTopPicksSeite(filter.plz !== undefined ? { ...daten, filterPlz: filter.plz } : daten);

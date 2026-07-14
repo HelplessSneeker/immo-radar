@@ -17,6 +17,12 @@ export interface TopPicksDaten {
   picks: TopPickKandidat[];
   /** Gesetzter PLZ-Präfix-Filter (?plz=…). */
   filterPlz?: string;
+  /**
+   * true = ?flaeche_min/?flaeche_max stehen in der URL (umgebogener
+   * Dashboard-Link): hier ohne Wirkung, das wird sichtbar gesagt statt
+   * still verworfen.
+   */
+  flaecheIgnoriert?: boolean;
   /** true = ?ausreisser=an: Kauf-Ausreißer im Ranking, Miet-Mediane unbereinigt. */
   ausreisserEinbeziehen: boolean;
   /** Ziel-Bruttorendite (Anteil), ab der die Rendite-Zelle als "gut" gilt. */
@@ -40,6 +46,10 @@ function filterleiste(daten: TopPicksDaten): string {
     daten.filterPlz !== undefined || daten.ausreisserEinbeziehen
       ? '\n      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>'
       : '';
+  const flaecheHinweis =
+    daten.flaecheIgnoriert === true
+      ? '\n    <p class="meta">Der Fläche-Filter wirkt nur im Dashboard und wird hier ignoriert.</p>'
+      : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
       <div class="feld">
         <label for="f-plz">PLZ (Präfix)</label>
@@ -50,7 +60,7 @@ function filterleiste(daten: TopPicksDaten): string {
         <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
       <button>Filtern</button>${zuruecksetzen}
-    </form>`;
+    </form>${flaecheHinweis}`;
 }
 
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
