@@ -1,6 +1,6 @@
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
 import { datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
-import { escapeHtml, seite } from './layout.js';
+import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
  * Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten
@@ -106,20 +106,14 @@ ${zeilen}
 
 /** Top-Picks-Seite ohne Daten: noch kein fertiger Sweep (wie das Dashboard). */
 export function renderTopPicksOhneDatenSeite(sweepLaeuft: boolean): string {
-  const inhalt = `  <header>
-    <h1>Top Picks</h1>
-    <p class="meta">Die Kauf-Objekte mit der höchsten geschätzten Bruttorendite —
-    sobald der erste Sweep Daten liefert.</p>
-  </header>
-  <section>
-    <h2>Noch keine Daten</h2>
-    <p class="meta">${
-      sweepLaeuft
-        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
-        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
-    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
-  </section>`;
-  return seite('Top Picks', inhalt, { aktiv: 'top-picks' });
+  return renderOhneDatenSeite({
+    titel: 'Top Picks',
+    aktiv: 'top-picks',
+    ueberschrift: 'Top Picks',
+    untertitel: `Die Kauf-Objekte mit der höchsten geschätzten Bruttorendite —
+    sobald der erste Sweep Daten liefert.`,
+    sweepLaeuft,
+  });
 }
 
 export function renderTopPicksSeite(daten: TopPicksDaten): string {

@@ -491,6 +491,38 @@ export interface SeitenOptionen {
   navbar?: boolean;
 }
 
+/**
+ * Leer-Zustand der Auswertungsseiten (Dashboard, Top Picks), solange noch
+ * kein Sweep fertig ist: gleicher Kopf wie im befüllten Zustand (damit der
+ * Ton zwischen leer und befüllt konsistent bleibt), identische
+ * Sweep-Erklärung mit Fortschritts-Link — nur Titel, Überschrift und
+ * Untertitel unterscheiden sich je Seite.
+ */
+export function renderOhneDatenSeite(optionen: {
+  /** <title>-Zusatz, z. B. „Dashboard". */
+  titel: string;
+  aktiv: NavAktiv;
+  /** h1 — wie im befüllten Zustand der Seite. */
+  ueberschrift: string;
+  /** Meta-Zeile unter der Überschrift (HTML, vom Aufrufer escaped). */
+  untertitel: string;
+  sweepLaeuft: boolean;
+}): string {
+  const inhalt = `  <header>
+    <h1>${optionen.ueberschrift}</h1>
+    <p class="meta">${optionen.untertitel}</p>
+  </header>
+  <section>
+    <h2>Noch keine Daten</h2>
+    <p class="meta">${
+      optionen.sweepLaeuft
+        ? 'Der erste Kärnten-Sweep läuft gerade – diese Seite füllt sich, sobald er fertig ist.'
+        : 'Der erste Kärnten-Sweep steht noch aus; er startet automatisch (spätestens 30 Minuten nach Serverstart).'
+    } Fortschritt: <a href="/crawl">Crawl-Läufe</a></p>
+  </section>`;
+  return seite(optionen.titel, inhalt, { aktiv: optionen.aktiv });
+}
+
 export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}): string {
   const mitNavbar = opts.navbar !== false;
   const nav = mitNavbar ? `${renderNavbar(opts.aktiv)}\n` : '';
