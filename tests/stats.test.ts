@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ausreisserFlags, bruttoRendite, iqrGrenzen, mean, median, quantile } from '../src/stats.js';
+import {
+  ausreisserFlags,
+  bruttoRendite,
+  iqrGrenzen,
+  mean,
+  median,
+  ohneAusreisser,
+  quantile,
+} from '../src/stats.js';
 
 describe('median', () => {
   it('ungerade Anzahl: mittlerer Wert', () => {
@@ -84,6 +92,12 @@ describe('iqrGrenzen / ausreisserFlags', () => {
 
   it('unter 4 Werten wird nichts markiert (IQR nicht belastbar)', () => {
     expect(ausreisserFlags([1, 1000, 2000])).toEqual([false, false, false]);
+  });
+
+  it('ohneAusreisser entfernt genau die geflaggten Werte', () => {
+    expect(ohneAusreisser([10, 11, 12, 13, 100])).toEqual([10, 11, 12, 13]);
+    expect(ohneAusreisser([10, 12, 14, 16, 18])).toEqual([10, 12, 14, 16, 18]);
+    expect(ohneAusreisser([1, 1000, 2000])).toEqual([1, 1000, 2000]); // n<4: no-op
   });
 });
 

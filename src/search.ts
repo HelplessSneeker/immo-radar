@@ -161,6 +161,8 @@ export interface DashboardFilter {
   plz?: string;
   flaecheMin?: number;
   flaecheMax?: number;
+  /** true = 1,5×IQR-Ausreißer in die Kennzahlen einrechnen; fehlt = ausgeschlossen. */
+  ausreisserEinbeziehen?: boolean;
 }
 
 /**
@@ -185,6 +187,10 @@ export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
   if (min !== undefined && max !== undefined && min > max) [min, max] = [max, min];
   if (min !== undefined) filter.flaecheMin = min;
   if (max !== undefined) filter.flaecheMax = max;
+
+  if (params.get('ausreisser')?.trim().toLowerCase() === 'an') {
+    filter.ausreisserEinbeziehen = true;
+  }
 
   return filter;
 }

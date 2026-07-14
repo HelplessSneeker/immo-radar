@@ -69,6 +69,12 @@ const DASHBOARD_CSS = `
   .datenpunkte summary h2 { display: inline; margin: 0; }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
+  /* Ausreißer-Kennzeichnung wie im Report (report.ts), gleiche Status-Tokens. */
+  .badge { font-size: 12px; color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .feld-toggle .meta { margin: 0; font-size: 12px; }
 `;
 
 /** Ab dieser Abweichung unter dem Serien-Median gilt ein Datenpunkt als Chance (grün). */
@@ -91,7 +97,7 @@ function filterBeschreibung(filter: DashboardFilter): string {
 function filterleiste(daten: DashboardDaten): string {
   const filter = daten.filter;
   const zuruecksetzen =
-    filterBeschreibung(filter) !== ''
+    filterBeschreibung(filter) !== '' || filter.ausreisserEinbeziehen === true
       ? '\n      <p class="meta"><a href="/">Filter zurücksetzen</a></p>'
       : '';
   const zahlWert = (n: number | undefined): string => (n === undefined ? '' : String(n));
@@ -114,6 +120,10 @@ function filterleiste(daten: DashboardDaten): string {
         <label for="f-flaeche-max">Fläche bis (m²)</label>
         <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="z. B. 90">
       </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
       <button>Filtern</button>${zuruecksetzen}
     </form>`;
 }
@@ -129,11 +139,12 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
+  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">${fmtRendite(rendite)}</div>
         <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>
-        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²</div>
+        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}</div>
       </div>`;
 }
 
@@ -141,6 +152,7 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.trend.at(-1);
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
+  const bereinigt = daten.filter.ausreisserEinbeziehen === true ? '' : ' (ohne Ausreißer)';
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0
       ? `\n    <p class="warnung">Beim letzten Sweep waren ${daten.portalAusfaelle.length} Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>`
@@ -149,12 +161,12 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
 ${renditeKachel(daten, zielProzent)}      <div class="tile">
         <div class="tile-label">Kaufpreis (Median)</div>
         <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte` : 'keine Daten'}</div>
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Kaltmiete (Median)</div>
         <div class="tile-value">${miete != null ? `${nfEur2.format(miete)} €/m²` : '–'}</div>
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte` : 'keine Daten'}</div>
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Letzter Sweep</div>
@@ -201,6 +213,7 @@ function dashboardUrl(
   if (filter.plz) params.set('plz', filter.plz);
   if (filter.flaecheMin !== undefined) params.set('flaeche_min', String(filter.flaecheMin));
   if (filter.flaecheMax !== undefined) params.set('flaeche_max', String(filter.flaecheMax));
+  if (filter.ausreisserEinbeziehen === true) params.set('ausreisser', 'an');
   params.set('stichtag', stichtag);
   if (seiten !== undefined && seiten.kauf > 1) params.set('kauf_seite', String(seiten.kauf));
   if (seiten !== undefined && seiten.miete > 1) params.set('miete_seite', String(seiten.miete));
@@ -231,15 +244,19 @@ function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: bool
   const dedup =
     p.anzahlInserate > 1 ? ` · ${nfEur0.format(p.anzahlInserate)} Inserate (dedupliziert)` : '';
   const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${dedup}`;
+  const badge = p.istAusreisser ? ' <span class="badge badge-critical">▲ Ausreißer</span>' : '';
   const abweichung = p.eurM2 / serienMedian - 1;
   const zeichen = abweichung < 0 ? '−' : '+';
   const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
   // Käufer-Perspektive: deutlich unter dem Median = Chance (grün). Kein Rot
-  // für "teuer" – teuer ist kein Verdikt, nur eine Lage.
+  // für "teuer" – teuer ist kein Verdikt, nur eine Lage. Ausreißer bekommen
+  // kein Chance-Grün: erst prüfen (Tippfehler? Sonderfall?), dann freuen.
   const abwZelle =
-    abweichung <= CHANCE_SCHWELLE ? `<span class="gesenkt">${abwText}</span>` : abwText;
-  return `        <tr>
-          <td>${link}<span class="sub">${sub}</span></td>
+    abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
+      ? `<span class="gesenkt">${abwText}</span>`
+      : abwText;
+  return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
+          <td>${link}${badge}<span class="sub">${sub}</span></td>
           <td class="num">${nfEur0.format(p.preis)} €</td>
           <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num">${kauf ? nfEur0.format(p.eurM2) : nfEur2.format(p.eurM2)}</td>
@@ -255,8 +272,13 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
     return `      <h3 id="${anker}">${label}</h3>
       <p class="meta">Keine aktiven ${label}-Objekte an diesem Stichtag.</p>`;
   }
-  // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite.
-  const serienMedian = median(punkte.map((p) => p.eurM2));
+  // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite. Er folgt
+  // dem Ausreißer-Toggle (wie die KPI-Kacheln); nie leer, weil ausreisserFlags
+  // bei n≥4 die mittlere Hälfte stehen lässt und bei n<4 nichts flaggt.
+  const einbeziehen = daten.filter.ausreisserEinbeziehen === true;
+  const imMedian = einbeziehen ? punkte : punkte.filter((p) => !p.istAusreisser);
+  const serienMedian = median(imMedian.map((p) => p.eurM2));
+  const anzahlAusreisser = punkte.filter((p) => p.istAusreisser).length;
   const medianText = kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian);
   const gesamtSeiten = Math.max(1, Math.ceil(punkte.length / DATENPUNKTE_PRO_SEITE));
   const gewuenscht = kauf ? daten.datenpunkteSeiten.kauf : daten.datenpunkteSeiten.miete;
@@ -281,7 +303,9 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
         ${seite < gesamtSeiten ? `<a href="${url(seite + 1)}">Weiter →</a>` : '<span></span>'}
       </nav>`
       : '';
-  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte · Median ${medianText} €/m²</h3>
+  const ausreisserText =
+    anzahlAusreisser > 0 ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer` : '';
+  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText} · Median ${medianText} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}</h3>
       <div class="tabelle-scroll">
       <table>
         <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
@@ -300,7 +324,8 @@ function datenpunkteSektion(daten: DashboardDaten): string {
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
       <summary><h2>Datenpunkte (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
-      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe.
+      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe. Die Wolke zeigt
+      immer alle Objekte; die Median-Linie folgt dem Ausreißer-Filter.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">
@@ -312,8 +337,9 @@ function datenpunkteSektion(daten: DashboardDaten): string {
           <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
         </div>
       </div>
-      <p class="meta">Die Tabellen zeigen die Punkte des gewählten Stichtags – zum
-      Nachschlagen und Prüfen einzelner Ausreißer.</p>
+      <p class="meta">Die Tabellen zeigen alle Punkte des gewählten Stichtags –
+      Ausreißer (1,5×IQR) sind markiert und zählen nur mit „Ausreißer einbeziehen"
+      in die Kennzahlen. <a href="/methodik#ausreisser">Details</a></p>
 ${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}
 ${serieBlock(daten, stichtag, false)}
@@ -379,8 +405,12 @@ ${kpiZeile(daten, zielProzent)}
   <section>
     <h2>Zeitreihen (je Crawl-Lauf)</h2>
     <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
-    Objekte; ein Objekt zählt einmal, auch wenn es auf beiden Portalen inseriert ist.
-    <a href="/methodik#objekte">Details</a></p>
+    Objekte (${
+      daten.filter.ausreisserEinbeziehen === true
+        ? '1,5×IQR-Ausreißer einbezogen'
+        : 'ohne 1,5×IQR-Ausreißer'
+    }); ein Objekt zählt einmal, auch wenn
+    es auf beiden Portalen inseriert ist. <a href="/methodik#objekte">Details</a></p>
 ${chartSektion(daten.trend)}
   </section>
 ${datenpunkteSektion(daten)}

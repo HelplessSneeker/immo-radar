@@ -135,12 +135,38 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     (fehlgeschlagene Läufe erhalten keinen Punkt); pro Stichtag zählt ein Objekt, wenn es
     damals aktiv war, mit seinem damaligen Preis (aus der
     <a href="#preisaenderungen">Preishistorie</a> rekonstruiert). Der PLZ-/m²-Filter des
-    Dashboards schränkt die Objektmenge ein, bevor gerechnet wird.</p>
+    Dashboards schränkt die Objektmenge ein, bevor gerechnet wird; danach bleiben
+    <a href="#ausreisser">Ausreißer</a> standardmäßig außen vor.</p>
     <p><strong>Grenzen:</strong> Bei engen Filtern hängt der Median an wenigen Objekten – die
     Anzahl pro Punkt steht im Diagramm-Tooltip. Sprünge können auch daher kommen, dass teure
     oder billige Objekte dazukommen bzw. verschwinden, nicht nur aus echten Preisänderungen.
     Fällt bei einem sonst fertigen Lauf ein Portal-Segment aus, kann der neueste Punkt zu
     niedrig ausfallen; er heilt rückwirkend, sobald die Inserate wieder gesehen werden.</p>`,
+    },
+    {
+      id: 'ausreisser',
+      titel: 'Ausreißer (1,5×IQR)',
+      inhalt: `
+    <p><strong>Was ist das?</strong> Einzelne Inserate mit unplausiblem €/m² – Tippfehler,
+    Luxus-Sonderfälle, falsch erfasste Flächen – würden Median und Rendite verzerren. Das
+    Dashboard rechnet sie deshalb standardmäßig aus allen Kennzahlen heraus; die Checkbox
+    „Ausreißer einbeziehen" in der Filterleiste (URL-Parameter <code>?ausreisser=an</code>)
+    schaltet sie wieder dazu.</p>
+    <p><strong>Formel:</strong> Je Stichtag und Markt (Kauf bzw. Miete) wird über die
+    €/m²-Werte der aktiven Objekte – nach dem PLZ-/m²-Filter – der Interquartilsabstand
+    gebildet: IQR = Q3 − Q1. Ausreißer ist, was unter Q1 − 1,5×IQR oder über
+    Q3 + 1,5×IQR liegt (die klassische Tukey-Regel).</p>
+    <p class="beispiel">Beispiel: liegen die mittleren 50 % der Kauf-Objekte zwischen
+    2.500 und 4.500 €/m² (IQR = 2.000), gelten Werte unter −500 bzw. über 7.500 €/m²
+    als Ausreißer.</p>
+    <p><strong>Grenzen:</strong> Unter 4 Werten je Stichtag und Markt ist der IQR nicht
+    belastbar – dann wird nichts ausgeschlossen und der Schalter ist folgenlos. Sind die
+    mittleren 50 % der Werte identisch (IQR = 0), urteilt die Regel umgekehrt streng:
+    alles abseits dieses Werts gilt als Ausreißer – bei engen Filtern mit runden Mieten
+    lohnt der Blick auf die markierten Punkte. In der Datenpunkte-Tabelle sind Ausreißer
+    mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der Schalter
+    steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer ist ein
+    Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -164,7 +190,8 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     ein investierter Kauf-Euro? Ab ${zielProzent} gilt das Ziel als erreicht und der Wert wird
     grün hervorgehoben.</p>
     <p><strong>Formel:</strong> (Median-Kaltmiete €/m² × 12) ÷ Median-Kaufpreis €/m², jeweils
-    über die aktiven Objekte im gewählten Filter; als Zeitreihe je Lauf-Stichtag.</p>
+    über die aktiven Objekte im gewählten Filter – standardmäßig ohne
+    <a href="#ausreisser">Ausreißer</a>; als Zeitreihe je Lauf-Stichtag.</p>
     <p class="beispiel">Beispiel: 10 €/m² Kaltmiete × 12 = 120 €/m² Jahresmiete;
     120 ÷ 3.000 €/m² Kaufpreis = 4 %.</p>
     <p><strong>Grenzen:</strong> <em>Brutto</em> heißt: ohne Betriebskosten, Instandhaltung,
