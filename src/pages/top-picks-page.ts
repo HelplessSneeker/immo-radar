@@ -30,10 +30,6 @@ export interface TopPicksDaten {
 }
 
 const TOP_PICKS_CSS = `
-  /* Neutraler Basis-Badge wie im Dashboard (dashboard-page.ts) — Herkunft, kein Urteil. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   /* Rendite ≥ Ziel: gleiche Gut-Töne wie die Dashboard-Kachel (tile-good). */
   .zelle-gut { background: var(--good-bg); }
   .gut { color: var(--good-text); font-weight: 600; }

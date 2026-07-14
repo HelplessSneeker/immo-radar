@@ -171,6 +171,12 @@ export const BASIS_CSS = `
      kritisch. Das Vorzeichen trägt das Urteil auch ohne Farbe. */
   .gesenkt { color: var(--status-good); font-weight: 600; }
   .gestiegen { color: var(--status-critical); font-weight: 600; }
+  /* Site-weite Badges und Ausreißer-Zeilen (Dashboard-Datenpunkte, Top Picks,
+     Report): .badge ist neutrale Herkunft/Fakt, .badge-critical das Urteil
+     „auffällig", .row-outlier hinterlegt die ganze Zeile leise kritisch. */
+  .badge { font-size: 12px; color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
+  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }

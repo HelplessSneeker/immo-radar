@@ -167,15 +167,12 @@ const REPORT_CSS = `
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; }
   .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
-  .badge { font-size: 12px; color: var(--text-secondary); }
   .badge-good { color: var(--good-text); font-weight: 600; }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
   .good { color: var(--good-text); }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
 `;
 
 export function renderReport(ergebnis: AnalyseErgebnis, meta: ReportMeta): string {

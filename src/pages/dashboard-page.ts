@@ -81,10 +81,6 @@ const DASHBOARD_CSS = `
   .datenpunkte summary h2 { display: inline; margin: 0; }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
-  /* Ausreißer-Kennzeichnung wie im Report (report.ts), gleiche Status-Tokens. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
