@@ -139,6 +139,7 @@ export function renderTopPicksSeite(daten: TopPicksDaten): string {
     als 1,5×IQR-Ausreißer gelten — ein fragwürdiger Preis ist kein Kaufsignal.`;
   const inhalt = `  <header>
     <h1>Top Picks — Bruttorendite je Objekt (Stichtag ${escapeHtml(datumMedium(daten.stichtag))})${escapeHtml(filterZusatz)}</h1>
+    <p class="intro">Die Kauf-Objekte, bei denen sich die Investition am ehesten rechnet: das beste Verhältnis aus Kaufpreis und der Miete, die im gleichen Gebiet üblich ist.</p>
     <p class="meta">Kauf-Objekte, sortiert nach geschätzter Bruttorendite. Die Miete kommt
     aus dem Median der Kaltmiete im Objekt-Gebiet (PLZ, sonst Bezirk oder Kärnten-Gesamt)
     — die Basis steht jeweils dabei. <a href="/methodik#top-picks">Details</a></p>

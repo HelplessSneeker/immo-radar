@@ -483,6 +483,7 @@ export function renderDashboardSeite(daten: DashboardDaten): string {
 
   const inhalt = `  <header>
     <h1>Wohnungsmarkt Kärnten${beschreibung ? ` · ${escapeHtml(beschreibung)}` : ''}</h1>
+    <p class="intro">Auf einen Blick, was Wohnungen in Kärnten pro Quadratmeter kosten — beim Kauf wie bei der Miete — und ob die Preise zuletzt gestiegen oder gefallen sind.</p>
     <p class="meta">Alle Wohnungen (Kauf & Miete) von willhaben.at und immoscout24.at,
     täglich vollständig gecrawlt und zu Objekten dedupliziert · Stand ${escapeHtml(datumMedium(daten.stichtag))}</p>
   </header>

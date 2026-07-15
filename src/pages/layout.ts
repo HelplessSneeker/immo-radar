@@ -112,6 +112,11 @@ export const BASIS_CSS = `
   h1 { font-size: 20px; margin: 0; }
   h2 { font-size: 15px; margin: 0 0 12px; }
   .meta { color: var(--text-secondary); font-size: 13px; }
+  /* Begrüßungs-/Orientierungszeile im Seitenkopf: sitzt in der Hierarchie
+     zwischen h1 (20px, Tinte) und der grauen Herkunfts-Meta – plain language
+     für Nicht-Techniker, ohne die stille Anmutung zu brechen. */
+  .intro { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
+  .intro + .meta { margin-top: 6px; }
   section {
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px;
