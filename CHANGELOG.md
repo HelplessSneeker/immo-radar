@@ -9,6 +9,16 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Geändert
 
+- Redesign-Politur für Nicht-Techniker (Richtung „Das ruhige Marktbüro"
+  bleibt): wärmere Light-Neutralen mit sichtbarem Karten-Kontrast
+  (Papier `#f5f3ec` / Fläche `#fcfbf7`), mehr Atmung in den KPI-Kacheln
+  (größeres Padding, klarer Rhythmus zwischen Label, Wert, Trend und
+  Sub-Zeile). Serien-Farben, Urteils-/Flach-Regel und beide Themes
+  unverändert.
+- Plain-Language-Mikrocopy auf den Seiten, die Nicht-Techniker nutzen:
+  Fehlerseiten mit verständlicher Überschrift je Status (Code als Meta),
+  Top-Picks- und Portfolio-Leerzustände ohne Jargon, PLZ-Filter-Label
+  „Anfang genügt" statt „Präfix".
 - „Ausreißer" umfasst jetzt beide Klassen (1,5×IQR + harte
   Plausibilitätsregeln): Kennzahlen, Trend und Top Picks rechnen
   standardmäßig ohne beide, der Schalter `?ausreisser=an` holt beide
@@ -27,6 +37,15 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Hinzugefügt
 
+- Monochrome Lucide-Icons in der Hauptnavigation (in `--text-secondary`
+  getönt, aktiver Eintrag in Tinte) — visuelle Orientierung, ohne das
+  Farbbudget von Labels/Zahlen anzutasten.
+- Orientierungszeile in Plain Language im Kopf von Dashboard und Top Picks:
+  sagt in einfachen Worten, wofür die Seite da ist, über der technischen
+  Herkunfts-Meta.
+- Mobile-Karten für die dichten Tabellen (Top Picks, Datenpunkte,
+  Portfolio): unter 640px bricht jede Zeile in eine gestapelte Karte um
+  (Spaltenkopf links, Wert rechts); Desktop bleibt beim Tabellen-Layout.
 - Harte Plausibilitätsregeln zusätzlich zur IQR-Statistik (feste Grenzen
   für Fläche, €/m² Kauf/Miete, Fläche pro Zimmer und absolute Preise) —
   der Grund persistiert im Bestand als `datenqualitaet`-Feld und wird bei
