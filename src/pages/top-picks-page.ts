@@ -59,7 +59,7 @@ function filterleiste(daten: TopPicksDaten): string {
       : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
       <div class="feld">
-        <label for="f-plz">PLZ (Präfix)</label>
+        <label for="f-plz">PLZ (Anfang genügt)</label>
         <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(daten.filterPlz ?? '')}" placeholder="z. B. 9020 oder 95">
       </div>
       <div class="feld feld-toggle">
@@ -95,12 +95,12 @@ function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string)
 
 function tabelle(daten: TopPicksDaten, zielProzent: string): string {
   if (daten.picks.length === 0) {
-    const imFilter =
-      daten.filterPlz !== undefined
-        ? ` im PLZ-Filter „${escapeHtml(daten.filterPlz)}" — <a href="/top-picks">Filter zurücksetzen</a> oder`
-        : ' —';
-    return `    <p class="meta">Keine Kauf-Objekte mit belastbarer Miet-Vergleichsbasis${imFilter}
-    im <a href="/">Dashboard</a> den Gesamtmarkt ansehen.</p>`;
+    return daten.filterPlz !== undefined
+      ? `    <p class="meta">Für den PLZ-Filter „${escapeHtml(daten.filterPlz)}" finden wir gerade keine
+    Kauf-Objekte mit vergleichbaren Mieten in der Nähe. <a href="/top-picks">Filter zurücksetzen</a>
+    oder im <a href="/">Dashboard</a> den Gesamtmarkt ansehen.</p>`
+      : `    <p class="meta">Gerade gibt es kein Kauf-Objekt, zu dem sich eine verlässliche
+    Vergleichsmiete finden lässt. Im <a href="/">Dashboard</a> den Gesamtmarkt ansehen.</p>`;
   }
   const zeilen = daten.picks.map((p) => pickZeile(p, daten.zielRendite, zielProzent)).join('\n');
   return `    <div class="tabelle-scroll">

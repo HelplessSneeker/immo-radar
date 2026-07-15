@@ -140,7 +140,7 @@ function filterleiste(daten: DashboardDaten): string {
       : '';
   return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}
       <div class="feld">
-        <label for="f-plz">PLZ (Präfix)</label>
+        <label for="f-plz">PLZ (Anfang genügt)</label>
         <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filter.plz ?? '')}" placeholder="z. B. 9020 oder 95">
       </div>
       <div class="feld">

@@ -130,7 +130,7 @@ function renditeZelle(daten: PortfolioZeileDaten, zielRendite: number): string {
 
 function portfolioTabelle(daten: PortfolioSeitenDaten): string {
   if (daten.zeilen.length === 0) {
-    return `    <p class="meta">Noch keine Objekte — unten das erste anlegen.</p>`;
+    return `    <p class="meta">Noch keine Objekte hinterlegt — leg unten dein erstes an, dann vergleichen wir Miete und Rendite mit dem Markt.</p>`;
   }
   const zeilen = daten.zeilen
     .map(({ objekt, vergleich }) => {
