@@ -1,6 +1,5 @@
-import { datenqualitaetLabels } from '../plausibilitaet.js';
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
-import { datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
+import { ausreisserBadge, datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
@@ -74,15 +73,7 @@ function filterleiste(daten: TopPicksDaten): string {
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
-  // Hard-Regel-Fälle tragen ihren Grund direkt am Badge; rein statistische
-  // (IQR-)Ausreißer bleiben beim nackten „▲ Ausreißer".
-  const grund =
-    p.datenqualitaet !== undefined
-      ? ` · ${escapeHtml(datenqualitaetLabels(p.datenqualitaet))}`
-      : '';
-  const ausreisserBadge = p.istAusreisser
-    ? ` <span class="badge badge-critical">▲ Ausreißer${grund}</span>`
-    : '';
+  const badge = ausreisserBadge(p);
   const erreicht = p.bruttoRendite >= zielRendite;
   // Urteils-Regel: Grün nur mit Text-Marker; unter Ziel bleibt die Zelle
   // neutral — eine niedrigere Rendite ist hier eine Lage, kein Fehler.
@@ -92,7 +83,7 @@ function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string)
       ? `<td class="num zelle-gut"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
       : `<td class="num">${fmtRendite(p.bruttoRendite)}</td>`;
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
-          <td>${link}${ausreisserBadge}<span class="sub">${escapeHtml(p.portal)}</span></td>
+          <td>${link}${badge}<span class="sub">${escapeHtml(p.portal)}</span></td>
           <td>${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
           <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num">${nfEur0.format(p.kaufpreis)} €</td>

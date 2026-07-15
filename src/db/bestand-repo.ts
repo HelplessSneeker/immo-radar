@@ -80,7 +80,10 @@ export function preisPunktAusZeile(z: PreisPunktZeile): PreisPunkt {
  * aktueller Preis; bei Preisänderung eine Historien-Zeile — max. eine pro
  * Tag, der letzte Preis des Tages gewinnt). zuerst_gesehen bleibt stabil.
  * datenqualitaet wird bei jedem Sweep aus den frischen Portal-Feldern
- * re-evaluiert (pruefePlausibilitaet), damit Portal-Korrekturen greifen.
+ * re-evaluiert (pruefePlausibilitaet); flaeche_m2 und zimmer werden dabei
+ * mitgeschrieben, damit Flag und Zeile dieselben Werte beschreiben —
+ * korrigiert ein Portal eine Fläche, verschwinden Flag UND falscher Wert.
+ * typ bleibt eingefroren (ein Typ-Wechsel wäre faktisch ein neues Inserat).
  */
 export async function bestandUpsert(
   inserate: InseratMitPortal[],
@@ -106,6 +109,7 @@ export async function bestandUpsert(
            preis = EXCLUDED.preis, ort = EXCLUDED.ort, plz = EXCLUDED.plz,
            bezirk = EXCLUDED.bezirk, zustand = EXCLUDED.zustand, url = EXCLUDED.url,
            bundesland = EXCLUDED.bundesland,
+           flaeche_m2 = EXCLUDED.flaeche_m2, zimmer = EXCLUDED.zimmer,
            zuletzt_gesehen = GREATEST(inserate_bestand.zuletzt_gesehen, EXCLUDED.zuletzt_gesehen),
            datenqualitaet = EXCLUDED.datenqualitaet
          RETURNING (SELECT preis FROM vorher) AS preis_vorher`,
@@ -400,11 +404,19 @@ export async function plausibilitaetRebuild(
             stand.unveraendert += 1;
             continue;
           }
-          await client.query(
-            `UPDATE inserate_bestand SET datenqualitaet = $3 WHERE portal = $1 AND inserat_id = $2`,
-            [z.portal, z.inserat_id, neu],
+          // Optimistisch gegen den Batch-Snapshot: hat ein paralleler Sweep
+          // die Zeile inzwischen fortgeschrieben (und dabei selbst
+          // re-evaluiert), gewinnt sein frischeres Urteil — nicht unseres
+          // aus den veralteten Werten.
+          const { rowCount } = await client.query(
+            `UPDATE inserate_bestand SET datenqualitaet = $3
+             WHERE portal = $1 AND inserat_id = $2
+               AND preis = $4 AND flaeche_m2 = $5 AND zimmer = $6
+               AND datenqualitaet IS NOT DISTINCT FROM $7`,
+            [z.portal, z.inserat_id, neu, z.preis, z.flaeche_m2, z.zimmer, z.datenqualitaet],
           );
-          if (neu === null) stand.entflaggt += 1;
+          if (rowCount === 0) stand.unveraendert += 1;
+          else if (neu === null) stand.entflaggt += 1;
           else stand.geflaggt += 1;
         }
         const ende = rows.at(-1)!;

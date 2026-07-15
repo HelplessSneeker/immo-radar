@@ -255,6 +255,29 @@ describe.runIf(!!process.env.DATABASE_URL)('bestand (Integration)', () => {
       expect((await bestandLaden('kaernten'))[0]?.datenqualitaet).toBeUndefined();
     });
 
+    it('schreibt bei einer Portal-Korrektur Fläche/Zimmer mit — Flag und Zeile bleiben konsistent', async () => {
+      await bestandUpsert([defekt('wh-1')], 'kaernten', '2026-07-01');
+      // Das Portal korrigiert die Grundstücks- zur Wohnfläche: Flag weg UND
+      // die Zeile trägt die korrigierten Werte (sonst rechnete das Dashboard
+      // ungeflaggt mit der alten 9758-m²-Fläche weiter).
+      await bestandUpsert(
+        [{ ...inserat('wh-1', 230000), flaeche_m2: 90, zimmer: 4 }],
+        'kaernten',
+        '2026-07-05',
+      );
+      const [gespeichert] = await bestandLaden('kaernten');
+      expect(gespeichert).toMatchObject({ flaeche_m2: 90, zimmer: 4 });
+      expect(gespeichert?.datenqualitaet).toBeUndefined();
+      // Der Rebuild sieht dieselben Werte und ändert nichts mehr — kein
+      // Flip-Flop zwischen Sweep und Rebuild.
+      expect(await plausibilitaetRebuild()).toEqual({
+        geprueft: 1,
+        geflaggt: 0,
+        entflaggt: 0,
+        unveraendert: 1,
+      });
+    });
+
     it('bestandSeiteLaden mit nurAusreisser liefert nur geflaggte Zeilen', async () => {
       await bestandUpsert([inserat('wh-ok'), defekt('wh-defekt')], 'kaernten', '2026-07-01');
       const seite = await bestandSeiteLaden({ nurAusreisser: true }, 'zuletzt_gesehen', 10, 0);
