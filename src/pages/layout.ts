@@ -97,10 +97,13 @@ export const BASIS_CSS = `
     background: var(--surface-1);
     border-bottom: 1px solid var(--baseline);
   }
-  .hauptnav a { text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
+  .hauptnav a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
   .hauptnav a:hover { text-decoration: underline; }
+  .hauptnav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
+  .hauptnav a:hover svg { color: var(--text-primary); }
   .hauptnav .marke { color: var(--text-primary); font-weight: 600; margin-right: 8px; }
   .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
+  .hauptnav a[aria-current="page"] svg { color: var(--text-primary); }
   main {
     max-width: calc(560px + 2 * 24px); margin: 0 auto; padding: 24px;
     display: grid; gap: 20px;
@@ -384,10 +387,29 @@ const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
   ['crawl', '/crawl', 'Crawl-Läufe'],
 ];
 
+// Lucide-Icons (24er-viewBox, currentColor). Bewusst monochrom und in
+// text-secondary getönt – die Farbe bleibt für Labels/Zahlen reserviert, die
+// Ikonografie dient nur der schnellen visuellen Orientierung für Nicht-Techniker.
+const NAV_ICON_PFADE: Record<NavAktiv, string> = {
+  dashboard: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+  'top-picks':
+    '<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>',
+  inserate:
+    '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
+  portfolio:
+    '<path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/>',
+  crawl:
+    '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+};
+
+function navIcon(key: NavAktiv): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ICON_PFADE[key]}</svg>`;
+}
+
 function renderNavbar(aktiv: NavAktiv | undefined): string {
   const links = NAV_EINTRAEGE.map(
     ([key, href, label]) =>
-      `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${label}</a>`,
+      `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${navIcon(key)}<span>${label}</span></a>`,
   ).join('\n  ');
   // Der Aktivitäts-Slot ist per default versteckt und wird vom Poll-Script
   // sichtbar, sobald `/api/laufend` etwas Laufendes meldet. Bewusst als kompaktes
