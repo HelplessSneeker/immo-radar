@@ -59,20 +59,20 @@ export interface DashboardDaten {
 const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
 const DASHBOARD_CSS = `
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 12px; }
   /* Kacheln werden vom Grid gleich hoch gemacht; die interne Flex-Verteilung
      drückt die Sub-Zeile (Herkunfts-/Erklär-Text) zuverlässig an den Boden,
      damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
   .tile {
-    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px;
     display: flex; flex-direction: column;
   }
   .tile-good { background: var(--good-bg); }
-  .tile-label { color: var(--text-secondary); font-size: 13px; }
-  .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
-  .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .tile-label { color: var(--text-secondary); font-size: 13px; margin-bottom: 4px; }
+  .tile-value { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 0 0 8px; }
+  .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
-  .tile-sub { font-size: 12px; color: var(--text-secondary); margin-top: auto; }
+  .tile-sub { font-size: 12px; line-height: 1.45; color: var(--text-secondary); margin-top: auto; padding-top: 4px; }
   .charts-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
