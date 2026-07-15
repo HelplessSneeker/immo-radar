@@ -86,6 +86,8 @@ export function parseInserateAnfrage(params: URLSearchParams): InserateAnfrage {
   const ort = params.get('ort')?.trim();
   if (ort) filter.ort = ort;
 
+  if (params.get('nur')?.trim().toLowerCase() === 'ausreisser') filter.nurAusreisser = true;
+
   const sortierungRoh = params.get('sortierung')?.trim().toLowerCase() as InserateSortierung;
   const sortierung = INSERATE_SORTIERUNGEN.has(sortierungRoh) ? sortierungRoh : 'zuletzt_gesehen';
 

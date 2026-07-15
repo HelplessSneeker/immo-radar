@@ -9,6 +9,12 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Geändert
 
+- „Ausreißer" umfasst jetzt beide Klassen (1,5×IQR + harte
+  Plausibilitätsregeln): Kennzahlen, Trend und Top Picks rechnen
+  standardmäßig ohne beide, der Schalter `?ausreisser=an` holt beide
+  markiert zurück (bisher nur IQR). Die IQR-Grenzen werden dabei über
+  die um Hard-Regel-Fälle bereinigte Verteilung bestimmt. Semantik in
+  `/methodik#ausreisser` präzisiert.
 - `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
   Positional-Args (`{ ausreisserEinbeziehen }`) — verhindert
   Positional-Arg-Wildwuchs, wenn weitere Optionen dazukommen.
@@ -21,6 +27,20 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Hinzugefügt
 
+- Harte Plausibilitätsregeln zusätzlich zur IQR-Statistik (feste Grenzen
+  für Fläche, €/m² Kauf/Miete, Fläche pro Zimmer und absolute Preise) —
+  der Grund persistiert im Bestand als `datenqualitaet`-Feld und wird bei
+  jedem Sweep re-evaluiert. Adressiert den 1.2-Bug: Inserate mit
+  strukturell falschen Feld-Werten (z. B. 9758 m² Grundstück statt
+  Wohnfläche) fliegen jetzt aus KPIs, Trend und Top Picks, statt via
+  Bulk-Fehler die IQR-Statistik zu kippen.
+- `/inserate?nur=ausreisser` — die Inserate-Seite um eine
+  „Nur Ausreißer"-Checkbox erweitert; bei aktivem Filter zeigt eine
+  zusätzliche Spalte den Ausreißer-Grund. Dashboard-Datenpunkte und
+  Top Picks nennen den Grund direkt neben dem „▲ Ausreißer"-Badge.
+- CLI `pnpm plausibilitaet:rebuild` — idempotenter
+  Re-Evaluations-Task für bestehende Bestand-Zeilen nach der Migration
+  (Keyset-Batches, Advisory-Lock gegen parallele Läufe).
 - Filterleisten-Schalter „Ausreißer einbeziehen" (`?ausreisser=an`, teilbar,
   überlebt Stichtag-Wechsel und Pagination; „Filter zurücksetzen" entfernt
   ihn) stellt die unbereinigten Kennzahlen wieder her.

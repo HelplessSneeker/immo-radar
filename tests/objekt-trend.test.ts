@@ -214,6 +214,43 @@ describe('berechneObjektTrend', () => {
       berechneObjektTrend(objekte, ['2026-07-01'], { ausreisserEinbeziehen: true }),
     );
   });
+
+  it('ausreisserEinbeziehen=false nimmt Hard-Regel-Objekte aus Median und Anzahl — auch bei Bulk-Fehlern', () => {
+    // Vier plausible Objekte plus ZWEI hart geflaggte Extremwerte: genau der
+    // Fall, in dem die IQR-Statistik allein kippen würde.
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-h1', preis: 2500000, datenqualitaet: 'preis_kauf_ausreisser' }),
+      inserat({ id: 'wh-h2', preis: 3000000, datenqualitaet: 'preis_kauf_ausreisser' }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+
+    const bereinigt = berechneObjektTrend(objekte, ['2026-07-01'], {
+      ausreisserEinbeziehen: false,
+    });
+    expect(bereinigt[0]).toMatchObject({ medianKaufEurM2: 3900, anzahlKauf: 4 });
+
+    const roh = berechneObjektTrend(objekte, ['2026-07-01'], { ausreisserEinbeziehen: true });
+    expect(roh[0]!.anzahlKauf).toBe(6);
+  });
+
+  it('Hard-Regel-Ausschluss greift auch unter 4 Werten (anders als IQR)', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 200000 }),
+      inserat({ id: 'wh-h1', preis: 2500000, datenqualitaet: 'preis_kauf_ausreisser' }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    const bereinigt = berechneObjektTrend(objekte, ['2026-07-01'], {
+      ausreisserEinbeziehen: false,
+    });
+    expect(bereinigt[0]).toMatchObject({ medianKaufEurM2: 3800, anzahlKauf: 2 });
+  });
 });
 
 describe('stichtageFuerTrend', () => {
@@ -392,6 +429,59 @@ describe('datenpunkteAmStichtag', () => {
     const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
     const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
     expect(kauf.every((p) => !p.istAusreisser)).toBe(true);
+  });
+
+  it('Hard-Regel-Punkte tragen datenqualitaet + istAusreisser; IQR rechnet über die bereinigte Serie', () => {
+    // Zwei hart geflaggte Bulk-Fehler bei 50.000/60.000 €/m² würden die
+    // IQR-Grenzen so weit dehnen, dass der echte statistische Ausreißer bei
+    // 20.000 €/m² unsichtbar bliebe — die bereinigte Basis fängt ihn.
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }), // 20000 €/m², kein Hard-Befund
+      inserat({ id: 'wh-h1', preis: 2500000, datenqualitaet: 'preis_kauf_ausreisser' }),
+      inserat({ id: 'wh-h2', preis: 3000000, datenqualitaet: 'preis_kauf_ausreisser' }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.map((p) => [p.eurM2, p.istAusreisser, p.datenqualitaet])).toEqual([
+      [3600, false, undefined],
+      [3800, false, undefined],
+      [4000, false, undefined],
+      [4200, false, undefined],
+      [20000, true, undefined], // IQR über die bereinigte Serie
+      [50000, true, 'preis_kauf_ausreisser'],
+      [60000, true, 'preis_kauf_ausreisser'],
+    ]);
+  });
+
+  it('propagiert den Hard-Befund vom Nicht-Minimum-Inserat aufs Objekt (Gründe dedupliziert)', () => {
+    const bestand = [
+      // Das Minimum-Inserat ist sauber, das zweite Inserat des Objekts hart
+      // geflaggt — das Objekt ist trotzdem Prüfkandidat.
+      inserat({ id: 'wh-1', objektId: 1, preis: 195000 }),
+      inserat({
+        id: 'is24-1',
+        portal: 'immoscout24.at',
+        objektId: 1,
+        preis: 200000,
+        datenqualitaet: 'zimmer_ratio_ausreisser,flaeche_ausreisser',
+      }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 195000, '2026-06-01'),
+      punkt('immoscout24.at', 'is24-1', 200000, '2026-06-01'),
+    ];
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf).toHaveLength(1);
+    expect(kauf[0]).toMatchObject({
+      inseratId: 'wh-1', // das Minimum liefert weiterhin den Wert
+      istAusreisser: true,
+      // vereinigt in kanonischer Reihenfolge, nicht in Insertions-Reihenfolge
+      datenqualitaet: 'flaeche_ausreisser,zimmer_ratio_ausreisser',
+    });
   });
 
   it('Konsistenz-Invariante unter ausreisserEinbeziehen=false: Trend = nicht-geflaggte Punkte', () => {

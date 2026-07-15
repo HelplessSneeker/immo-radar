@@ -98,7 +98,7 @@ describe('renderDashboardSeite', () => {
     expect(html).not.toContain('name="ausreisser" value="an" checked');
     expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt');
     expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m², Ausreißer nicht mitgezählt');
-    expect(html).toContain('(ohne 1,5×IQR-Ausreißer)');
+    expect(html).toContain('(ohne Ausreißer)');
     expect(html).not.toContain('Filter zurücksetzen');
     expect(html).toContain('href="/methodik#ausreisser"');
   });
@@ -108,7 +108,7 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('name="ausreisser" value="an" checked');
     expect(html).not.toContain('(ohne Ausreißer)');
     expect(html).not.toContain('Ausreißer nicht mitgezählt');
-    expect(html).toContain('(1,5×IQR-Ausreißer einbezogen)');
+    expect(html).toContain('(Ausreißer einbezogen)');
     expect(html).toContain('Filter zurücksetzen');
     // Der Schalter gehört nicht in die Überschrift (nur PLZ/m² beschreiben die Marktsicht).
     expect(html).toContain('<h1>Wohnungsmarkt Kärnten</h1>');
@@ -252,6 +252,20 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(einbezogen).toContain('▲ Ausreißer'); // Badge bleibt sichtbar
     expect(einbezogen).toContain('Kauf · 3 Objekte · davon 1 Ausreißer · Median 3 900 €/m²');
     expect(einbezogen).not.toContain('(ohne Ausreißer)');
+  });
+
+  it('nennt den Hard-Regel-Grund neben dem Badge; rein statistische Ausreißer bleiben ohne Grund', () => {
+    const datenpunkte = {
+      kauf: [
+        datenpunkt({ eurM2: 24, istAusreisser: true, datenqualitaet: 'flaeche_ausreisser' }),
+        datenpunkt({ inseratId: 'wh-2', eurM2: 20000, istAusreisser: true }),
+        datenpunkt({ inseratId: 'wh-3', eurM2: 4100 }),
+      ],
+      miete: [],
+    };
+    const html = renderDashboardSeite(daten({ datenpunkte }));
+    expect(html).toContain('▲ Ausreißer · Fläche unplausibel</span>');
+    expect(html).toContain('▲ Ausreißer</span>'); // der IQR-Fall ohne Grund
   });
 
   it('Stichtag- und Seiten-Links führen ?ausreisser=an mit', () => {

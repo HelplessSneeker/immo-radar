@@ -1,6 +1,7 @@
 import type { BestandInserat, PreisPunkt } from './db/bestand-repo.js';
 import { tageZwischen } from './datum.js';
 import { kanonischerOrt, normalisierePlz } from './normalisierung.js';
+import { vereinigeDatenqualitaet } from './plausibilitaet.js';
 import { ausreisserFlags, bruttoRendite, mean, median, ohneAusreisser } from './stats.js';
 import type { InseratTyp } from './types.js';
 
@@ -60,6 +61,8 @@ export interface ObjektInserat {
   zuletztGesehen: string;
   /** Chronologisch sortierte Preishistorie dieses Inserats. */
   historie: PreisPunkt[];
+  /** Komma-Gründe der Hard-Plausibilitätsregeln (src/plausibilitaet.ts); fehlt = plausibel. */
+  datenqualitaet?: string;
 }
 
 /**
@@ -108,6 +111,7 @@ export function objekteAusBestand(
       historie: jeInserat.get(inseratSchluessel(i.portal, i.id)) ?? [],
     };
     if (i.url !== undefined) mitglied.url = i.url;
+    if (i.datenqualitaet !== undefined) mitglied.datenqualitaet = i.datenqualitaet;
     const schluessel = i.objektId ?? `solo ${inseratSchluessel(i.portal, i.id)}`;
     const objekt = gruppen.get(schluessel);
     if (objekt === undefined) {
@@ -142,6 +146,13 @@ export interface ObjektDatenpunkt {
   inserat: ObjektInserat;
   /** Am Stichtag aktive, auswertbare Inserate des Objekts (>1 = dedupliziert). */
   anzahlAktive: number;
+  /**
+   * Hard-Regel-Gründe ALLER am Stichtag aktiven, auswertbaren Inserate des
+   * Objekts (dedupliziert, kanonische Reihenfolge) — nicht nur des
+   * Minimum-Inserats: ein hart geflaggtes Inserat macht das ganze Objekt zum
+   * Prüfkandidaten. Fehlt = plausibel.
+   */
+  datenqualitaet?: string;
 }
 
 /**
@@ -158,12 +169,14 @@ export function objektDatenpunktAmStichtag(
 ): ObjektDatenpunkt | undefined {
   let minimum: ObjektDatenpunkt | undefined;
   let anzahlAktive = 0;
+  const gruende: string[] = [];
   for (const inserat of objekt.inserate) {
     if (inserat.zuerstGesehen > stichtag || inserat.zuletztGesehen < stichtag) continue;
     if (inserat.flaecheM2 <= 0) continue;
     const preis = preisAmStichtag(inserat.historie, stichtag);
     if (preis === undefined) continue;
     anzahlAktive += 1;
+    if (inserat.datenqualitaet !== undefined) gruende.push(inserat.datenqualitaet);
     const eurM2 = preis / inserat.flaecheM2;
     if (minimum === undefined || eurM2 < minimum.eurM2) {
       minimum = { eurM2, preis, inserat, anzahlAktive: 0 };
@@ -171,6 +184,8 @@ export function objektDatenpunktAmStichtag(
   }
   if (minimum === undefined) return undefined;
   minimum.anzahlAktive = anzahlAktive;
+  const datenqualitaet = vereinigeDatenqualitaet(gruende);
+  if (datenqualitaet !== undefined) minimum.datenqualitaet = datenqualitaet;
   return minimum;
 }
 
@@ -216,13 +231,16 @@ export function stichtageFuerTrend(objekte: ObjektZeitreihe[], sweepTage: string
  * durchgehend). Stichtage vor dem ersten Datenpunkt der übergebenen
  * (ggf. gefilterten) Objekte werden abgeschnitten.
  *
- * ausreisserEinbeziehen=false schließt je (Stichtag, Typ) die
- * 1,5×IQR-Ausreißer der €/m²-Verteilung aus Median UND Anzahl aus
- * (siehe ausreisserFlags; unter 4 Werten folgenlos). Der Default true
- * entspricht dem unbereinigten Altverhalten — das Dashboard übergibt false.
+ * ausreisserEinbeziehen=false schließt je (Stichtag, Typ) BEIDE
+ * Ausreißer-Klassen aus Median UND Anzahl aus: erst die Hard-Regel-Objekte
+ * (datenqualitaet, siehe src/plausibilitaet.ts), dann die 1,5×IQR-Ausreißer
+ * der bereinigten €/m²-Verteilung (siehe ausreisserFlags; unter 4 Werten
+ * folgenlos). Die Reihenfolge ist der Kern: Bulk-Feldfehler verzerren so die
+ * IQR-Grenzen nicht mehr. Der Default true entspricht dem unbereinigten
+ * Altverhalten — das Dashboard übergibt false.
  */
 export interface BerechneObjektTrendOptionen {
-  /** Default true (Altverhalten): Ausreißer in die Mediane einrechnen. */
+  /** Default true (Altverhalten): beide Ausreißer-Klassen in die Mediane einrechnen. */
   ausreisserEinbeziehen?: boolean;
 }
 
@@ -240,8 +258,10 @@ export function berechneObjektTrend(
     .map((stichtag) => {
       const eurM2: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
       for (const objekt of objekte) {
-        const wert = objektEurM2AmStichtag(objekt, stichtag);
-        if (wert !== undefined) eurM2[objekt.typ].push(wert);
+        const wert = objektDatenpunktAmStichtag(objekt, stichtag);
+        if (wert === undefined) continue;
+        if (!ausreisserEinbeziehen && wert.datenqualitaet !== undefined) continue;
+        eurM2[objekt.typ].push(wert.eurM2);
       }
       const werte = (typ: InseratTyp): number[] =>
         ausreisserEinbeziehen ? eurM2[typ] : ohneAusreisser(eurM2[typ]);
@@ -277,8 +297,14 @@ export interface StichtagDatenpunkt {
   url?: string;
   /** Am Stichtag aktive Inserate des Objekts (>1 = portalübergreifend dedupliziert). */
   anzahlInserate: number;
-  /** 1,5×IQR-Ausreißer der €/m²-Verteilung seiner Serie (Stichtag × Typ). */
+  /**
+   * Ausreißer im zusammengeführten Sinn: Hard-Regel-Befund (datenqualitaet
+   * gesetzt) ODER 1,5×IQR-Ausreißer der um Hard-Fälle bereinigten
+   * €/m²-Verteilung seiner Serie (Stichtag × Typ).
+   */
   istAusreisser: boolean;
+  /** Hard-Regel-Gründe des Objekts (siehe ObjektDatenpunkt); fehlt = kein Hard-Befund. */
+  datenqualitaet?: string;
 }
 
 /**
@@ -286,8 +312,9 @@ export interface StichtagDatenpunkt {
  * €/m²-Wert, der in berechneObjektTrend in den Median eingeht (dieselbe
  * Kernlogik: objektDatenpunktAmStichtag). Je Serie aufsteigend nach €/m²
  * sortiert (Käufer-Perspektive: günstig zuerst). Die Punktmenge ist immer
- * vollständig — Ausreißer werden nur via istAusreisser markiert, damit
- * Tabelle und Punktwolke sie unabhängig vom Kennzahlen-Toggle zeigen können.
+ * vollständig — Ausreißer beider Klassen (Hard-Regeln und IQR) werden nur via
+ * istAusreisser markiert, damit Tabelle und Punktwolke sie unabhängig vom
+ * Kennzahlen-Toggle zeigen können; Hard-Fälle tragen zusätzlich ihren Grund.
  */
 export function datenpunkteAmStichtag(
   objekte: ObjektZeitreihe[],
@@ -311,12 +338,18 @@ export function datenpunkteAmStichtag(
     };
     if (objekt.objektId !== undefined) punkt.objektId = objekt.objektId;
     if (wert.inserat.url !== undefined) punkt.url = wert.inserat.url;
+    if (wert.datenqualitaet !== undefined) {
+      punkt.datenqualitaet = wert.datenqualitaet;
+      punkt.istAusreisser = true;
+    }
     punkte[objekt.typ].push(punkt);
   }
   for (const serie of [punkte.kauf, punkte.miete]) {
-    // Gleiche Grundmenge wie berechneObjektTrend, daher deckungsgleiche Flags.
-    const flags = ausreisserFlags(serie.map((p) => p.eurM2));
-    serie.forEach((p, i) => {
+    // IQR über die um Hard-Fälle bereinigte Serie — dieselbe Basis wie der
+    // Default-Median in berechneObjektTrend, daher deckungsgleiche Flags.
+    const basis = serie.filter((p) => p.datenqualitaet === undefined);
+    const flags = ausreisserFlags(basis.map((p) => p.eurM2));
+    basis.forEach((p, i) => {
       p.istAusreisser = flags[i] === true;
     });
   }

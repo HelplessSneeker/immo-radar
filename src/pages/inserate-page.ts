@@ -4,6 +4,7 @@ import type {
   InserateSortierung,
 } from '../db/bestand-repo.js';
 import { tageZwischen } from '../datum.js';
+import { datenqualitaetLabels } from '../plausibilitaet.js';
 import { BUNDESLAENDER } from '../search.js';
 import { inseratSchluessel, type PreisAenderung } from '../trend.js';
 import { aenderungsZelle, datumMedium, eurM2Wert, nfEur0, nfTage } from './format.js';
@@ -47,6 +48,7 @@ function inserateUrl(
   if (filter.typ) params.set('typ', filter.typ);
   if (filter.status) params.set('status', filter.status);
   if (filter.ort) params.set('ort', filter.ort);
+  if (filter.nurAusreisser) params.set('nur', 'ausreisser');
   if (sortierung !== 'zuletzt_gesehen') params.set('sortierung', sortierung);
   if (seiteNr > 1) params.set('seite', String(seiteNr));
   const query = params.toString();
@@ -56,7 +58,12 @@ function inserateUrl(
 function filterGesetzt(daten: InserateSeitenDaten): boolean {
   const f = daten.filter;
   return Boolean(
-    f.bundesland || f.typ || f.status || f.ort || daten.sortierung !== 'zuletzt_gesehen',
+    f.bundesland ||
+      f.typ ||
+      f.status ||
+      f.ort ||
+      f.nurAusreisser ||
+      daten.sortierung !== 'zuletzt_gesehen',
   );
 }
 
@@ -118,6 +125,10 @@ function filterleiste(daten: InserateSeitenDaten): string {
           daten.sortierung,
         )}</select>
       </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="nur" value="ausreisser"${daten.filter.nurAusreisser ? ' checked' : ''}> Nur Ausreißer</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
       <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
     </form>`;
 }
@@ -133,11 +144,16 @@ function inseratZeile(i: BestandInseratMitLand, daten: InserateSeitenDaten): str
   const status = i.aktiv
     ? '<span class="status-badge status-aktiv">aktiv</span>'
     : '<span class="status-badge status-delistet">delistet</span>';
+  // Die Grund-Spalte gibt es nur in der „Nur Ausreißer"-Sicht — sonst wären
+  // fast alle Zellen leer.
+  const grundZelle = daten.filter.nurAusreisser
+    ? `\n        <td>${i.datenqualitaet !== undefined ? escapeHtml(datenqualitaetLabels(i.datenqualitaet)) : ''}</td>`
+    : '';
   return `      <tr>
         <td>${link}<span class="sub">${sub}</span></td>
         <td class="num">${nfEur0.format(i.preis)} €</td>
         <td class="num">${nfEur0.format(i.flaeche_m2)} m²</td>
-        <td class="num">${eurM2Wert(i)}</td>
+        <td class="num">${eurM2Wert(i)}</td>${grundZelle}
         ${aenderungsZelle(daten.aenderungen.get(inseratSchluessel(i.portal, i.id)))}
         <td>${escapeHtml(datumMedium(i.zuerstGesehen))} – ${escapeHtml(datumMedium(i.zuletztGesehen))}<span class="sub">${nfTage.format(tage)} Tage</span></td>
         <td>${status}</td>
@@ -146,9 +162,10 @@ function inseratZeile(i: BestandInseratMitLand, daten: InserateSeitenDaten): str
 
 function tabelle(daten: InserateSeitenDaten): string {
   const zeilen = daten.inserate.map((i) => inseratZeile(i, daten)).join('\n');
+  const grundKopf = daten.filter.nurAusreisser ? '<th scope="col">Ausreißer-Grund</th>' : '';
   return `    <div class="tabelle-scroll">
     <table>
-      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">letzte Preisänderung</th><th scope="col">gesehen</th><th scope="col">Status</th></tr></thead>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th>${grundKopf}<th scope="col" class="num">letzte Preisänderung</th><th scope="col">gesehen</th><th scope="col">Status</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -182,6 +199,11 @@ ${seitenNav(daten)}`;
   if (daten.gesamt === 0 && !filterGesetzt(daten)) {
     return `    <p class="meta">Der Bestand ist leer – er füllt sich mit dem ersten täglichen
     Kärnten-Sweep. <a href="/crawl">Zu den Crawl-Läufen →</a></p>`;
+  }
+  const f = daten.filter;
+  if (daten.gesamt === 0 && f.nurAusreisser && !f.bundesland && !f.typ && !f.status && !f.ort) {
+    return `    <p class="meta">Keine Ausreißer im aktuellen Bestand — Datenqualität passt.
+    <a href="/inserate">Alle Inserate ansehen →</a></p>`;
   }
   if (daten.gesamt === 0) {
     return `    <p class="meta">Keine Inserate für diese Filter.

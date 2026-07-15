@@ -1,3 +1,4 @@
+import { datenqualitaetLabels } from '../plausibilitaet.js';
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
 import { datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
@@ -73,8 +74,14 @@ function filterleiste(daten: TopPicksDaten): string {
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
+  // Hard-Regel-Fälle tragen ihren Grund direkt am Badge; rein statistische
+  // (IQR-)Ausreißer bleiben beim nackten „▲ Ausreißer".
+  const grund =
+    p.datenqualitaet !== undefined
+      ? ` · ${escapeHtml(datenqualitaetLabels(p.datenqualitaet))}`
+      : '';
   const ausreisserBadge = p.istAusreisser
-    ? ' <span class="badge badge-critical">▲ Ausreißer</span>'
+    ? ` <span class="badge badge-critical">▲ Ausreißer${grund}</span>`
     : '';
   const erreicht = p.bruttoRendite >= zielRendite;
   // Urteils-Regel: Grün nur mit Text-Marker; unter Ziel bleibt die Zelle
@@ -134,10 +141,11 @@ export function renderTopPicksSeite(daten: TopPicksDaten): string {
       ? ` · PLZ ${daten.filterPlz}${daten.filterPlz.length < 4 ? '…' : ''}`
       : '';
   const ausreisserZeile = daten.ausreisserEinbeziehen
-    ? `Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten, sind einbezogen und
-    mit „▲ Ausreißer" markiert; die Miet-Mediane rechnen unbereinigt.`
-    : `Ohne Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten —
-    ein fragwürdiger Preis ist kein Kaufsignal.`;
+    ? `Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ als
+    1,5×IQR-Ausreißer gelten, sind einbezogen und mit „▲ Ausreißer" markiert; die
+    Miet-Mediane rechnen unbereinigt.`
+    : `Ohne Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ
+    als 1,5×IQR-Ausreißer gelten — ein fragwürdiger Preis ist kein Kaufsignal.`;
   const inhalt = `  <header>
     <h1>Top Picks — Bruttorendite je Objekt (Stichtag ${escapeHtml(datumMedium(daten.stichtag))})${escapeHtml(filterZusatz)}</h1>
     <p class="meta">Kauf-Objekte, sortiert nach geschätzter Bruttorendite. Die Miete kommt

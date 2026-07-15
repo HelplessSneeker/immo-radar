@@ -1,3 +1,4 @@
+import { datenqualitaetLabels } from '../plausibilitaet.js';
 import type { DashboardFilter } from '../search.js';
 import { median } from '../stats.js';
 import {
@@ -345,7 +346,15 @@ function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: bool
   const dedup =
     p.anzahlInserate > 1 ? ` · ${nfEur0.format(p.anzahlInserate)} Inserate (dedupliziert)` : '';
   const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${dedup}`;
-  const badge = p.istAusreisser ? ' <span class="badge badge-critical">▲ Ausreißer</span>' : '';
+  // Hard-Regel-Fälle tragen ihren Grund direkt am Badge; rein statistische
+  // (IQR-)Ausreißer bleiben beim nackten „▲ Ausreißer".
+  const grund =
+    p.datenqualitaet !== undefined
+      ? ` · ${escapeHtml(datenqualitaetLabels(p.datenqualitaet))}`
+      : '';
+  const badge = p.istAusreisser
+    ? ` <span class="badge badge-critical">▲ Ausreißer${grund}</span>`
+    : '';
   const abweichung = p.eurM2 / serienMedian - 1;
   const zeichen = abweichung < 0 ? '−' : '+';
   const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
@@ -439,8 +448,8 @@ function datenpunkteSektion(daten: DashboardDaten): string {
         </div>
       </div>
       <p class="meta">Die Tabellen zeigen alle Punkte des gewählten Stichtags –
-      Ausreißer (1,5×IQR) sind markiert und zählen nur mit „Ausreißer einbeziehen"
-      in die Kennzahlen. <a href="/methodik#ausreisser">Details</a></p>
+      Ausreißer (Plausibilitätsregeln und 1,5×IQR) sind markiert und zählen nur mit
+      „Ausreißer einbeziehen" in die Kennzahlen. <a href="/methodik#ausreisser">Details</a></p>
 ${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}
 ${serieBlock(daten, stichtag, false)}
@@ -500,8 +509,8 @@ ${kpiZeile(daten, zielProzent)}
     <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
     Objekte (${
       daten.filter.ausreisserEinbeziehen === true
-        ? '1,5×IQR-Ausreißer einbezogen'
-        : 'ohne 1,5×IQR-Ausreißer'
+        ? 'Ausreißer einbezogen'
+        : 'ohne Ausreißer'
     }); ein Objekt zählt einmal, auch wenn
     es auf beiden Portalen inseriert ist. <a href="/methodik#objekte">Details</a></p>
 ${chartSektion(daten.trend)}

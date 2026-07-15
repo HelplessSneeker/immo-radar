@@ -1,3 +1,4 @@
+import { pruefePlausibilitaet } from '../plausibilitaet.js';
 import type { Inserat, InseratMitPortal, InseratTyp } from '../types.js';
 import { holePool } from './client.js';
 
@@ -10,6 +11,8 @@ export interface BestandInserat extends Inserat {
   portal: string;
   zuerstGesehen: string; // YYYY-MM-DD
   zuletztGesehen: string;
+  /** Komma-Gründe der Hard-Plausibilitätsregeln (src/plausibilitaet.ts); fehlt = plausibel. */
+  datenqualitaet?: string;
 }
 
 export interface PreisPunkt {
@@ -35,6 +38,7 @@ export interface BestandZeile {
   datum_erfasst: string; // alle Datums-Spalten als ::text selektiert
   zuerst_gesehen: string;
   zuletzt_gesehen: string;
+  datenqualitaet: string | null;
 }
 
 export interface PreisPunktZeile {
@@ -62,6 +66,7 @@ export function bestandInseratAusZeile(z: BestandZeile): BestandInserat {
   if (z.baujahr !== null) inserat.baujahr = z.baujahr;
   if (z.zustand !== null) inserat.zustand = z.zustand;
   if (z.url !== null) inserat.url = z.url;
+  if (z.datenqualitaet !== null) inserat.datenqualitaet = z.datenqualitaet;
   return inserat;
 }
 
@@ -74,6 +79,8 @@ export function preisPunktAusZeile(z: PreisPunktZeile): PreisPunkt {
  * erster Preis-Historien-Zeile), bekannte fortgeschrieben (zuletzt_gesehen,
  * aktueller Preis; bei Preisänderung eine Historien-Zeile — max. eine pro
  * Tag, der letzte Preis des Tages gewinnt). zuerst_gesehen bleibt stabil.
+ * datenqualitaet wird bei jedem Sweep aus den frischen Portal-Feldern
+ * re-evaluiert (pruefePlausibilitaet), damit Portal-Korrekturen greifen.
  */
 export async function bestandUpsert(
   inserate: InseratMitPortal[],
@@ -92,13 +99,15 @@ export async function bestandUpsert(
          )
          INSERT INTO inserate_bestand
            (portal, inserat_id, typ, bundesland, ort, plz, bezirk, preis, flaeche_m2,
-            zimmer, baujahr, zustand, url, datum_erfasst, zuerst_gesehen, zuletzt_gesehen)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+            zimmer, baujahr, zustand, url, datum_erfasst, zuerst_gesehen, zuletzt_gesehen,
+            datenqualitaet)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16)
          ON CONFLICT (portal, inserat_id) DO UPDATE SET
            preis = EXCLUDED.preis, ort = EXCLUDED.ort, plz = EXCLUDED.plz,
            bezirk = EXCLUDED.bezirk, zustand = EXCLUDED.zustand, url = EXCLUDED.url,
            bundesland = EXCLUDED.bundesland,
-           zuletzt_gesehen = GREATEST(inserate_bestand.zuletzt_gesehen, EXCLUDED.zuletzt_gesehen)
+           zuletzt_gesehen = GREATEST(inserate_bestand.zuletzt_gesehen, EXCLUDED.zuletzt_gesehen),
+           datenqualitaet = EXCLUDED.datenqualitaet
          RETURNING (SELECT preis FROM vorher) AS preis_vorher`,
         [
           i.portal,
@@ -116,6 +125,7 @@ export async function bestandUpsert(
           i.url ?? null,
           i.datum_erfasst,
           gesehenAm,
+          pruefePlausibilitaet(i),
         ],
       );
       const preisVorher = rows[0]!.preis_vorher;
@@ -144,7 +154,8 @@ export async function bestandLaden(bundesland: string): Promise<BestandInserat[]
   const { rows } = await holePool().query<BestandZeile>(
     `SELECT portal, inserat_id, typ, ort, plz, bezirk, preis, flaeche_m2, zimmer,
             baujahr, zustand, url, datum_erfasst::text AS datum_erfasst,
-            zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen
+            zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen,
+            datenqualitaet
      FROM inserate_bestand WHERE bundesland = $1 ORDER BY portal, inserat_id`,
     [bundesland],
   );
@@ -177,6 +188,12 @@ export interface InserateFilter {
   status?: 'aktiv' | 'delistet';
   /** Teilstring, case-insensitiv über Ort, PLZ und Bezirk. */
   ort?: string;
+  /**
+   * Nur Zeilen mit persistiertem Hard-Regel-Befund (datenqualitaet IS NOT
+   * NULL). Bewusst ohne die IQR-Klasse — die ist kontextabhängig je
+   * (Stichtag, Serie) und nicht am Bestand persistiert.
+   */
+  nurAusreisser?: boolean;
 }
 
 export type InserateSortierung =
@@ -246,6 +263,7 @@ export async function bestandSeiteLaden(
     const muster = param(ilikeMuster(filter.ort));
     bedingungen.push(`(b.ort ILIKE ${muster} OR b.plz ILIKE ${muster} OR b.bezirk ILIKE ${muster})`);
   }
+  if (filter.nurAusreisser) bedingungen.push('b.datenqualitaet IS NOT NULL');
   const von = `FROM inserate_bestand b
      JOIN (SELECT bundesland, portal, max(zuletzt_gesehen) AS stichtag
            FROM inserate_bestand GROUP BY bundesland, portal) s USING (bundesland, portal)
@@ -261,6 +279,7 @@ export async function bestandSeiteLaden(
               b.flaeche_m2, b.zimmer, b.baujahr, b.zustand, b.url,
               b.datum_erfasst::text AS datum_erfasst,
               b.zuerst_gesehen::text AS zuerst_gesehen, b.zuletzt_gesehen::text AS zuletzt_gesehen,
+              b.datenqualitaet,
               (b.zuletzt_gesehen >= s.stichtag) AS aktiv
        ${von}
        ORDER BY ${SORTIERUNGEN[sortierung]}
@@ -316,6 +335,89 @@ export async function preisHistorieFuerInserate(
     [inserate.map((i) => i.portal), inserate.map((i) => i.id)],
   );
   return rows.map(preisPunktAusZeile);
+}
+
+export interface PlausibilitaetRebuildStand {
+  geprueft: number;
+  /** Auf einen (neuen) Grund gesetzt. */
+  geflaggt: number;
+  /** Flag entfernt (wieder plausibel). */
+  entflaggt: number;
+  unveraendert: number;
+}
+
+/** Neben der Migrations-ID (72_461_001, siehe migrieren.ts) — nie zwei Läufe parallel. */
+const PLAUSIBILITAET_REBUILD_LOCK_ID = 72_461_002;
+
+/**
+ * Re-evaluiert datenqualitaet für den kompletten Bestand (alle Bundesländer)
+ * — der Nachzieh-Task nach Migration 007 bzw. nach Grenzen-Änderungen in
+ * src/plausibilitaet.ts. Keyset-paginiert (nicht alles in Memory), schreibt
+ * nur bei Änderung, idempotent. Ein Advisory-Lock verhindert parallele Läufe.
+ */
+export async function plausibilitaetRebuild(
+  optionen: {
+    batchGroesse?: number;
+    onFortschritt?: (stand: PlausibilitaetRebuildStand) => void;
+  } = {},
+): Promise<PlausibilitaetRebuildStand> {
+  const { batchGroesse = 500, onFortschritt } = optionen;
+  type RebuildZeile = Pick<
+    BestandZeile,
+    'portal' | 'inserat_id' | 'typ' | 'preis' | 'flaeche_m2' | 'zimmer' | 'datenqualitaet'
+  >;
+  const client = await holePool().connect();
+  try {
+    const { rows: lock } = await client.query<{ gesperrt: boolean }>(
+      'SELECT pg_try_advisory_lock($1) AS gesperrt',
+      [PLAUSIBILITAET_REBUILD_LOCK_ID],
+    );
+    if (lock[0]?.gesperrt !== true) {
+      throw new Error('Plausibilitäts-Rebuild läuft bereits (Advisory-Lock belegt) — Abbruch.');
+    }
+    try {
+      const stand: PlausibilitaetRebuildStand = {
+        geprueft: 0,
+        geflaggt: 0,
+        entflaggt: 0,
+        unveraendert: 0,
+      };
+      let letzte: { portal: string; inseratId: string } | undefined;
+      for (;;) {
+        const { rows } = await client.query<RebuildZeile>(
+          `SELECT portal, inserat_id, typ, preis, flaeche_m2, zimmer, datenqualitaet
+           FROM inserate_bestand
+           WHERE $1::text IS NULL OR (portal, inserat_id) > ($1, $2)
+           ORDER BY portal, inserat_id
+           LIMIT $3`,
+          [letzte?.portal ?? null, letzte?.inseratId ?? null, batchGroesse],
+        );
+        if (rows.length === 0) break;
+        for (const z of rows) {
+          stand.geprueft += 1;
+          const neu = pruefePlausibilitaet(z);
+          if (neu === z.datenqualitaet) {
+            stand.unveraendert += 1;
+            continue;
+          }
+          await client.query(
+            `UPDATE inserate_bestand SET datenqualitaet = $3 WHERE portal = $1 AND inserat_id = $2`,
+            [z.portal, z.inserat_id, neu],
+          );
+          if (neu === null) stand.entflaggt += 1;
+          else stand.geflaggt += 1;
+        }
+        const ende = rows.at(-1)!;
+        letzte = { portal: ende.portal, inseratId: ende.inserat_id };
+        onFortschritt?.({ ...stand });
+      }
+      return stand;
+    } finally {
+      await client.query('SELECT pg_advisory_unlock($1)', [PLAUSIBILITAET_REBUILD_LOCK_ID]);
+    }
+  } finally {
+    client.release();
+  }
 }
 
 export async function preisHistorieLaden(bundesland: string): Promise<PreisPunkt[]> {

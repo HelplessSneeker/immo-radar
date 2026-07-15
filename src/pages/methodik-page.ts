@@ -156,28 +156,54 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     },
     {
       id: 'ausreisser',
-      titel: 'Ausreißer (1,5×IQR)',
+      titel: 'Ausreißer (Plausibilitätsregeln + 1,5×IQR)',
       inhalt: `
     <p><strong>Was ist das?</strong> Einzelne Inserate mit unplausiblem €/m² – Tippfehler,
-    Luxus-Sonderfälle, falsch erfasste Flächen – würden Median und Rendite verzerren. Das
-    Dashboard rechnet sie deshalb standardmäßig aus allen Kennzahlen heraus; die Checkbox
-    „Ausreißer einbeziehen" in der Filterleiste (URL-Parameter <code>?ausreisser=an</code>)
-    schaltet sie wieder dazu.</p>
-    <p><strong>Formel:</strong> Je Stichtag und Markt (Kauf bzw. Miete) wird über die
-    €/m²-Werte der aktiven Objekte – nach dem PLZ-/m²-Filter – der Interquartilsabstand
-    gebildet: IQR = Q3 − Q1. Ausreißer ist, was unter Q1 − 1,5×IQR oder über
-    Q3 + 1,5×IQR liegt (die klassische Tukey-Regel).</p>
+    Luxus-Sonderfälle, falsch erfasste Flächen – würden Median und Rendite verzerren.
+    „Ausreißer" umfasst zwei Klassen: Inserate, die an festen Plausibilitätsgrenzen
+    scheitern (siehe unten), und statistische 1,5×IQR-Ausreißer. Das Dashboard rechnet
+    beide standardmäßig aus allen Kennzahlen heraus; die Checkbox „Ausreißer einbeziehen"
+    in der Filterleiste (URL-Parameter <code>?ausreisser=an</code>) schaltet beide wieder
+    dazu.</p>
+    <p><strong>Formel (Statistik):</strong> Je Stichtag und Markt (Kauf bzw. Miete) wird
+    über die €/m²-Werte der aktiven Objekte – nach dem PLZ-/m²-Filter und ohne die von
+    den Plausibilitätsregeln aussortierten Objekte – der Interquartilsabstand gebildet:
+    IQR = Q3 − Q1. Ausreißer ist, was unter Q1 − 1,5×IQR oder über Q3 + 1,5×IQR liegt
+    (die klassische Tukey-Regel).</p>
     <p class="beispiel">Beispiel: liegen die mittleren 50 % der Kauf-Objekte zwischen
     2.500 und 4.500 €/m² (IQR = 2.000), gelten Werte unter −500 bzw. über 7.500 €/m²
     als Ausreißer.</p>
+    <p><strong>Zusätzlich: harte Plausibilitätsregeln.</strong> Portale liefern gelegentlich
+    strukturell falsche Felder (etwa die Grundstücks- statt der Wohnfläche) – kommen mehrere
+    solche Fehler auf einmal herein, kippt die IQR-Statistik. Feste, Kärnten-einheitliche
+    Grenzen fangen das VOR der Statistik ab (plausibel ist einschließlich der Grenzwerte):</p>
+    <div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Merkmal</th><th scope="col" class="num">min</th><th scope="col" class="num">max</th></tr></thead>
+      <tbody>
+        <tr><td>Wohnfläche</td><td class="num">15 m²</td><td class="num">500 m²</td></tr>
+        <tr><td>€/m² (Kauf)</td><td class="num">500</td><td class="num">20.000</td></tr>
+        <tr><td>€/m² (Miete, kalt)</td><td class="num">3</td><td class="num">50</td></tr>
+        <tr><td>Fläche pro Zimmer</td><td class="num">8 m²</td><td class="num">80 m²</td></tr>
+        <tr><td>Kaufpreis</td><td class="num">20.000 €</td><td class="num">1.000.000 €</td></tr>
+        <tr><td>Kaltmiete pro Monat</td><td class="num">100 €</td><td class="num">10.000 €</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Diese Befunde persistieren im Bestand als Ausreißer-Grund
+    (<code>datenqualitaet</code>-Feld) und werden bei jedem Sweep neu bewertet – sichtbar
+    in der Datenpunkte-Tabelle neben dem Badge und gesammelt unter
+    <a href="/inserate?nur=ausreisser">Inserate mit „Nur Ausreißer"</a>.</p>
     <p><strong>Grenzen:</strong> Unter 4 Werten je Stichtag und Markt ist der IQR nicht
-    belastbar – dann wird nichts ausgeschlossen und der Schalter ist folgenlos. Sind die
-    mittleren 50 % der Werte identisch (IQR = 0), urteilt die Regel umgekehrt streng:
-    alles abseits dieses Werts gilt als Ausreißer – bei engen Filtern mit runden Mieten
-    lohnt der Blick auf die markierten Punkte. In der Datenpunkte-Tabelle sind Ausreißer
-    mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der Schalter
-    steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer ist ein
-    Prüfkandidat, kein Urteil.</p>`,
+    belastbar – dann schließt nur die Plausibilitätsprüfung aus und der Schalter wirkt
+    allein auf diese. Sind die mittleren 50 % der Werte identisch (IQR = 0), urteilt die
+    Regel umgekehrt streng: alles abseits dieses Werts gilt als Ausreißer – bei engen
+    Filtern mit runden Mieten lohnt der Blick auf die markierten Punkte. Die festen
+    Grenzen sind bewusst grob: ein Chalet am See kann echt teurer sein, ein Sanierungsfall
+    echt billiger – deshalb wird geflaggt, nie gelöscht. In der Datenpunkte-Tabelle sind
+    Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der
+    Schalter steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer
+    ist ein Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -221,14 +247,17 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Kauf-€/m². Als Gebiet zählt zuerst die PLZ des Objekts; hat sie zu wenige Miet-Objekte,
     weitet sich die Basis auf den Bezirk, dann auf ganz Kärnten – die verwendete Basis steht
     als Badge an jeder Zeile („Miete aus PLZ/Bezirk/Kärnten"). Eine Stufe zählt erst, wenn
-    nach der <a href="#ausreisser">1,5×IQR-Bereinigung</a> mindestens
+    nach der <a href="#ausreisser">Ausreißer-Bereinigung</a> (Plausibilitätsregeln und
+    1,5×IQR) mindestens
     ${TOP_PICKS_MIN_MIET_OBJEKTE} Miet-Werte übrig sind; der Miet-Median wird immer über die
     bereinigten Werte gebildet. Der PLZ-Filter grenzt nur die Kauf-Objekte ein – die
     Miet-Basis rechnet stets mit allen Miet-Objekten des Gebiets.</p>
-    <p><strong>Ausreißer-Regel fürs Ranking:</strong> Kauf-Objekte, die innerhalb ihrer
+    <p><strong>Ausreißer-Regel fürs Ranking:</strong> Kauf-Objekte, die an den
+    <a href="#ausreisser">Plausibilitätsregeln</a> scheitern oder innerhalb ihrer
     eigenen PLZ als 1,5×IQR-Ausreißer gelten, fliegen aus dem Ranking – ein Objekt, das nur
     wegen eines fragwürdigen Preises oben landet, ist kein Kaufsignal, sondern ein
-    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) nichts ausgeschlossen.
+    Prüfkandidat. Unter 4 Kauf-Werten je PLZ wird (wie überall) statistisch nichts
+    ausgeschlossen; die Plausibilitätsregeln greifen unabhängig von der Gruppengröße.
     Der Schalter „Ausreißer einbeziehen" (<code>?ausreisser=an</code>, wie im Dashboard)
     holt sie mit „▲ Ausreißer"-Markierung ins Ranking zurück und lässt auch die
     Miet-Mediane unbereinigt rechnen – markierte Zeilen bekommen kein Chance-Grün.</p>
