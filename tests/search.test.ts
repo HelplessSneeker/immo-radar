@@ -51,4 +51,15 @@ describe('parseInserateAnfrage', () => {
     );
     expect(anfrage.filter).toEqual({ bundesland: 'kaernten', typ: 'miete', ort: 'Villach' });
   });
+
+  it('parst ?nur=ausreisser case-insensitiv; andere Werte werden still verworfen', () => {
+    expect(parseInserateAnfrage(params({ nur: 'ausreisser' })).filter).toEqual({
+      nurAusreisser: true,
+    });
+    expect(parseInserateAnfrage(params({ nur: ' Ausreisser ' })).filter).toEqual({
+      nurAusreisser: true,
+    });
+    expect(parseInserateAnfrage(params({ nur: 'alle' })).filter).toEqual({});
+    expect(parseInserateAnfrage(params({ nur: '' })).filter).toEqual({});
+  });
 });

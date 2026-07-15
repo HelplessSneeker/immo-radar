@@ -152,6 +152,23 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('9,00 %');
   });
 
+  it('nennt den Hard-Regel-Grund direkt am Ausreißer-Badge, weiterhin ohne Chance-Grün', () => {
+    const html = renderTopPicksSeite(
+      daten({
+        ausreisserEinbeziehen: true,
+        picks: [
+          pick({
+            istAusreisser: true,
+            datenqualitaet: 'flaeche_ausreisser,zimmer_ratio_ausreisser',
+            bruttoRendite: 0.09,
+          }),
+        ],
+      }),
+    );
+    expect(html).toContain('▲ Ausreißer · Fläche unplausibel · Fläche pro Zimmer unplausibel');
+    expect(html).not.toContain('<td class="num zelle-gut">');
+  });
+
   it('rendert einen Leer-State statt der Tabelle', () => {
     const html = renderTopPicksSeite(daten({ picks: [] }));
     expect(html).not.toContain('<table');

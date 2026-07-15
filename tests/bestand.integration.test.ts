@@ -4,6 +4,7 @@ import {
   bestandSeiteLaden,
   bestandUpsert,
   inseratAnzahlProTyp,
+  plausibilitaetRebuild,
   preisHistorieFuerInserate,
   preisHistorieLaden,
 } from '../src/db/bestand-repo.js';
@@ -221,6 +222,104 @@ describe.runIf(!!process.env.DATABASE_URL)('bestand (Integration)', () => {
 
     it('liefert Nullen ohne Treffer', async () => {
       expect(await inseratAnzahlProTyp('kaernten', '2026-07-09')).toEqual({ kauf: 0, miete: 0 });
+    });
+  });
+
+  describe('datenqualitaet', () => {
+    /** Der 1.2-Screenshot-Fall: 9758 m² Grundstück als Wohnfläche erfasst. */
+    function defekt(id: string): InseratMitPortal {
+      return { ...inserat(id, 230000), flaeche_m2: 9758 };
+    }
+
+    it('flaggt unplausible Inserate beim Insert, plausible bleiben NULL', async () => {
+      await bestandUpsert([inserat('wh-ok'), defekt('wh-defekt')], 'kaernten', '2026-07-01');
+      const bestand = await bestandLaden('kaernten');
+      expect(Object.fromEntries(bestand.map((i) => [i.id, i.datenqualitaet]))).toEqual({
+        'wh-ok': undefined,
+        'wh-defekt': 'flaeche_ausreisser,zimmer_ratio_ausreisser',
+      });
+    });
+
+    it('re-evaluiert beim Wieder-Sehen aus den frischen Portal-Feldern', async () => {
+      await bestandUpsert([inserat('wh-1', 200000)], 'kaernten', '2026-07-01');
+      expect((await bestandLaden('kaernten'))[0]?.datenqualitaet).toBeUndefined();
+
+      // Das Portal liefert jetzt einen absurden Preis: der Sweep fängt es.
+      await bestandUpsert([inserat('wh-1', 5_000_000)], 'kaernten', '2026-07-05');
+      expect((await bestandLaden('kaernten'))[0]?.datenqualitaet).toBe(
+        'eurm2_kauf_ausreisser,preis_kauf_ausreisser',
+      );
+
+      // Und zurück: die Korrektur räumt das Flag wieder ab.
+      await bestandUpsert([inserat('wh-1', 200000)], 'kaernten', '2026-07-06');
+      expect((await bestandLaden('kaernten'))[0]?.datenqualitaet).toBeUndefined();
+    });
+
+    it('schreibt bei einer Portal-Korrektur Fläche/Zimmer mit — Flag und Zeile bleiben konsistent', async () => {
+      await bestandUpsert([defekt('wh-1')], 'kaernten', '2026-07-01');
+      // Das Portal korrigiert die Grundstücks- zur Wohnfläche: Flag weg UND
+      // die Zeile trägt die korrigierten Werte (sonst rechnete das Dashboard
+      // ungeflaggt mit der alten 9758-m²-Fläche weiter).
+      await bestandUpsert(
+        [{ ...inserat('wh-1', 230000), flaeche_m2: 90, zimmer: 4 }],
+        'kaernten',
+        '2026-07-05',
+      );
+      const [gespeichert] = await bestandLaden('kaernten');
+      expect(gespeichert).toMatchObject({ flaeche_m2: 90, zimmer: 4 });
+      expect(gespeichert?.datenqualitaet).toBeUndefined();
+      // Der Rebuild sieht dieselben Werte und ändert nichts mehr — kein
+      // Flip-Flop zwischen Sweep und Rebuild.
+      expect(await plausibilitaetRebuild()).toEqual({
+        geprueft: 1,
+        geflaggt: 0,
+        entflaggt: 0,
+        unveraendert: 1,
+      });
+    });
+
+    it('bestandSeiteLaden mit nurAusreisser liefert nur geflaggte Zeilen', async () => {
+      await bestandUpsert([inserat('wh-ok'), defekt('wh-defekt')], 'kaernten', '2026-07-01');
+      const seite = await bestandSeiteLaden({ nurAusreisser: true }, 'zuletzt_gesehen', 10, 0);
+      expect(seite.gesamt).toBe(1);
+      expect(seite.inserate.map((i) => [i.id, i.datenqualitaet])).toEqual([
+        ['wh-defekt', 'flaeche_ausreisser,zimmer_ratio_ausreisser'],
+      ]);
+    });
+
+    it('plausibilitaetRebuild holt Alt-Zeilen nach und ist idempotent (Keyset-Batches)', async () => {
+      await bestandUpsert(
+        [inserat('wh-1'), inserat('wh-2'), defekt('wh-defekt')],
+        'kaernten',
+        '2026-07-01',
+      );
+      // Alt-Zustand vor Migration 007 simulieren: Spalte überall NULL.
+      await holePool().query('UPDATE inserate_bestand SET datenqualitaet = NULL');
+
+      const stand = await plausibilitaetRebuild({ batchGroesse: 1 });
+      expect(stand).toEqual({ geprueft: 3, geflaggt: 1, entflaggt: 0, unveraendert: 2 });
+      const bestand = await bestandLaden('kaernten');
+      expect(bestand.find((i) => i.id === 'wh-defekt')?.datenqualitaet).toBe(
+        'flaeche_ausreisser,zimmer_ratio_ausreisser',
+      );
+
+      // Zweiter Lauf ändert nichts mehr.
+      expect(await plausibilitaetRebuild({ batchGroesse: 1 })).toEqual({
+        geprueft: 3,
+        geflaggt: 0,
+        entflaggt: 0,
+        unveraendert: 3,
+      });
+    });
+
+    it('plausibilitaetRebuild entflaggt Zeilen, deren Grenzen-Befund entfallen ist', async () => {
+      await bestandUpsert([inserat('wh-1')], 'kaernten', '2026-07-01');
+      await holePool().query(
+        `UPDATE inserate_bestand SET datenqualitaet = 'flaeche_ausreisser' WHERE inserat_id = 'wh-1'`,
+      );
+      const stand = await plausibilitaetRebuild();
+      expect(stand).toEqual({ geprueft: 1, geflaggt: 0, entflaggt: 1, unveraendert: 0 });
+      expect((await bestandLaden('kaernten'))[0]?.datenqualitaet).toBeUndefined();
     });
   });
 

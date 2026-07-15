@@ -1,5 +1,5 @@
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
-import { datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
+import { ausreisserBadge, datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 
 /**
@@ -73,9 +73,7 @@ function filterleiste(daten: TopPicksDaten): string {
 function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
-  const ausreisserBadge = p.istAusreisser
-    ? ' <span class="badge badge-critical">▲ Ausreißer</span>'
-    : '';
+  const badge = ausreisserBadge(p);
   const erreicht = p.bruttoRendite >= zielRendite;
   // Urteils-Regel: Grün nur mit Text-Marker; unter Ziel bleibt die Zelle
   // neutral — eine niedrigere Rendite ist hier eine Lage, kein Fehler.
@@ -85,7 +83,7 @@ function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string)
       ? `<td class="num zelle-gut"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
       : `<td class="num">${fmtRendite(p.bruttoRendite)}</td>`;
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
-          <td>${link}${ausreisserBadge}<span class="sub">${escapeHtml(p.portal)}</span></td>
+          <td>${link}${badge}<span class="sub">${escapeHtml(p.portal)}</span></td>
           <td>${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
           <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num">${nfEur0.format(p.kaufpreis)} €</td>
@@ -134,10 +132,11 @@ export function renderTopPicksSeite(daten: TopPicksDaten): string {
       ? ` · PLZ ${daten.filterPlz}${daten.filterPlz.length < 4 ? '…' : ''}`
       : '';
   const ausreisserZeile = daten.ausreisserEinbeziehen
-    ? `Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten, sind einbezogen und
-    mit „▲ Ausreißer" markiert; die Miet-Mediane rechnen unbereinigt.`
-    : `Ohne Kauf-Objekte, die in ihrer PLZ als 1,5×IQR-Ausreißer gelten —
-    ein fragwürdiger Preis ist kein Kaufsignal.`;
+    ? `Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ als
+    1,5×IQR-Ausreißer gelten, sind einbezogen und mit „▲ Ausreißer" markiert; die
+    Miet-Mediane rechnen unbereinigt.`
+    : `Ohne Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ
+    als 1,5×IQR-Ausreißer gelten — ein fragwürdiger Preis ist kein Kaufsignal.`;
   const inhalt = `  <header>
     <h1>Top Picks — Bruttorendite je Objekt (Stichtag ${escapeHtml(datumMedium(daten.stichtag))})${escapeHtml(filterZusatz)}</h1>
     <p class="meta">Kauf-Objekte, sortiert nach geschätzter Bruttorendite. Die Miete kommt

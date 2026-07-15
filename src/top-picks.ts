@@ -11,10 +11,12 @@ import {
  * Objekt selbst, sondern als Ausreißer-bereinigter Median-Kaltmiete-€/m²
  * seines Gebiets, mit Fallback-Kette PLZ → Bezirk → ganz Kärnten — die
  * verwendete Basis wird immer mit ausgewiesen (Ehrlichkeits-Prinzip wie
- * beim Portfolio-Vergleich). Der Schalter „Ausreißer einbeziehen"
+ * beim Portfolio-Vergleich). „Ausreißer" umfasst beide Klassen: die
+ * persistierten Hard-Regel-Befunde (datenqualitaet, src/plausibilitaet.ts)
+ * und die PLZ-lokale 1,5×IQR-Statistik. Der Schalter „Ausreißer einbeziehen"
  * (?ausreisser=an, wie im Dashboard) stellt die unbereinigte Rechnung
- * wieder her: Kauf-Ausreißer bleiben dann im Ranking (markiert), die
- * Miet-Mediane rechnen ungefiltert.
+ * wieder her: Kauf-Ausreißer beider Klassen bleiben dann im Ranking
+ * (markiert), die Miet-Mediane rechnen ungefiltert.
  */
 
 /** Unter so vielen bereinigten Miet-Werten gilt ein Gebiet nicht als belastbar. */
@@ -44,10 +46,13 @@ export interface TopPickKandidat {
   bruttoRendite: number;
   mieteBasis: MieteBasis;
   /**
-   * 1,5×IQR-Ausreißer in der eigenen PLZ. Ohne „Ausreißer einbeziehen"
-   * immer false (Ausreißer sind dann ausgeschlossen).
+   * Hard-Regel-Befund (datenqualitaet) ODER 1,5×IQR-Ausreißer in der eigenen
+   * PLZ. Ohne „Ausreißer einbeziehen" immer false (Ausreißer sind dann
+   * ausgeschlossen).
    */
   istAusreisser: boolean;
+  /** Hard-Regel-Gründe des Objekts (siehe ObjektDatenpunkt); fehlt = kein Hard-Befund. */
+  datenqualitaet?: string;
   portal: string;
   inseratId: string;
   url?: string;
@@ -83,11 +88,12 @@ function belastbareMediane(
 }
 
 /**
- * Kauf-Ausreißer PLZ-lokal flaggen: ein Objekt, das nur wegen eines
- * fragwürdigen Preises oben landen würde, ist kein Kaufsignal. Bewusst
- * nicht das globale istAusreisser-Flag der Datenpunkte — der Maßstab ist
- * die €/m²-Verteilung der eigenen PLZ (unter 4 Werten kein Flag,
- * siehe ausreisserFlags).
+ * Kauf-Ausreißer flaggen: Hard-Regel-Befund (datenqualitaet, PLZ-unabhängig)
+ * ODER 1,5×IQR PLZ-lokal — ein Objekt, das nur wegen eines fragwürdigen
+ * Preises oben landen würde, ist kein Kaufsignal. Bewusst nicht das globale
+ * istAusreisser-Flag der Datenpunkte — der IQR-Maßstab ist die
+ * €/m²-Verteilung der eigenen PLZ, gerechnet über die um Hard-Fälle
+ * bereinigte Gruppe (unter 4 Werten kein Flag, siehe ausreisserFlags).
  */
 function mitPlzAusreisserFlag(
   kandidaten: KaufKandidat[],
@@ -101,15 +107,23 @@ function mitPlzAusreisserFlag(
   const ergebnis: Array<{ kandidat: KaufKandidat; istAusreisser: boolean }> = [];
   for (const [plz, gruppe] of jePlz) {
     // Ohne auswertbare PLZ gibt es keine sinnvolle lokale Verteilung — die
-    // ''-Gruppe wäre ein Pseudo-Gebiet quer durch Kärnten, kein Flag
-    // (wie die Miete-Seite, die '' aus den PLZ-Gruppen heraushält).
+    // ''-Gruppe wäre ein Pseudo-Gebiet quer durch Kärnten, kein IQR-Flag
+    // (wie die Miete-Seite, die '' aus den PLZ-Gruppen heraushält). Der
+    // Hard-Regel-Befund gilt trotzdem, er braucht keine Vergleichsgruppe.
     if (plz === '') {
-      for (const k of gruppe) ergebnis.push({ kandidat: k, istAusreisser: false });
+      for (const k of gruppe) {
+        ergebnis.push({ kandidat: k, istAusreisser: k.punkt.datenqualitaet !== undefined });
+      }
       continue;
     }
-    const flags = ausreisserFlags(gruppe.map((k) => k.punkt.eurM2));
-    for (const [i, k] of gruppe.entries()) {
-      ergebnis.push({ kandidat: k, istAusreisser: flags[i] === true });
+    const basis = gruppe.filter((k) => k.punkt.datenqualitaet === undefined);
+    const flags = ausreisserFlags(basis.map((k) => k.punkt.eurM2));
+    const iqr = new Set(basis.filter((_, i) => flags[i] === true));
+    for (const k of gruppe) {
+      ergebnis.push({
+        kandidat: k,
+        istAusreisser: k.punkt.datenqualitaet !== undefined || iqr.has(k),
+      });
     }
   }
   return ergebnis;
@@ -149,7 +163,7 @@ export interface TopPicksOptionen {
   n?: number;
   /** Unter so vielen bereinigten Miet-Werten gilt ein Gebiet nicht als belastbar. */
   minMietObjekte?: number;
-  /** true = Kauf-Ausreißer im Ranking (markiert), Miet-Mediane unbereinigt. */
+  /** true = Kauf-Ausreißer beider Klassen im Ranking (markiert), Miet-Mediane unbereinigt. */
   ausreisserEinbeziehen?: boolean;
 }
 
@@ -182,6 +196,9 @@ export function topPicks(
     const punkt = objektDatenpunktAmStichtag(objekt, stichtag);
     if (punkt === undefined || punkt.eurM2 <= 0) continue;
     if (objekt.typ === 'miete') {
+      // Hart geflaggte Miet-Objekte gehen ohne „Ausreißer einbeziehen" weder
+      // in die Mediane noch in die minMietObjekte-Zählung ein.
+      if (!ausreisserEinbeziehen && punkt.datenqualitaet !== undefined) continue;
       if (objekt.plz !== '') sammleIn(mietenJePlz, objekt.plz, punkt.eurM2);
       if (objekt.bezirk !== '') sammleIn(mietenJeBezirk, objekt.bezirk, punkt.eurM2);
       mietenKaernten.push(punkt.eurM2);
@@ -228,6 +245,7 @@ export function topPicks(
     };
     if (objekt.objektId !== undefined) pick.objektId = objekt.objektId;
     if (punkt.inserat.url !== undefined) pick.url = punkt.inserat.url;
+    if (punkt.datenqualitaet !== undefined) pick.datenqualitaet = punkt.datenqualitaet;
     picks.push(pick);
   }
 
