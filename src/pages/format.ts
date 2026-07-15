@@ -21,7 +21,7 @@ export const nfZeitpunkt = new Intl.DateTimeFormat('de-AT', {
   timeStyle: 'short',
 });
 
-const nfProzent2 = new Intl.NumberFormat('de-AT', {
+export const nfProzent2 = new Intl.NumberFormat('de-AT', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });

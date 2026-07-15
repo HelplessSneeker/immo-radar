@@ -56,19 +56,22 @@ function daten(overrides: Partial<DashboardDaten> = {}): DashboardDaten {
 describe('renderDashboardSeite', () => {
   it('zeigt KPIs mit Urteil: Rendite unter Ziel ohne Good-Kachel', () => {
     const html = renderDashboardSeite(daten());
-    expect(html).toContain('3,00 %');
+    // Die Einheit steht abgesetzt neben dem 30px-Wert (tile-einheit).
+    expect(html).toContain('3,00<span class="tile-einheit">%</span>');
     expect(html).toContain('unter Ziel (≥ 4 %)');
     expect(html).not.toContain('class="tile tile-good"'); // CSS-Regel zählt nicht
-    expect(html).toContain('4 000 €/m²'); // de-AT gruppiert mit NBSP
-    expect(html).toContain('10,00 €/m²');
+    expect(html).toContain('4 000<span class="tile-einheit">€/m²</span>'); // de-AT gruppiert mit NBSP
+    expect(html).toContain('10,00<span class="tile-einheit">€/m²</span>');
     expect(html).toContain('42 aktive Kauf-Objekte');
   });
 
-  it('zeigt die Roh-Inserate des Laufs (Kauf/Miete) an der Sweep-Kachel', () => {
+  it('nennt die Roh-Inserate des Laufs als Provenienz-Zeile statt vierter Kachel', () => {
     const html = renderDashboardSeite(daten());
     // de-AT gruppiert mit NBSP (U+00A0).
-    expect(html).toContain('2 802 Kauf- · 669 Miet-Inserate im Lauf');
-    expect(html).toContain('Roh-Inserate vor Deduplizierung');
+    expect(html).toContain('2 802 Kauf- und 669 Miet-Inserate (roh, vor Deduplizierung)');
+    expect(html).not.toContain('Letzter Sweep</div>');
+    expect(html).not.toContain('nächster Sweep läuft gerade');
+    expect(renderDashboardSeite(daten({ sweepLaeuft: true }))).toContain('nächster Sweep läuft gerade');
   });
 
   it('formatiert die Chart-Labels als dd.mm.yyyy (serverseitig vorformatiert)', () => {
@@ -85,11 +88,14 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('Ziel ≥ 4 % erreicht');
   });
 
-  it('spiegelt aktive Filter in der Überschrift und escapt die Eingaben', () => {
+  it('spiegelt aktive Filter als Gefiltert-Zeile im Kopf; die h1 bleibt schlank', () => {
     const html = renderDashboardSeite(daten({ filter: { plz: '9020', flaecheMin: 45, flaecheMax: 90 } }));
-    expect(html).toContain('Wohnungsmarkt Kärnten · PLZ 9020 · 45–90 m²');
+    expect(html).toContain('<h1>Wohnungsmarkt Kärnten</h1>');
+    expect(html).toContain('Gefiltert: PLZ 9020 · 45–90 m²');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
+    // Ohne aktiven Filter keine leere Gefiltert-Zeile.
+    expect(renderDashboardSeite(daten())).not.toContain('Gefiltert:');
   });
 
   it('rendert den Ausreißer-Schalter: default aus und Kennzahlen als bereinigt beschriftet', () => {
@@ -149,7 +155,7 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     const html = renderDashboardSeite(daten());
     expect(html).toContain('id="datenpunkte"');
     expect(html).toContain('<details class="datenpunkte">');
-    expect(html).toContain('Datenpunkte (Stichtag 07.07.2026)');
+    expect(html).toContain('Die Objekte hinter den Zahlen (Stichtag 07.07.2026)');
   });
 
   it('rendert die Streu-Charts und serialisiert die Punktwolke gerundet', () => {

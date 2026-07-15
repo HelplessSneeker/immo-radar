@@ -13,11 +13,11 @@ import {
   ausreisserBadge,
   DELTA_STABIL_SCHWELLE,
   fmtDelta,
-  fmtRendite,
   datumMedium,
   nfEur0,
   nfEur2,
   nfPct,
+  nfProzent2,
   nfTage,
 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
@@ -59,7 +59,7 @@ export interface DashboardDaten {
 const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
 const DASHBOARD_CSS = `
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 12px; }
   /* Kacheln werden vom Grid gleich hoch gemacht; die interne Flex-Verteilung
      drückt die Sub-Zeile (Herkunfts-/Erklär-Text) zuverlässig an den Boden,
      damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
@@ -69,7 +69,10 @@ const DASHBOARD_CSS = `
   }
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; margin-bottom: 4px; }
-  .tile-value { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 0 0 8px; }
+  .tile-value { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+  /* Einheit vom Wert abgesetzt: die Zahl trägt das Urteil, "%"/"€/m²" ist
+     nur ihre Beschriftung – kleiner und gedämpft statt 30px-laut. */
+  .tile-einheit { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 3px; }
   .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
   .tile-sub { font-size: 12px; line-height: 1.45; color: var(--text-secondary); margin-top: auto; padding-top: 4px; }
@@ -79,7 +82,9 @@ const DASHBOARD_CSS = `
   .chart-wrap { position: relative; height: 260px; }
   .warnung { color: var(--status-critical); font-size: 13px; }
   .datenpunkte summary { cursor: pointer; }
-  .datenpunkte summary h2 { display: inline; margin: 0; }
+  .datenpunkte summary h2 { display: inline; margin: 0; transition: color var(--dauer-fein) var(--ease-out); }
+  /* Aufklapp-Affordance sichtbar machen: der Titel reagiert wie ein Link. */
+  .datenpunkte summary:hover h2 { color: var(--akzent); }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
@@ -234,7 +239,7 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
-        <div class="tile-value">${fmtRendite(rendite)}</div>
+        <div class="tile-value">${nfProzent2.format(rendite * 100)}<span class="tile-einheit">%</span></div>
         ${kachelTrend(berechneRenditeKpiDelta(daten.renditeTrend), 'prozentpunkte', true)}
         <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>
         <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}${stand}</div>
@@ -251,26 +256,27 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
     daten.portalAusfaelle.length > 0
       ? `\n    <p class="warnung">Beim letzten Sweep waren ${daten.portalAusfaelle.length} Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>`
       : '';
+  // Provenienz ist Fakt, keine Kennzahl: die frühere „Letzter Sweep"-Kachel
+  // duplizierte das „Stand"-Datum im Kopf und stand gleichrangig neben den
+  // drei Urteils-KPIs. Als Meta-Zeile unterm Grid bleibt die Datenbasis
+  // sichtbar (Ehrlichkeits-Prinzip), ohne als vierte Zahl zu konkurrieren.
+  const provenienz = `Datenbasis des Stichtags: ${nfTage.format(daten.inserateImLauf.kauf)} Kauf- und ${nfTage.format(daten.inserateImLauf.miete)} Miet-Inserate (roh, vor Deduplizierung)${daten.sweepLaeuft ? ' · nächster Sweep läuft gerade' : ''} · <a href="/crawl">alle Läufe</a>`;
   return `    <div class="tiles">
 ${renditeKachel(daten, zielProzent)}      <div class="tile">
         <div class="tile-label">Kaufpreis (Median)</div>
-        <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)} €/m²` : '–'}</div>
+        <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)}<span class="tile-einheit">€/m²</span>` : '–'}</div>
         ${kauf != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianKaufEurM2'), 'prozent', false) : ''}
         <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Kaltmiete (Median)</div>
-        <div class="tile-value">${miete != null ? `${nfEur2.format(miete)} €/m²` : '–'}</div>
+        <div class="tile-value">${miete != null ? `${nfEur2.format(miete)}<span class="tile-einheit">€/m²</span>` : '–'}</div>
         ${miete != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianMieteEurM2'), 'prozent', false) : ''}
         <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
       </div>
-      <div class="tile">
-        <div class="tile-label">Letzter Sweep</div>
-        <div class="tile-value">${escapeHtml(datumMedium(daten.stichtag))}</div>
-        <div class="tile-badge">${nfTage.format(daten.inserateImLauf.kauf)} Kauf- · ${nfTage.format(daten.inserateImLauf.miete)} Miet-Inserate im Lauf</div>
-        <div class="tile-sub">Roh-Inserate vor Deduplizierung · ${daten.sweepLaeuft ? 'nächster Sweep läuft gerade — ' : ''}<a href="/crawl">alle Läufe</a></div>
-      </div>
-    </div>${ausfallWarnung}`;
+    </div>${ausfallWarnung}
+    <p class="meta" style="margin-bottom: 0;">${provenienz}<br>
+    Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a></p>`;
 }
 
 function chartSektion(trend: TrendPunkt[]): string {
@@ -424,7 +430,7 @@ function datenpunkteSektion(daten: DashboardDaten): string {
   return `
   <section id="datenpunkte">
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
-      <summary><h2>Datenpunkte (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
+      <summary><h2>Die Objekte hinter den Zahlen (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
       Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe. Die Wolke zeigt
       immer alle Objekte; die Median-Linie folgt dem Ausreißer-Filter.
@@ -482,10 +488,12 @@ export function renderDashboardSeite(daten: DashboardDaten): string {
   ).replace(/</g, '\\u003c');
 
   const inhalt = `  <header>
-    <h1>Wohnungsmarkt Kärnten${beschreibung ? ` · ${escapeHtml(beschreibung)}` : ''}</h1>
+    <h1>Wohnungsmarkt Kärnten</h1>
     <p class="intro">Auf einen Blick, was Wohnungen in Kärnten pro Quadratmeter kosten — beim Kauf wie bei der Miete — und ob die Preise zuletzt gestiegen oder gefallen sind.</p>
     <p class="meta">Alle Wohnungen (Kauf & Miete) von willhaben.at und immoscout24.at,
-    täglich vollständig gecrawlt und zu Objekten dedupliziert · Stand ${escapeHtml(datumMedium(daten.stichtag))}</p>
+    täglich vollständig gecrawlt und zu Objekten dedupliziert · Stand ${escapeHtml(datumMedium(daten.stichtag))}</p>${
+      beschreibung ? `\n    <p class="meta">Gefiltert: ${escapeHtml(beschreibung)}</p>` : ''
+    }
   </header>
 
   <section>
@@ -494,11 +502,10 @@ ${filterleiste(daten)}
 
   <section>
 ${kpiZeile(daten, zielProzent)}
-    <p class="meta" style="margin-bottom: 0;">Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a></p>
   </section>
 
   <section>
-    <h2>Zeitreihen (je Crawl-Lauf)</h2>
+    <h2>Preisentwicklung über die Zeit</h2>
     <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
     Objekte (${
       daten.filter.ausreisserEinbeziehen === true
@@ -557,6 +564,9 @@ ${datenpunkteSektion(daten)}
       options: {
         animation: reduziert || !ersterZeichnung ? false : { duration: 300, easing: 'easeOutQuart' },
         maintainAspectRatio: false,
+        // Spalten-Hover statt Punkt-Treffer: der Tooltip erscheint schon beim
+        // Überfahren des Stichtags – auf dünnen Linien deutlich gutmütiger.
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false }, // eine Serie: Panel-Titel benennt sie
           tooltip: { callbacks: { label: tooltip } },
