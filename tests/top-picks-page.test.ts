@@ -38,9 +38,10 @@ function daten(overrides: Partial<TopPicksDaten> = {}): TopPicksDaten {
 }
 
 describe('renderTopPicksSeite', () => {
-  it('rendert Header mit Stichtag und Methodik-Link', () => {
+  it('rendert Header mit schlanker h1, Stichtag in der Meta und Methodik-Link', () => {
     const html = renderTopPicksSeite(daten());
-    expect(html).toContain('Top Picks — Bruttorendite je Objekt (Stichtag 07.07.2026)');
+    expect(html).toContain('<h1>Top Picks</h1>');
+    expect(html).toContain('Kauf-Objekte am Stichtag 07.07.2026');
     expect(html).toContain('href="/methodik#top-picks"');
   });
 
@@ -99,7 +100,42 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('action="/top-picks"');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
-    expect(html).toContain('PLZ 9020');
+    expect(html).toContain('Gefiltert: PLZ 9020');
+    // Präfix-Filter (< 4 Ziffern) tragen die Ellipse.
+    expect(renderTopPicksSeite(daten({ filterPlz: '95' }))).toContain('Gefiltert: PLZ 95…');
+  });
+
+  it('nummeriert die Rangliste leise in der Objekt-Zelle', () => {
+    const html = renderTopPicksSeite(daten({ picks: [pick(), pick({ inseratId: 'wh-2' })] }));
+    expect(html).toContain('<span class="rang">1.</span><a href="https://willhaben.at/wh-1">');
+    expect(html).toContain('<span class="rang">2.</span>');
+  });
+
+  it('urteilt über der Tabelle, wie viele Objekte das Ziel erreichen', () => {
+    const zwei = renderTopPicksSeite(
+      daten({ picks: [pick({ bruttoRendite: 0.05 }), pick({ inseratId: 'wh-2' })] }),
+    );
+    expect(zwei).toContain('1 von 2 Objekten erreicht das Renditeziel (≥ 4 %).');
+    const beide = renderTopPicksSeite(
+      daten({
+        picks: [pick({ bruttoRendite: 0.05 }), pick({ inseratId: 'wh-2', bruttoRendite: 0.06 })],
+      }),
+    );
+    expect(beide).toContain('2 von 2 Objekten erreichen das Renditeziel (≥ 4 %).');
+    // Einzelnes Objekt: eigener Wortlaut statt „Keines der 1 Objekte".
+    expect(renderTopPicksSeite(daten())).toContain(
+      'Das Objekt erreicht das Renditeziel (≥ 4 %) nicht.',
+    );
+    // Ausreißer zählen nicht als erreicht — konsistent zur Zellen-Hervorhebung.
+    const ausreisser = renderTopPicksSeite(
+      daten({
+        ausreisserEinbeziehen: true,
+        picks: [pick({ istAusreisser: true, bruttoRendite: 0.09 }), pick({ inseratId: 'wh-2' })],
+      }),
+    );
+    expect(ausreisser).toContain('Keines der 2 Objekte erreicht das Renditeziel (≥ 4 %).');
+    // Leer-State: kein Urteil über eine Tabelle, die es nicht gibt.
+    expect(renderTopPicksSeite(daten({ picks: [] }))).not.toContain('Renditeziel');
   });
 
   it('zeigt ohne Filter keinen Reset-Link und keine Flächen-Felder', () => {

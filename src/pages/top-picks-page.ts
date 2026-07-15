@@ -36,6 +36,12 @@ const TOP_PICKS_CSS = `
   .gut { color: var(--good-text); font-weight: 600; }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   .feld-toggle .meta { margin: 0; font-size: 12px; }
+  /* Rang-Nummer des Rankings: leise (gedämpft, kein Urteil), rechtsbündig auf
+     fester Breite, damit die Objekt-Titel auch bei zweistelligen Rängen fluchten. */
+  .rang {
+    display: inline-block; min-width: 1.8em; margin-right: 4px; text-align: right;
+    color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums;
+  }
 `;
 
 function filterleiste(daten: TopPicksDaten): string {
@@ -70,7 +76,12 @@ function filterleiste(daten: TopPicksDaten): string {
     </form>${flaecheHinweis}`;
 }
 
-function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string): string {
+function pickZeile(
+  p: TopPickKandidat,
+  rang: number,
+  zielRendite: number,
+  zielProzent: string,
+): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
   const badge = ausreisserBadge(p);
@@ -82,12 +93,14 @@ function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string)
     erreicht && !p.istAusreisser
       ? `<td class="num zelle-gut" data-label="Rendite"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
       : `<td class="num" data-label="Rendite">${fmtRendite(p.bruttoRendite)}</td>`;
+  // Der Rang lebt in der Objekt-Zelle (keine eigene Spalte): auf schmalen
+  // Viewports ist die erste Zelle der Karten-Titel – der Rang wandert mit.
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
-          <td>${link}${badge}<span class="sub">${escapeHtml(p.portal)}</span></td>
+          <td><span class="rang">${nfEur0.format(rang)}.</span>${link}${badge}<span class="sub">${escapeHtml(p.portal)}</span></td>
           <td data-label="PLZ">${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
           <td class="num" data-label="Fläche">${nfEur0.format(p.flaecheM2)} m²</td>
           <td class="num" data-label="Kaufpreis">${nfEur0.format(p.kaufpreis)} €</td>
-          <td class="num" data-label="€/m² (Kauf)">${nfEur0.format(p.eurM2)}</td>
+          <td class="num" data-label="Kauf (€/m²)">${nfEur0.format(p.eurM2)}</td>
           <td class="num" data-label="Miete (€/m²)">${nfEur2.format(p.medianMieteEurM2)}<span class="sub badge">${MIETE_BASIS_LABEL[p.mieteBasis]}</span></td>
           ${renditeZelle}
         </tr>`;
@@ -102,10 +115,12 @@ function tabelle(daten: TopPicksDaten, zielProzent: string): string {
       : `    <p class="meta">Gerade gibt es kein Kauf-Objekt, zu dem sich eine verlässliche
     Vergleichsmiete finden lässt. Im <a href="/">Dashboard</a> den Gesamtmarkt ansehen.</p>`;
   }
-  const zeilen = daten.picks.map((p) => pickZeile(p, daten.zielRendite, zielProzent)).join('\n');
+  const zeilen = daten.picks
+    .map((p, i) => pickZeile(p, i + 1, daten.zielRendite, zielProzent))
+    .join('\n');
   return `    <div class="tabelle-scroll">
     <table class="tabelle-karten">
-      <thead><tr><th scope="col">Objekt</th><th scope="col">PLZ</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">Kaufpreis</th><th scope="col" class="num">€/m² (Kauf)</th><th scope="col" class="num">Miete (€/m²)</th><th scope="col" class="num">Rendite</th></tr></thead>
+      <thead><tr><th scope="col">Objekt</th><th scope="col">PLZ</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">Kaufpreis</th><th scope="col" class="num">Kauf (€/m²)</th><th scope="col" class="num">Miete (€/m²)</th><th scope="col" class="num">Rendite</th></tr></thead>
       <tbody>
 ${zeilen}
       </tbody>
@@ -127,22 +142,37 @@ export function renderTopPicksOhneDatenSeite(sweepLaeuft: boolean): string {
 
 export function renderTopPicksSeite(daten: TopPicksDaten): string {
   const zielProzent = `${(daten.zielRendite * 100).toLocaleString('de-AT')} %`;
-  const filterZusatz =
-    daten.filterPlz !== undefined
-      ? ` · PLZ ${daten.filterPlz}${daten.filterPlz.length < 4 ? '…' : ''}`
-      : '';
   const ausreisserZeile = daten.ausreisserEinbeziehen
     ? `Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ als
     1,5×IQR-Ausreißer gelten, sind einbezogen und mit „▲ Ausreißer" markiert; die
     Miet-Mediane rechnen unbereinigt.`
     : `Ohne Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ
     als 1,5×IQR-Ausreißer gelten — ein fragwürdiger Preis ist kein Kaufsignal.`;
+  // Die Zeile über der Tabelle liefert das Urteil zur Rangliste: wie viele
+  // Objekte das Ziel tatsächlich erreichen (Ausreißer zählen nicht als
+  // erreicht — konsistent zur Zellen-Hervorhebung in pickZeile).
+  const erreichtAnzahl = daten.picks.filter(
+    (p) => p.bruttoRendite >= daten.zielRendite && !p.istAusreisser,
+  ).length;
+  const urteilZeile =
+    daten.picks.length === 0
+      ? ''
+      : daten.picks.length === 1
+        ? `Das Objekt erreicht das Renditeziel (≥ ${zielProzent})${erreichtAnzahl === 1 ? '' : ' nicht'}.`
+        : erreichtAnzahl === 0
+          ? `Keines der ${nfEur0.format(daten.picks.length)} Objekte erreicht das Renditeziel (≥ ${zielProzent}).`
+          : `${nfEur0.format(erreichtAnzahl)} von ${nfEur0.format(daten.picks.length)} Objekten ${erreichtAnzahl === 1 ? 'erreicht' : 'erreichen'} das Renditeziel (≥ ${zielProzent}).`;
   const inhalt = `  <header>
-    <h1>Top Picks — Bruttorendite je Objekt (Stichtag ${escapeHtml(datumMedium(daten.stichtag))})${escapeHtml(filterZusatz)}</h1>
+    <h1>Top Picks</h1>
     <p class="intro">Die Kauf-Objekte, bei denen sich die Investition am ehesten rechnet: das beste Verhältnis aus Kaufpreis und der Miete, die im gleichen Gebiet üblich ist.</p>
-    <p class="meta">Kauf-Objekte, sortiert nach geschätzter Bruttorendite. Die Miete kommt
-    aus dem Median der Kaltmiete im Objekt-Gebiet (PLZ, sonst Bezirk oder Kärnten-Gesamt)
-    — die Basis steht jeweils dabei. <a href="/methodik#top-picks">Details</a></p>
+    <p class="meta">Kauf-Objekte am Stichtag ${escapeHtml(datumMedium(daten.stichtag))}, sortiert
+    nach geschätzter Bruttorendite. Die Miete kommt aus dem Median der Kaltmiete im
+    Objekt-Gebiet (PLZ, sonst Bezirk oder Kärnten-Gesamt) — die Basis steht jeweils dabei.
+    <a href="/methodik#top-picks">Details</a></p>${
+      daten.filterPlz !== undefined
+        ? `\n    <p class="meta">Gefiltert: PLZ ${escapeHtml(daten.filterPlz)}${daten.filterPlz.length < 4 ? '…' : ''}</p>`
+        : ''
+    }
   </header>
 
   <section>
@@ -154,7 +184,7 @@ ${filterleiste(daten)}
       daten.picks.length > 0
         ? `Top ${nfEur0.format(daten.picks.length)} nach Bruttorendite`
         : 'Top Picks nach Bruttorendite'
-    }</h2>
+    }</h2>${urteilZeile === '' ? '' : `\n    <p class="meta">${urteilZeile}</p>`}
     <p class="meta">${ausreisserZeile} <a href="/methodik#top-picks">Details</a></p>
 ${tabelle(daten, zielProzent)}
   </section>`;
