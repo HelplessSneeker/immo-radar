@@ -4,7 +4,12 @@
  * Typografie, Navbar, Tabellen, Badges und Fokus-Zustände – Seiten ergänzen
  * nur seitenspezifisches CSS (Formulare, Tiles, Charts) über `extraCss`.
  *
- * Alle Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes);
+ * Alle normalgroßen Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes)
+ * auf ihrem tatsächlichen Grund (Statustexte sitzen in Sections/Tabellen auf
+ * --surface-1, nicht auf dem cremigen --page). Einzige Ausnahme: die
+ * Fehlerseiten-h1 in --status-critical steht auf --page (4,33:1) – als
+ * 20px/600-Überschrift Large-Text und damit AA über die 3:1-Schwelle.
+ * --text-muted bleibt wie dokumentiert auf Bold-Labels/Fußnoten beschränkt.
  * Änderungen an den Tokens mit DESIGN.md synchron halten.
  */
 
@@ -24,15 +29,19 @@ export const TOKEN_CSS = `
        dem aktiven Theme folgen – ohne color-scheme rendert der Browser sie
        immer hell, auch im Dark-Theme. */
     color-scheme: light dark;
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
+    /* Papier ist bewusst cremiger als die Fläche (nicht nur ~1 % heller wie
+       zuvor #f9f9f7/#fcfcfb): so heben sich Sections und Tiles sichtbar vom
+       Seitengrund ab, ohne Schatten (Flach-Regel). Wärmer, aber weit weg von
+       Portal-Weiß. */
+    --page: #f5f3ec;
+    --surface-1: #fcfbf7;
     --surface-hover: rgba(11,11,11,0.035);
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
     --text-muted: #898781;
     --grid: #e1e0d9;
     --baseline: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
+    --border: rgba(11,11,11,0.12);
     --akzent: #1a66c4;
     --akzent-flaeche: #1a66c4;
     --akzent-flaeche-hover: #155aab;

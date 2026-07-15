@@ -2,14 +2,14 @@
 name: immo-radar
 description: Nüchterne Marktanalyse für Anlageobjekte — Zahlen mit Urteil, ohne Portal-Rauschen
 colors:
-  page: "#f9f9f7"
-  surface: "#fcfcfb"
+  page: "#f5f3ec"
+  surface: "#fcfbf7"
   ink: "#0b0b0b"
   ink-secondary: "#52514e"
   ink-muted: "#898781"
   grid: "#e1e0d9"
   baseline: "#c3c2b7"
-  border: "#0b0b0b1a"
+  border: "#0b0b0b1f"
   akzent: "#1a66c4"
   serie-kauf: "#2a78d6"
   serie-miete: "#1baf7a"
@@ -116,14 +116,14 @@ Warme, papierartige Neutrale als Bühne; drei Serienfarben und zwei Statusfarben
 - **Serien-Gelb** (#eda100, dunkel #c98500): Dritter kategorialer Slot (Reserve für weitere Serien). Sparsam.
 
 ### Neutral
-- **Papier** (#f9f9f7, dunkel #0d0d0d): Seitenhintergrund und Eingabefelder — warm getönt, kein reines Weiß.
-- **Fläche** (#fcfcfb, dunkel #1a1a19): Sections und Tiles, eine Nuance heller als die Seite.
+- **Papier** (#f5f3ec, dunkel #0d0d0d): Seitenhintergrund und Eingabefelder — cremig-warm getönt, kein reines Weiß. Bewusst spürbar dunkler als die Fläche, damit Sections und Tiles sich ohne Schatten abheben (Flach-Regel).
+- **Fläche** (#fcfbf7, dunkel #1a1a19): Sections und Tiles, ein warmes Fast-Weiß deutlich heller als die Seite.
 - **Tinte** (#0b0b0b, dunkel #ffffff): Primärtext.
 - **Tinte gedämpft** (#52514e, dunkel #c3c2b7): Sekundärtext, Meta-Zeilen, Tile-Labels.
 - **Tinte leise** (#898781, beide Themes): Hinweise, Tabellen-Header, Footer — nur für ≥bold 13px oder unkritische Nebentexte.
 - **Raster** (#e1e0d9, dunkel #2c2c2a): Tabellen-Trennlinien, Input-Konturen, Chart-Grid.
 - **Basislinie** (#c3c2b7, dunkel #383835): Achsen und Header-Unterkanten — eine Stufe kräftiger als das Raster.
-- **Kontur** (rgba(11,11,11,0.10), dunkel rgba(255,255,255,0.10)): Ränder von Sections und Tiles.
+- **Kontur** (rgba(11,11,11,0.12), dunkel rgba(255,255,255,0.10)): Ränder von Sections und Tiles.
 
 ### Status
 - **Kritisch** (#d03b3b, dunkel #e35d5d): Fehlgeschlagene Sweeps und Segmente, Ausreißer-Markierung, Fehlertexte, Lösch-Aktionen. Der Dark-Wert ist heller, damit er auf dunklen Flächen AA besteht.
