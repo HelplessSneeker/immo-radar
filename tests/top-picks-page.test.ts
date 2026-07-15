@@ -81,7 +81,7 @@ describe('renderTopPicksSeite', () => {
 
   it('hebt die Rendite ab Ziel grün hervor — mit Text-Marker, nicht nur Farbe', () => {
     const html = renderTopPicksSeite(daten({ picks: [pick({ bruttoRendite: 0.05 })] }));
-    expect(html).toContain('<td class="num zelle-gut">');
+    expect(html).toContain('<td class="num zelle-gut" data-label="Rendite">');
     expect(html).toContain('<span class="gut">5,00 %</span>');
     expect(html).toContain('≥ Ziel 4 %');
   });
@@ -89,7 +89,7 @@ describe('renderTopPicksSeite', () => {
   it('lässt die Rendite unter Ziel neutral', () => {
     // Nur das Markup prüfen — die Klassennamen selbst stehen immer im CSS-Block.
     const html = renderTopPicksSeite(daten({ picks: [pick({ bruttoRendite: 0.03 })] }));
-    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('class="num zelle-gut"');
     expect(html).not.toContain('<span class="gut">');
     expect(html).not.toContain('≥ Ziel 4 %');
   });
@@ -147,7 +147,7 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('class="row-outlier"');
     expect(html).toContain('▲ Ausreißer');
     // Trotz Rendite über Ziel: kein Grün, kein Marker — erst prüfen, dann urteilen.
-    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('class="num zelle-gut"');
     expect(html).not.toContain('≥ Ziel 4 %');
     expect(html).toContain('9,00 %');
   });
@@ -166,13 +166,13 @@ describe('renderTopPicksSeite', () => {
       }),
     );
     expect(html).toContain('▲ Ausreißer · Fläche unplausibel · Fläche pro Zimmer unplausibel');
-    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('class="num zelle-gut"');
   });
 
   it('rendert einen Leer-State statt der Tabelle', () => {
     const html = renderTopPicksSeite(daten({ picks: [] }));
     expect(html).not.toContain('<table');
-    expect(html).toContain('Keine Kauf-Objekte mit belastbarer Miet-Vergleichsbasis');
+    expect(html).toContain('Gerade gibt es kein Kauf-Objekt');
     // Die Überschrift behauptet keine Trefferzahl, die es nicht gibt.
     expect(html).not.toContain('Top 10');
     expect(html).toContain('Top Picks nach Bruttorendite');
@@ -201,8 +201,11 @@ describe('renderTopPicksSeite', () => {
   });
 
   it('markiert Top Picks in der Navigation als aktiv', () => {
+    // Der Nav-Link trägt seit dem Redesign ein Icon-SVG vor dem Label —
+    // Attribut und Label getrennt prüfen statt des exakten Anchor-Strings.
     const html = renderTopPicksSeite(daten());
-    expect(html).toContain('<a href="/top-picks" aria-current="page">Top Picks</a>');
+    expect(html).toContain('<a href="/top-picks" aria-current="page">');
+    expect(html).toContain('<span>Top Picks</span>');
   });
 });
 
@@ -213,8 +216,8 @@ describe('renderTopPicksOhneDatenSeite', () => {
   });
 
   it('markiert die Navigation auch ohne Daten', () => {
-    expect(renderTopPicksOhneDatenSeite(false)).toContain(
-      '<a href="/top-picks" aria-current="page">Top Picks</a>',
-    );
+    const html = renderTopPicksOhneDatenSeite(false);
+    expect(html).toContain('<a href="/top-picks" aria-current="page">');
+    expect(html).toContain('<span>Top Picks</span>');
   });
 });
