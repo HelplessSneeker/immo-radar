@@ -80,15 +80,15 @@ function pickZeile(p: TopPickKandidat, zielRendite: number, zielProzent: string)
   // Ausreißer bekommen kein Chance-Grün: erst prüfen, dann urteilen.
   const renditeZelle =
     erreicht && !p.istAusreisser
-      ? `<td class="num zelle-gut"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
-      : `<td class="num">${fmtRendite(p.bruttoRendite)}</td>`;
+      ? `<td class="num zelle-gut" data-label="Rendite"><span class="gut">${fmtRendite(p.bruttoRendite)}</span><span class="sub">≥ Ziel ${zielProzent}</span></td>`
+      : `<td class="num" data-label="Rendite">${fmtRendite(p.bruttoRendite)}</td>`;
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
           <td>${link}${badge}<span class="sub">${escapeHtml(p.portal)}</span></td>
-          <td>${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
-          <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
-          <td class="num">${nfEur0.format(p.kaufpreis)} €</td>
-          <td class="num">${nfEur0.format(p.eurM2)}</td>
-          <td class="num">${nfEur2.format(p.medianMieteEurM2)}<span class="sub badge">${MIETE_BASIS_LABEL[p.mieteBasis]}</span></td>
+          <td data-label="PLZ">${escapeHtml(p.plz)}<span class="sub">${escapeHtml(p.bezirk)}</span></td>
+          <td class="num" data-label="Fläche">${nfEur0.format(p.flaecheM2)} m²</td>
+          <td class="num" data-label="Kaufpreis">${nfEur0.format(p.kaufpreis)} €</td>
+          <td class="num" data-label="€/m² (Kauf)">${nfEur0.format(p.eurM2)}</td>
+          <td class="num" data-label="Miete (€/m²)">${nfEur2.format(p.medianMieteEurM2)}<span class="sub badge">${MIETE_BASIS_LABEL[p.mieteBasis]}</span></td>
           ${renditeZelle}
         </tr>`;
 }
@@ -104,7 +104,7 @@ function tabelle(daten: TopPicksDaten, zielProzent: string): string {
   }
   const zeilen = daten.picks.map((p) => pickZeile(p, daten.zielRendite, zielProzent)).join('\n');
   return `    <div class="tabelle-scroll">
-    <table>
+    <table class="tabelle-karten">
       <thead><tr><th scope="col">Objekt</th><th scope="col">PLZ</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">Kaufpreis</th><th scope="col" class="num">€/m² (Kauf)</th><th scope="col" class="num">Miete (€/m²)</th><th scope="col" class="num">Rendite</th></tr></thead>
       <tbody>
 ${zeilen}

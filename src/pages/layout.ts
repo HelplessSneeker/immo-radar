@@ -172,6 +172,36 @@ export const BASIS_CSS = `
   td .sub, tbody th .sub {
     display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary);
   }
+  /* Mobile-Karten: dichte Tabellen (Top Picks, Datenpunkte, Portfolio) brechen
+     auf schmalen Viewports in gestapelte Karten um – je Zeile eine Karte, die
+     Spaltenköpfe wandern als data-label vor den Wert. Opt-in via .tabelle-karten,
+     damit reine Übersichts-Tabellen (Inserate, Crawl) beim Scroll-Layout bleiben. */
+  @media (max-width: 640px) {
+    .tabelle-karten thead {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .tabelle-karten, .tabelle-karten tbody, .tabelle-karten tr, .tabelle-karten td { display: block; width: auto; }
+    .tabelle-karten tr {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px;
+    }
+    .tabelle-karten tr:last-child { margin-bottom: 0; }
+    .tabelle-karten tr:hover { background: none; }
+    .tabelle-karten td { display: flow-root; border: 0; padding: 5px 0; text-align: right; }
+    .tabelle-karten td::before {
+      content: attr(data-label); float: left; padding-right: 12px;
+      color: var(--text-secondary); font-weight: 600; text-align: left;
+    }
+    /* Erste Zelle = Karten-Titel: linksbündig, kein Label. */
+    .tabelle-karten td:first-child { text-align: left; padding-top: 0; font-weight: 600; }
+    .tabelle-karten td:first-child::before { content: none; }
+    .tabelle-karten td:last-child { padding-bottom: 0; }
+    .tabelle-karten td .sub { text-align: right; }
+    .tabelle-karten td:first-child .sub { text-align: left; }
+    /* Ausreißer-Tönung wandert auf die Karte statt auf jede Teil-Zelle. */
+    .tabelle-karten tr.row-outlier { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+    .tabelle-karten tr.row-outlier td { background: none; }
+  }
   .status-badge {
     font-size: 12px; font-weight: 600; white-space: nowrap;
     transition: color var(--dauer-schnell) var(--ease-out);

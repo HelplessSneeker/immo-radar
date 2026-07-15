@@ -359,10 +359,10 @@ function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: bool
       : abwText;
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
           <td>${link}${badge}<span class="sub">${sub}</span></td>
-          <td class="num">${nfEur0.format(p.preis)} €</td>
-          <td class="num">${nfEur0.format(p.flaecheM2)} m²</td>
-          <td class="num">${kauf ? nfEur0.format(p.eurM2) : nfEur2.format(p.eurM2)}</td>
-          <td class="num">${abwZelle}</td>
+          <td class="num" data-label="Preis">${nfEur0.format(p.preis)} €</td>
+          <td class="num" data-label="Fläche">${nfEur0.format(p.flaecheM2)} m²</td>
+          <td class="num" data-label="€/m²">${kauf ? nfEur0.format(p.eurM2) : nfEur2.format(p.eurM2)}</td>
+          <td class="num" data-label="Δ Median">${abwZelle}</td>
         </tr>`;
 }
 
@@ -409,7 +409,7 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
     anzahlAusreisser > 0 ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer` : '';
   return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText} · Median ${medianText} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}</h3>
       <div class="tabelle-scroll">
-      <table>
+      <table class="tabelle-karten">
         <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
         <tbody>
 ${zeilen}
