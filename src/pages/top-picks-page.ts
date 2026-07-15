@@ -42,6 +42,9 @@ const TOP_PICKS_CSS = `
     display: inline-block; min-width: 1.8em; margin-right: 4px; text-align: right;
     color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums;
   }
+  /* Hängender Einzug: die Portal-Sub-Zeile fluchtet mit dem Objekt-Titel
+     hinter der Rang-Nummer, nicht mit der Nummer selbst. */
+  td:first-child .sub { padding-left: calc(1.8em + 4px); }
 `;
 
 function filterleiste(daten: TopPicksDaten): string {

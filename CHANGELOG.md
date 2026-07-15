@@ -19,6 +19,20 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   Fehlerseiten mit verständlicher Überschrift je Status (Code als Meta),
   Top-Picks- und Portfolio-Leerzustände ohne Jargon, PLZ-Filter-Label
   „Anfang genügt" statt „Präfix".
+- Dashboard: die „Letzter Sweep"-Kachel ist als Provenienz-Meta-Zeile
+  unters Kachel-Grid gewandert (neue Regel „Provenienz ist keine
+  Kachel") — es bleiben die drei Urteils-KPIs Rendite, Kauf, Miete.
+  Einheiten stehen abgesetzt neben dem Kachel-Wert (`.tile-einheit`),
+  Zeitreihen-Tooltips reagieren auf die ganze Stichtag-Spalte, und die
+  Sektionstitel sprechen Plain Language („Preisentwicklung über die
+  Zeit", „Die Objekte hinter den Zahlen").
+- Top Picks: die Rangliste zeigt ihren Rang (leise Nummer in der
+  Objekt-Zelle, auch im Mobile-Karten-Titel) und urteilt über der
+  Tabelle („X von Y Objekten erreichen das Renditeziel"); der
+  Spaltenkopf „€/m² (Kauf)" heißt jetzt parallel „Kauf (€/m²)".
+- Schlanke Seitenköpfe auf Dashboard und Top Picks: die h1 trägt nur
+  noch den Seitennamen; Stichtag steht in der Meta-Zeile, aktive Filter
+  in einer eigenen „Gefiltert: …"-Zeile.
 - „Ausreißer" umfasst jetzt beide Klassen (1,5×IQR + harte
   Plausibilitätsregeln): Kennzahlen, Trend und Top Picks rechnen
   standardmäßig ohne beide, der Schalter `?ausreisser=an` holt beide
