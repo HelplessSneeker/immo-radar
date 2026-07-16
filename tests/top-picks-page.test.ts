@@ -38,9 +38,10 @@ function daten(overrides: Partial<TopPicksDaten> = {}): TopPicksDaten {
 }
 
 describe('renderTopPicksSeite', () => {
-  it('rendert Header mit Stichtag und Methodik-Link', () => {
+  it('rendert Header mit schlanker h1, Stichtag in der Meta und Methodik-Link', () => {
     const html = renderTopPicksSeite(daten());
-    expect(html).toContain('Top Picks — Bruttorendite je Objekt (Stichtag 07.07.2026)');
+    expect(html).toContain('<h1>Top Picks</h1>');
+    expect(html).toContain('Kauf-Objekte am Stichtag 07.07.2026');
     expect(html).toContain('href="/methodik#top-picks"');
   });
 
@@ -81,7 +82,7 @@ describe('renderTopPicksSeite', () => {
 
   it('hebt die Rendite ab Ziel grün hervor — mit Text-Marker, nicht nur Farbe', () => {
     const html = renderTopPicksSeite(daten({ picks: [pick({ bruttoRendite: 0.05 })] }));
-    expect(html).toContain('<td class="num zelle-gut">');
+    expect(html).toContain('<td class="num zelle-gut" data-label="Rendite">');
     expect(html).toContain('<span class="gut">5,00 %</span>');
     expect(html).toContain('≥ Ziel 4 %');
   });
@@ -89,7 +90,7 @@ describe('renderTopPicksSeite', () => {
   it('lässt die Rendite unter Ziel neutral', () => {
     // Nur das Markup prüfen — die Klassennamen selbst stehen immer im CSS-Block.
     const html = renderTopPicksSeite(daten({ picks: [pick({ bruttoRendite: 0.03 })] }));
-    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('class="num zelle-gut"');
     expect(html).not.toContain('<span class="gut">');
     expect(html).not.toContain('≥ Ziel 4 %');
   });
@@ -99,7 +100,42 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('action="/top-picks"');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
-    expect(html).toContain('PLZ 9020');
+    expect(html).toContain('Gefiltert: PLZ 9020');
+    // Präfix-Filter (< 4 Ziffern) tragen die Ellipse.
+    expect(renderTopPicksSeite(daten({ filterPlz: '95' }))).toContain('Gefiltert: PLZ 95…');
+  });
+
+  it('nummeriert die Rangliste leise in der Objekt-Zelle', () => {
+    const html = renderTopPicksSeite(daten({ picks: [pick(), pick({ inseratId: 'wh-2' })] }));
+    expect(html).toContain('<span class="rang">1.</span><a href="https://willhaben.at/wh-1">');
+    expect(html).toContain('<span class="rang">2.</span>');
+  });
+
+  it('urteilt über der Tabelle, wie viele Objekte das Ziel erreichen', () => {
+    const zwei = renderTopPicksSeite(
+      daten({ picks: [pick({ bruttoRendite: 0.05 }), pick({ inseratId: 'wh-2' })] }),
+    );
+    expect(zwei).toContain('1 von 2 Objekten erreicht das Renditeziel (≥ 4 %).');
+    const beide = renderTopPicksSeite(
+      daten({
+        picks: [pick({ bruttoRendite: 0.05 }), pick({ inseratId: 'wh-2', bruttoRendite: 0.06 })],
+      }),
+    );
+    expect(beide).toContain('2 von 2 Objekten erreichen das Renditeziel (≥ 4 %).');
+    // Einzelnes Objekt: eigener Wortlaut statt „Keines der 1 Objekte".
+    expect(renderTopPicksSeite(daten())).toContain(
+      'Das Objekt erreicht das Renditeziel (≥ 4 %) nicht.',
+    );
+    // Ausreißer zählen nicht als erreicht — konsistent zur Zellen-Hervorhebung.
+    const ausreisser = renderTopPicksSeite(
+      daten({
+        ausreisserEinbeziehen: true,
+        picks: [pick({ istAusreisser: true, bruttoRendite: 0.09 }), pick({ inseratId: 'wh-2' })],
+      }),
+    );
+    expect(ausreisser).toContain('Keines der 2 Objekte erreicht das Renditeziel (≥ 4 %).');
+    // Leer-State: kein Urteil über eine Tabelle, die es nicht gibt.
+    expect(renderTopPicksSeite(daten({ picks: [] }))).not.toContain('Renditeziel');
   });
 
   it('zeigt ohne Filter keinen Reset-Link und keine Flächen-Felder', () => {
@@ -147,15 +183,32 @@ describe('renderTopPicksSeite', () => {
     expect(html).toContain('class="row-outlier"');
     expect(html).toContain('▲ Ausreißer');
     // Trotz Rendite über Ziel: kein Grün, kein Marker — erst prüfen, dann urteilen.
-    expect(html).not.toContain('<td class="num zelle-gut">');
+    expect(html).not.toContain('class="num zelle-gut"');
     expect(html).not.toContain('≥ Ziel 4 %');
     expect(html).toContain('9,00 %');
+  });
+
+  it('nennt den Hard-Regel-Grund direkt am Ausreißer-Badge, weiterhin ohne Chance-Grün', () => {
+    const html = renderTopPicksSeite(
+      daten({
+        ausreisserEinbeziehen: true,
+        picks: [
+          pick({
+            istAusreisser: true,
+            datenqualitaet: 'flaeche_ausreisser,zimmer_ratio_ausreisser',
+            bruttoRendite: 0.09,
+          }),
+        ],
+      }),
+    );
+    expect(html).toContain('▲ Ausreißer · Fläche unplausibel · Fläche pro Zimmer unplausibel');
+    expect(html).not.toContain('class="num zelle-gut"');
   });
 
   it('rendert einen Leer-State statt der Tabelle', () => {
     const html = renderTopPicksSeite(daten({ picks: [] }));
     expect(html).not.toContain('<table');
-    expect(html).toContain('Keine Kauf-Objekte mit belastbarer Miet-Vergleichsbasis');
+    expect(html).toContain('Gerade gibt es kein Kauf-Objekt');
     // Die Überschrift behauptet keine Trefferzahl, die es nicht gibt.
     expect(html).not.toContain('Top 10');
     expect(html).toContain('Top Picks nach Bruttorendite');
@@ -184,8 +237,11 @@ describe('renderTopPicksSeite', () => {
   });
 
   it('markiert Top Picks in der Navigation als aktiv', () => {
+    // Der Nav-Link trägt seit dem Redesign ein Icon-SVG vor dem Label —
+    // Attribut und Label getrennt prüfen statt des exakten Anchor-Strings.
     const html = renderTopPicksSeite(daten());
-    expect(html).toContain('<a href="/top-picks" aria-current="page">Top Picks</a>');
+    expect(html).toContain('<a href="/top-picks" aria-current="page">');
+    expect(html).toContain('<span>Top Picks</span>');
   });
 });
 
@@ -196,8 +252,8 @@ describe('renderTopPicksOhneDatenSeite', () => {
   });
 
   it('markiert die Navigation auch ohne Daten', () => {
-    expect(renderTopPicksOhneDatenSeite(false)).toContain(
-      '<a href="/top-picks" aria-current="page">Top Picks</a>',
-    );
+    const html = renderTopPicksOhneDatenSeite(false);
+    expect(html).toContain('<a href="/top-picks" aria-current="page">');
+    expect(html).toContain('<span>Top Picks</span>');
   });
 });

@@ -21,6 +21,7 @@ const ZEILE: BestandZeile = {
   datum_erfasst: '2026-07-01',
   zuerst_gesehen: '2026-07-01',
   zuletzt_gesehen: '2026-07-03',
+  datenqualitaet: null,
 };
 
 describe('bestandInseratAusZeile', () => {
@@ -43,9 +44,15 @@ describe('bestandInseratAusZeile', () => {
   });
 
   it('übernimmt optionale Felder, wenn gesetzt', () => {
-    const inserat = bestandInseratAusZeile({ ...ZEILE, baujahr: 1990, zustand: 'saniert' });
+    const inserat = bestandInseratAusZeile({
+      ...ZEILE,
+      baujahr: 1990,
+      zustand: 'saniert',
+      datenqualitaet: 'flaeche_ausreisser',
+    });
     expect(inserat.baujahr).toBe(1990);
     expect(inserat.zustand).toBe('saniert');
+    expect(inserat.datenqualitaet).toBe('flaeche_ausreisser');
   });
 });
 

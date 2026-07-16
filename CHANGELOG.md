@@ -7,6 +7,103 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-16
+
+Vierte Runde: harte Plausibilitätsregeln gegen strukturell falsche
+Inserate (persistiert als Ausreißer-Grund, mit eigener Inserate-Ansicht),
+dazu die Redesign-Politur für Nicht-Techniker — Plain Language,
+destilliertes Dashboard und Mobile-Karten für die dichten Tabellen.
+
+### Geändert
+
+- Dashboard-Layout-Pass: die KPI-Kacheln liegen jetzt direkt auf dem
+  Papier statt in einer umschließenden Section (keine Karte-in-Karte
+  mehr; `.tile` trägt den Flächen-Hintergrund aus DESIGN.md), die
+  Ausfall-Warnung wird ein eigener leiser Hinweis-Streifen auf Fläche
+  (13px-Rot verfehlt auf Papier AA). Gruppierter Seitenrhythmus statt
+  Einheits-Gap: Kopf/Filter/KPIs eng (16px), Verlaufs-Charts 24px,
+  Datenpunkte-Tiefe und Footer 32px. Kachel- und Chart-Grids brechen
+  strukturell um: bei 2 Spalten steht das Urteils-Element (Rendite)
+  voll breit oben, nichts dangelt mehr allein auf halber Breite. Der
+  Filter-Button ist auf Dashboard und Top Picks jetzt der dokumentierte
+  Ghost-Button (`button.klein`) statt einer blauen Primäraktion —
+  Auswertungsseiten haben keine Primäraktion; Inserate war schon so.
+- Dashboard destilliert („einfach draufschauen können"): Die Seite
+  beginnt mit den Zahlen — der Filter liegt in einem zugeklappten
+  `<details>` (eine schlanke „Filtern"-Zeile; ein aktiver Filter öffnet
+  sie und benennt sich in der Summary), die Intro-Zeile entfällt
+  (die Kachel-Labels sind die Orientierung), der Kopf ist zweizeilig.
+  Kachel-Subs nennen nur noch die Objektzahl statt Formel- und
+  Ausreißer-Prosa; die Rechenweise steht genau einmal in der
+  Provenienz-Zeile („Ohne Ausreißer gerechnet · Methodik").
+  Roh-Inserate-Zählung und „Sweep läuft" sind von der Seite genommen
+  (leben auf /crawl bzw. im Navbar-Chip), Chart-Meta und Footer auf je
+  einen Halbsatz gekürzt. Neue DESIGN.md-Regel „ein Erklär-Register
+  pro Block".
+- Dashboard-Filterleiste entzerrt: Fläche von/bis und der eigene
+  Zeitraum von/bis sind je **ein** Bereichs-Feld (eine Legende, zwei
+  kompakte Eingaben mit `aria-label`) statt vier einzeln beschrifteter
+  Felder; Eingabebreiten folgen dem Inhalt (PLZ 150px, m² 76px, Datum
+  145px) statt dem ~200px-Browser-Default. Der Seitenkopf bekommt 24px
+  Luft zur Filterkarte, die Erklär-Zeilen der Sektionen sind auf ~76ch
+  Lesebreite gekappt.
+- Redesign-Politur für Nicht-Techniker (Richtung „Das ruhige Marktbüro"
+  bleibt): wärmere Light-Neutralen mit sichtbarem Karten-Kontrast
+  (Papier `#f5f3ec` / Fläche `#fcfbf7`), mehr Atmung in den KPI-Kacheln
+  (größeres Padding, klarer Rhythmus zwischen Label, Wert, Trend und
+  Sub-Zeile). Serien-Farben, Urteils-/Flach-Regel und beide Themes
+  unverändert.
+- Plain-Language-Mikrocopy auf den Seiten, die Nicht-Techniker nutzen:
+  Fehlerseiten mit verständlicher Überschrift je Status (Code als Meta),
+  Top-Picks- und Portfolio-Leerzustände ohne Jargon, PLZ-Filter-Label
+  „Anfang genügt" statt „Präfix".
+- Dashboard: die „Letzter Sweep"-Kachel ist als Provenienz-Meta-Zeile
+  unters Kachel-Grid gewandert (neue Regel „Provenienz ist keine
+  Kachel") — es bleiben die drei Urteils-KPIs Rendite, Kauf, Miete.
+  Einheiten stehen abgesetzt neben dem Kachel-Wert (`.tile-einheit`),
+  Zeitreihen-Tooltips reagieren auf die ganze Stichtag-Spalte, und die
+  Sektionstitel sprechen Plain Language („Preisentwicklung über die
+  Zeit", „Die Objekte hinter den Zahlen").
+- Top Picks: die Rangliste zeigt ihren Rang (leise Nummer in der
+  Objekt-Zelle, auch im Mobile-Karten-Titel) und urteilt über der
+  Tabelle („X von Y Objekten erreichen das Renditeziel"); der
+  Spaltenkopf „€/m² (Kauf)" heißt jetzt parallel „Kauf (€/m²)".
+- Schlanke Seitenköpfe auf Dashboard und Top Picks: die h1 trägt nur
+  noch den Seitennamen; Stichtag steht in der Meta-Zeile, aktive Filter
+  in einer eigenen „Gefiltert: …"-Zeile.
+- „Ausreißer" umfasst jetzt beide Klassen (1,5×IQR + harte
+  Plausibilitätsregeln): Kennzahlen, Trend und Top Picks rechnen
+  standardmäßig ohne beide, der Schalter `?ausreisser=an` holt beide
+  markiert zurück (bisher nur IQR). Die IQR-Grenzen werden dabei über
+  die um Hard-Regel-Fälle bereinigte Verteilung bestimmt. Semantik in
+  `/methodik#ausreisser` präzisiert.
+
+### Hinzugefügt
+
+- Monochrome Lucide-Icons in der Hauptnavigation (in `--text-secondary`
+  getönt, aktiver Eintrag in Tinte) — visuelle Orientierung, ohne das
+  Farbbudget von Labels/Zahlen anzutasten.
+- Orientierungszeile in Plain Language im Kopf von Dashboard und Top Picks:
+  sagt in einfachen Worten, wofür die Seite da ist, über der technischen
+  Herkunfts-Meta.
+- Mobile-Karten für die dichten Tabellen (Top Picks, Datenpunkte,
+  Portfolio): unter 640px bricht jede Zeile in eine gestapelte Karte um
+  (Spaltenkopf links, Wert rechts); Desktop bleibt beim Tabellen-Layout.
+- Harte Plausibilitätsregeln zusätzlich zur IQR-Statistik (feste Grenzen
+  für Fläche, €/m² Kauf/Miete, Fläche pro Zimmer und absolute Preise) —
+  der Grund persistiert im Bestand als `datenqualitaet`-Feld und wird bei
+  jedem Sweep re-evaluiert. Adressiert den 1.2-Bug: Inserate mit
+  strukturell falschen Feld-Werten (z. B. 9758 m² Grundstück statt
+  Wohnfläche) fliegen jetzt aus KPIs, Trend und Top Picks, statt via
+  Bulk-Fehler die IQR-Statistik zu kippen.
+- `/inserate?nur=ausreisser` — die Inserate-Seite um eine
+  „Nur Ausreißer"-Checkbox erweitert; bei aktivem Filter zeigt eine
+  zusätzliche Spalte den Ausreißer-Grund. Dashboard-Datenpunkte und
+  Top Picks nennen den Grund direkt neben dem „▲ Ausreißer"-Badge.
+- CLI `pnpm plausibilitaet:rebuild` — idempotenter
+  Re-Evaluations-Task für bestehende Bestand-Zeilen nach der Migration
+  (Keyset-Batches, Advisory-Lock gegen parallele Läufe).
+
 ## [1.2.0] - 2026-07-14
 
 Dritte Runde: Kennzahlen rechnen standardmäßig ohne 1,5×IQR-Ausreißer
@@ -165,7 +262,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0

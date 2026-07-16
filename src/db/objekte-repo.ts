@@ -38,7 +38,7 @@ async function bestandMitObjektLaden(
     `SELECT portal, inserat_id, typ, ort, plz, bezirk, preis, flaeche_m2, zimmer,
             baujahr, zustand, url, datum_erfasst::text AS datum_erfasst,
             zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen,
-            objekt_id
+            datenqualitaet, objekt_id
      FROM inserate_bestand WHERE bundesland = $1 ORDER BY portal, inserat_id`,
     [bundesland],
   );
@@ -58,7 +58,7 @@ export async function objektBestandLaden(
       `SELECT portal, inserat_id, typ, ort, plz, bezirk, preis, flaeche_m2, zimmer,
               baujahr, zustand, url, datum_erfasst::text AS datum_erfasst,
               zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen,
-              objekt_id
+              datenqualitaet, objekt_id
        FROM inserate_bestand WHERE bundesland = $1 ORDER BY portal, inserat_id`,
       [bundesland],
     ),

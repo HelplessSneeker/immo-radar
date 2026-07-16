@@ -292,6 +292,83 @@ describe('topPicks', () => {
     expect(picks[0]).toMatchObject({ mieteBasis: 'plz', medianMieteEurM2: 10 });
   });
 
+  it('schließt hart geflaggte Kauf-Objekte aus dem Ranking aus — auch in dünnen PLZs', () => {
+    // Ein einzelner Kauf in seiner PLZ: IQR könnte ihn nie flaggen, der
+    // persistierte Hard-Befund schon (der 9758-m²-Fall aus 1.2).
+    const alle = objekte([
+      ...fuenfMieten(),
+      kauf('k-defekt', '9500', 24, {
+        bezirk: 'Villach Stadt',
+        datenqualitaet: 'flaeche_ausreisser,zimmer_ratio_ausreisser',
+      }),
+      kauf('k-1', '9020', 2400),
+    ]);
+    expect(topPicks(alle, STICHTAG).map((p) => p.inseratId)).toEqual(['k-1']);
+  });
+
+  it('holt Hard-Ausreißer mit ausreisserEinbeziehen markiert samt Grund zurück', () => {
+    const alle = objekte([
+      ...fuenfMieten(),
+      kauf('k-defekt', '9020', 24, { datenqualitaet: 'flaeche_ausreisser' }),
+      kauf('k-1', '9020', 2400),
+    ]);
+    const picks = topPicks(alle, STICHTAG, { ausreisserEinbeziehen: true });
+    expect(picks.map((p) => p.inseratId)).toEqual(['k-defekt', 'k-1']);
+    expect(picks[0]).toMatchObject({
+      istAusreisser: true,
+      datenqualitaet: 'flaeche_ausreisser',
+    });
+    expect(picks[1]).toMatchObject({ istAusreisser: false });
+    expect(picks[1]!.datenqualitaet).toBeUndefined();
+  });
+
+  it('flaggt Hard-Befunde auch in der Gruppe ohne auswertbare PLZ', () => {
+    const alle = objekte([
+      ...fuenfMieten(),
+      kauf('o-defekt', '', 24, { datenqualitaet: 'flaeche_ausreisser' }),
+      kauf('o-1', '', 2400),
+    ]);
+    expect(topPicks(alle, STICHTAG).map((p) => p.inseratId)).toEqual(['o-1']);
+  });
+
+  it('rechnet die PLZ-IQR-Basis über die um Hard-Fälle bereinigte Gruppe', () => {
+    // Vier Bulk-Fehler bei 20-26 €/m² würden die IQR-Grenzen der PLZ so
+    // verzerren, dass die echten Käufe als Ausreißer gälten — bereinigt
+    // bleiben alle vier echten im Ranking.
+    const alle = objekte([
+      ...fuenfMieten(),
+      ...[20, 22, 24, 26].map((wert, i) =>
+        kauf(`k-defekt-${i}`, '9020', wert, { datenqualitaet: 'flaeche_ausreisser' }),
+      ),
+      kauf('k-1', '9020', 2400),
+      kauf('k-2', '9020', 2500),
+      kauf('k-3', '9020', 2600),
+      kauf('k-4', '9020', 2700),
+    ]);
+    expect(topPicks(alle, STICHTAG).map((p) => p.inseratId)).toEqual([
+      'k-1',
+      'k-2',
+      'k-3',
+      'k-4',
+    ]);
+  });
+
+  it('hart geflaggte Mieten zählen weder zu Median noch zur Schwelle (ohne Schalter)', () => {
+    // 5 Mieten, eine davon hart geflaggt: bereinigt bleiben 4 < Schwelle 5 —
+    // die PLZ ist nicht belastbar und die Kaskade fällt auf den Bezirk (hier
+    // ebenfalls zu dünn) bzw. Kärnten (auch zu dünn) zurück ⇒ kein Pick.
+    const alle = objekte([
+      ...[8, 9, 10, 11].map((wert, i) => mieteZeile(`m-${i}`, '9020', wert)),
+      mieteZeile('m-defekt', '9020', 12, { datenqualitaet: 'preis_miete_ausreisser' }),
+      kauf('k-1', '9020', 2400),
+    ]);
+    expect(topPicks(alle, STICHTAG)).toEqual([]);
+    // Mit dem Schalter zählt sie wieder: 5 Werte, Median 10.
+    const picks = topPicks(alle, STICHTAG, { ausreisserEinbeziehen: true });
+    expect(picks).toHaveLength(1);
+    expect(picks[0]).toMatchObject({ mieteBasis: 'plz', medianMieteEurM2: 10 });
+  });
+
   it('nutzt den Stichtag-Preis aus der Historie, nicht den letzten', () => {
     const bestand = [...fuenfMieten(), kauf('k-1', '9020', 2600)];
     const historie: PreisPunkt[] = [

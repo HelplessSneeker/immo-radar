@@ -1,4 +1,5 @@
 import type { BestandInserat } from '../db/bestand-repo.js';
+import { datenqualitaetLabels } from '../plausibilitaet.js';
 import type { PreisAenderung } from '../trend.js';
 import { escapeHtml } from './layout.js';
 
@@ -20,7 +21,7 @@ export const nfZeitpunkt = new Intl.DateTimeFormat('de-AT', {
   timeStyle: 'short',
 });
 
-const nfProzent2 = new Intl.NumberFormat('de-AT', {
+export const nfProzent2 = new Intl.NumberFormat('de-AT', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -28,6 +29,24 @@ const nfProzent2 = new Intl.NumberFormat('de-AT', {
 /** Rendite-Anteil als Prozentwert, z. B. 0.0432 → „4,32 %". */
 export function fmtRendite(anteil: number): string {
   return `${nfProzent2.format(anteil * 100)} %`;
+}
+
+/**
+ * „▲ Ausreißer"-Badge einer Zeile (Dashboard-Datenpunkte, Top Picks):
+ * Hard-Regel-Fälle tragen ihren Grund direkt am Badge, rein statistische
+ * (IQR-)Ausreißer bleiben beim nackten „▲ Ausreißer". Leer, wenn die Zeile
+ * kein Ausreißer ist; mit führendem Leerzeichen zum Ankleben an den Titel.
+ */
+export function ausreisserBadge(zeile: {
+  istAusreisser: boolean;
+  datenqualitaet?: string;
+}): string {
+  if (!zeile.istAusreisser) return '';
+  const grund =
+    zeile.datenqualitaet !== undefined
+      ? ` · ${escapeHtml(datenqualitaetLabels(zeile.datenqualitaet))}`
+      : '';
+  return ` <span class="badge badge-critical">▲ Ausreißer${grund}</span>`;
 }
 
 const nfProzent1 = new Intl.NumberFormat('de-AT', {
