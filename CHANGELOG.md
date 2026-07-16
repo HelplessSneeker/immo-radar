@@ -70,15 +70,6 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   markiert zurück (bisher nur IQR). Die IQR-Grenzen werden dabei über
   die um Hard-Regel-Fälle bereinigte Verteilung bestimmt. Semantik in
   `/methodik#ausreisser` präzisiert.
-- `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
-  Positional-Args (`{ ausreisserEinbeziehen }`) — verhindert
-  Positional-Arg-Wildwuchs, wenn weitere Optionen dazukommen.
-- Dashboard-Kennzahlen (Kauf-/Miete-Median, Bruttorendite, alle Trend-Charts
-  und die Median-Linie der Punktwolken) rechnen 1,5×IQR-Ausreißer jetzt
-  standardmäßig heraus, bestimmt je Stichtag und Markt (Kauf/Miete) auf der
-  €/m²-Verteilung nach dem PLZ-/m²-Filter; die Objekt-Anzahlen beziehen sich
-  auf die bereinigte Menge. Unter 4 Werten je Gruppe wird wie bisher nichts
-  ausgeschlossen.
 
 ### Hinzugefügt
 
@@ -105,6 +96,27 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 - CLI `pnpm plausibilitaet:rebuild` — idempotenter
   Re-Evaluations-Task für bestehende Bestand-Zeilen nach der Migration
   (Keyset-Batches, Advisory-Lock gegen parallele Läufe).
+
+## [1.2.0] - 2026-07-14
+
+Dritte Runde: Kennzahlen rechnen standardmäßig ohne 1,5×IQR-Ausreißer
+(mit Schalter zurück zur unbereinigten Sicht), neue Top-Picks-Seite mit
+Rendite-Ranking, Zeitraum-Filter mit Trend-Pfeilen in den KPI-Kacheln.
+
+### Geändert
+
+- `berechneObjektTrend` nimmt jetzt ein Options-Objekt statt einzelner
+  Positional-Args (`{ ausreisserEinbeziehen }`) — verhindert
+  Positional-Arg-Wildwuchs, wenn weitere Optionen dazukommen.
+- Dashboard-Kennzahlen (Kauf-/Miete-Median, Bruttorendite, alle Trend-Charts
+  und die Median-Linie der Punktwolken) rechnen 1,5×IQR-Ausreißer jetzt
+  standardmäßig heraus, bestimmt je Stichtag und Markt (Kauf/Miete) auf der
+  €/m²-Verteilung nach dem PLZ-/m²-Filter; die Objekt-Anzahlen beziehen sich
+  auf die bereinigte Menge. Unter 4 Werten je Gruppe wird wie bisher nichts
+  ausgeschlossen.
+
+### Hinzugefügt
+
 - Filterleisten-Schalter „Ausreißer einbeziehen" (`?ausreisser=an`, teilbar,
   überlebt Stichtag-Wechsel und Pagination; „Filter zurücksetzen" entfernt
   ihn) stellt die unbereinigten Kennzahlen wieder her.
@@ -243,7 +255,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0
 [0.1.0]: https://github.com/HelplessSneeker/immo-radar/commits/43cc18e

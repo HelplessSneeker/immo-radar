@@ -1,6 +1,6 @@
 {
   "name": "immo-radar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Immobilienmarkt-Analyse für Anlageobjekte in Kärnten: täglicher Sweep, Objekt-Dedup, Zeitreihen-Dashboard, Portfolio",
   "type": "module",
   "bin": {
