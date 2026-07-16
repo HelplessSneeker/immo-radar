@@ -9,6 +9,37 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Geändert
 
+- Dashboard-Layout-Pass: die KPI-Kacheln liegen jetzt direkt auf dem
+  Papier statt in einer umschließenden Section (keine Karte-in-Karte
+  mehr; `.tile` trägt den Flächen-Hintergrund aus DESIGN.md), die
+  Ausfall-Warnung wird ein eigener leiser Hinweis-Streifen auf Fläche
+  (13px-Rot verfehlt auf Papier AA). Gruppierter Seitenrhythmus statt
+  Einheits-Gap: Kopf/Filter/KPIs eng (16px), Verlaufs-Charts 24px,
+  Datenpunkte-Tiefe und Footer 32px. Kachel- und Chart-Grids brechen
+  strukturell um: bei 2 Spalten steht das Urteils-Element (Rendite)
+  voll breit oben, nichts dangelt mehr allein auf halber Breite. Der
+  Filter-Button ist auf Dashboard und Top Picks jetzt der dokumentierte
+  Ghost-Button (`button.klein`) statt einer blauen Primäraktion —
+  Auswertungsseiten haben keine Primäraktion; Inserate war schon so.
+- Dashboard destilliert („einfach draufschauen können"): Die Seite
+  beginnt mit den Zahlen — der Filter liegt in einem zugeklappten
+  `<details>` (eine schlanke „Filtern"-Zeile; ein aktiver Filter öffnet
+  sie und benennt sich in der Summary), die Intro-Zeile entfällt
+  (die Kachel-Labels sind die Orientierung), der Kopf ist zweizeilig.
+  Kachel-Subs nennen nur noch die Objektzahl statt Formel- und
+  Ausreißer-Prosa; die Rechenweise steht genau einmal in der
+  Provenienz-Zeile („Ohne Ausreißer gerechnet · Methodik").
+  Roh-Inserate-Zählung und „Sweep läuft" sind von der Seite genommen
+  (leben auf /crawl bzw. im Navbar-Chip), Chart-Meta und Footer auf je
+  einen Halbsatz gekürzt. Neue DESIGN.md-Regel „ein Erklär-Register
+  pro Block".
+- Dashboard-Filterleiste entzerrt: Fläche von/bis und der eigene
+  Zeitraum von/bis sind je **ein** Bereichs-Feld (eine Legende, zwei
+  kompakte Eingaben mit `aria-label`) statt vier einzeln beschrifteter
+  Felder; Eingabebreiten folgen dem Inhalt (PLZ 150px, m² 76px, Datum
+  145px) statt dem ~200px-Browser-Default. Der Seitenkopf bekommt 24px
+  Luft zur Filterkarte, die Erklär-Zeilen der Sektionen sind auf ~76ch
+  Lesebreite gekappt.
 - Redesign-Politur für Nicht-Techniker (Richtung „Das ruhige Marktbüro"
   bleibt): wärmere Light-Neutralen mit sichtbarem Karten-Kontrast
   (Papier `#f5f3ec` / Fläche `#fcfbf7`), mehr Atmung in den KPI-Kacheln

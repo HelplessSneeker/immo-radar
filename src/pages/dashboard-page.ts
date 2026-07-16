@@ -33,12 +33,8 @@ import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
 export interface DashboardDaten {
   /** Stichtag = lauf_datum des letzten fertigen Sweeps. */
   stichtag: string;
-  sweepBeendetAm: Date;
   /** Quellen-Zeilen fehlgeschlagener Segmente des Stichtag-Sweeps. */
   portalAusfaelle: string[];
-  sweepLaeuft: boolean;
-  /** Roh-Inserate (vor Deduplizierung) des Stichtag-Laufs, ungefiltert. */
-  inserateImLauf: { kauf: number; miete: number };
   trend: TrendPunkt[];
   renditeTrend: RenditeTrendPunkt[];
   filter: DashboardFilter;
@@ -59,11 +55,46 @@ export interface DashboardDaten {
 const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
 const DASHBOARD_CSS = `
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 12px; }
+  /* Dashboard-Rhythmus: Kopf → Filter → KPI-Block bilden die enge
+     Antwort-Gruppe (16px Gap), die Verlaufs-Charts setzen sich mit 24px ab,
+     Datenpunkte-Tiefe und Footer mit 32px (Gap + margin-top; extraCss ist
+     seitenscopiert, andere Seiten behalten den 20px-Basis-Gap). */
+  main.breit { gap: 16px; }
+  /* Zusammenklappbarer Filter: geschlossen eine schlanke Zeile, offen die
+     Filterleiste darunter. Die Summary trägt Akzent als Interaktions-Signal. */
+  .filter-sektion { padding: 12px 20px; }
+  .filter summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent); }
+  .filter summary:hover { text-decoration: underline; }
+  .filter[open] summary { margin-bottom: 14px; }
+  /* Der Seitenkopf ist Text auf Papier, die Filterkarte die erste Fläche –
+     ohne die zusätzliche Luft kleben die zwei Materialien aneinander. */
+  header { margin-bottom: 8px; }
+  header .meta { margin: 6px 0 0; }
+  /* Erklär-Zeilen der Sektionen auf Lesebreite kappen – über die vollen
+     1040px läuft eine 13px-Zeile auf ~140 Zeichen. */
+  .verlauf > .meta, .datenpunkte > .meta { max-width: 76ch; }
+  .verlauf { margin-top: 8px; }
+  #datenpunkte { margin-top: 16px; }
+  footer { margin-top: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  /* Mittlere Breiten: 2 Spalten, die Rendite-Kachel (das Urteil) voll breit
+     oben — wie bei .charts-3 kein allein danglendes drittes Element. */
+  @media (max-width: 820px) {
+    .tiles { grid-template-columns: 1fr 1fr; }
+    .tiles .tile:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 560px) {
+    .tiles { grid-template-columns: 1fr; }
+  }
+  /* Warnung und Provenienz sind Sub-Zeilen des Kachel-Grids: enge Bindung
+     statt main-Gap. */
+  .kpi-block .warnung { margin: 12px 0 0; }
+  .kpi-block > .meta { margin: 10px 0 0; }
   /* Kacheln werden vom Grid gleich hoch gemacht; die interne Flex-Verteilung
      drückt die Sub-Zeile (Herkunfts-/Erklär-Text) zuverlässig an den Boden,
      damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
   .tile {
+    background: var(--surface-1);
     border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px;
     display: flex; flex-direction: column;
   }
@@ -76,11 +107,27 @@ const DASHBOARD_CSS = `
   .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
   .tile-sub { font-size: 12px; line-height: 1.45; color: var(--text-secondary); margin-top: auto; padding-top: 4px; }
-  .charts-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .charts-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  /* Mittlere Breiten: 2 Spalten, das Rendite-Panel (das Urteils-Chart) voll
+     breit oben — statt eines allein danglenden dritten Charts. */
+  @media (max-width: 1100px) {
+    .charts-3 { grid-template-columns: 1fr 1fr; }
+    .charts-3 .chart-box:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 680px) {
+    .charts-3 { grid-template-columns: 1fr; }
+  }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }
-  .warnung { color: var(--status-critical); font-size: 13px; }
+  /* Ausfall-Warnung als leiser Hinweis-Streifen: auf dem Papier verfehlt
+     13px-Rot AA (4,33:1), auf der Fläche ist es geprüft. Voller Rahmen,
+     kein Seitenstreifen (Flach-Regel). */
+  .warnung {
+    color: var(--status-critical); font-size: 13px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+  }
   .datenpunkte summary { cursor: pointer; }
   .datenpunkte summary h2 { display: inline; margin: 0; transition: color var(--dauer-fein) var(--ease-out); }
   /* Aufklapp-Affordance sichtbar machen: der Titel reagiert wie ein Link. */
@@ -91,7 +138,6 @@ const DASHBOARD_CSS = `
   .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
      Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
-  .feld-zeitraum { border: 0; padding: 0; margin: 0; }
   .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }
   .feld-zeitraum .presets label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; font-size: 13px; }
   /* Trend-Zeile der KPI-Kacheln: direkt unter dem Wert (vor Badge/Sub),
@@ -144,18 +190,17 @@ function filterleiste(daten: DashboardDaten): string {
       ? `\n      <input type="hidden" name="stichtag" value="${escapeHtml(daten.datenpunkteStichtag)}">`
       : '';
   return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}
-      <div class="feld">
+      <div class="feld feld-plz">
         <label for="f-plz">PLZ (Anfang genügt)</label>
         <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filter.plz ?? '')}" placeholder="z. B. 9020 oder 95">
       </div>
-      <div class="feld">
-        <label for="f-flaeche-min">Fläche von (m²)</label>
-        <input type="text" id="f-flaeche-min" name="flaeche_min" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMin))}" placeholder="z. B. 45">
-      </div>
-      <div class="feld">
-        <label for="f-flaeche-max">Fläche bis (m²)</label>
-        <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="z. B. 90">
-      </div>
+      <fieldset class="feld">
+        <legend>Fläche (m²)</legend>
+        <div class="von-bis">
+          <input type="text" id="f-flaeche-min" name="flaeche_min" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMin))}" placeholder="von" aria-label="Fläche von (m²)">
+          <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="bis" aria-label="Fläche bis (m²)">
+        </div>
+      </fieldset>
       <fieldset class="feld feld-zeitraum">
         <legend>Zeitraum</legend>
         <div class="presets">
@@ -165,19 +210,18 @@ function filterleiste(daten: DashboardDaten): string {
           ${preset('alle', 'Alle')}
         </div>
       </fieldset>
-      <div class="feld">
-        <label for="f-von">Von</label>
-        <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}">
-      </div>
-      <div class="feld">
-        <label for="f-bis">Bis</label>
-        <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}">
-      </div>
+      <fieldset class="feld">
+        <legend>Eigener Zeitraum</legend>
+        <div class="von-bis">
+          <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}" aria-label="Von (Datum)">
+          <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}" aria-label="Bis (Datum)">
+        </div>
+      </fieldset>
       <div class="feld feld-toggle">
         <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
         <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
-      <button>Filtern</button>${zuruecksetzen}
+      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
     </form>`;
 }
 
@@ -205,23 +249,14 @@ function kachelTrend(
 }
 
 /**
- * "· Stand DD.MM.YYYY" für die tile-sub, wenn der angezeigte Wert nicht vom
+ * "Stand DD.MM.YYYY" für die tile-sub, wenn der angezeigte Wert nicht vom
  * Seiten-Stichtag stammt (Zeitraum endet vor dem letzten Sweep) — sonst
- * liest sich "N aktive Objekte" als heutiger Marktstand (Prinzip 4).
+ * liest sich "N Objekte" als heutiger Marktstand (Prinzip 4).
  */
 function standZusatz(datum: string | undefined, seitenStichtag: string): string {
   return datum !== undefined && datum !== seitenStichtag
-    ? ` · Stand ${escapeHtml(datumMedium(datum))}`
+    ? `Stand ${escapeHtml(datumMedium(datum))}`
     : '';
-}
-
-/**
- * Beschriftungs-Suffix der KPI-Kacheln: Kennzahlen rechnen standardmäßig
- * bereinigt. „Ausreißer nicht mitgezählt" statt „(ohne Ausreißer)" — Letzteres
- * las sich auch als „die N sind Nicht-Ausreißer" (Karte-01-Review).
- */
-function bereinigtSuffix(filter: DashboardFilter): string {
-  return filter.ausreisserEinbeziehen === true ? '' : ', Ausreißer nicht mitgezählt';
 }
 
 function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
@@ -235,14 +270,14 @@ function renditeKachel(daten: DashboardDaten, zielProzent: string): string {
       </div>`;
   }
   const erreicht = rendite >= daten.zielRendite;
-  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
   return `      <div class="tile${erreicht ? ' tile-good' : ''}">
         <div class="tile-label">Bruttorendite</div>
         <div class="tile-value">${nfProzent2.format(rendite * 100)}<span class="tile-einheit">%</span></div>
         ${kachelTrend(berechneRenditeKpiDelta(daten.renditeTrend), 'prozentpunkte', true)}
-        <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>
-        <div class="tile-sub">Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m²${bereinigt}${stand}</div>
+        <div class="tile-badge${erreicht ? ' tile-badge-good' : ''}">${erreicht ? `Ziel ≥ ${zielProzent} erreicht` : `unter Ziel (≥ ${zielProzent})`}</div>${
+          stand ? `\n        <div class="tile-sub">${stand}</div>` : ''
+        }
       </div>`;
 }
 
@@ -250,33 +285,35 @@ function kpiZeile(daten: DashboardDaten, zielProzent: string): string {
   const letzter = daten.trend.at(-1);
   const kauf = letzter?.medianKaufEurM2;
   const miete = letzter?.medianMieteEurM2;
-  const bereinigt = bereinigtSuffix(daten.filter);
   const stand = standZusatz(letzter?.datum, daten.stichtag);
+  const standSuffix = stand ? ` · ${stand}` : '';
   const ausfallWarnung =
     daten.portalAusfaelle.length > 0
       ? `\n    <p class="warnung">Beim letzten Sweep waren ${daten.portalAusfaelle.length} Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>`
       : '';
-  // Provenienz ist Fakt, keine Kennzahl: die frühere „Letzter Sweep"-Kachel
-  // duplizierte das „Stand"-Datum im Kopf und stand gleichrangig neben den
-  // drei Urteils-KPIs. Als Meta-Zeile unterm Grid bleibt die Datenbasis
-  // sichtbar (Ehrlichkeits-Prinzip), ohne als vierte Zahl zu konkurrieren.
-  const provenienz = `Datenbasis des Stichtags: ${nfTage.format(daten.inserateImLauf.kauf)} Kauf- und ${nfTage.format(daten.inserateImLauf.miete)} Miet-Inserate (roh, vor Deduplizierung)${daten.sweepLaeuft ? ' · nächster Sweep läuft gerade' : ''} · <a href="/crawl">alle Läufe</a>`;
-  return `    <div class="tiles">
+  // Eine leise Zeile unterm Grid statt Datenbasis-Details: Roh-Zählungen und
+  // Sweep-Status leben auf /crawl (Navbar-Chip zeigt Laufendes live) — hier
+  // zählt nur, wie gerechnet wird, und wo alles erklärt ist.
+  const provenienz = `${
+    daten.filter.ausreisserEinbeziehen === true ? 'Ausreißer einbezogen' : 'Ohne Ausreißer gerechnet'
+  } · Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a>`;
+  return `    <div class="kpi-block">
+    <div class="tiles">
 ${renditeKachel(daten, zielProzent)}      <div class="tile">
         <div class="tile-label">Kaufpreis (Median)</div>
         <div class="tile-value">${kauf != null ? `${nfEur0.format(kauf)}<span class="tile-einheit">€/m²</span>` : '–'}</div>
         ${kauf != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianKaufEurM2'), 'prozent', false) : ''}
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} aktive Kauf-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlKauf)} Objekte${standSuffix}` : 'keine Daten'}</div>
       </div>
       <div class="tile">
         <div class="tile-label">Kaltmiete (Median)</div>
         <div class="tile-value">${miete != null ? `${nfEur2.format(miete)}<span class="tile-einheit">€/m²</span>` : '–'}</div>
         ${miete != null ? kachelTrend(berechneKpiDelta(daten.trend, 'medianMieteEurM2'), 'prozent', false) : ''}
-        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} aktive Miet-Objekte${bereinigt}${stand}` : 'keine Daten'}</div>
+        <div class="tile-sub">${letzter ? `${nfTage.format(letzter.anzahlMiete)} Objekte${standSuffix}` : 'keine Daten'}</div>
       </div>
     </div>${ausfallWarnung}
-    <p class="meta" style="margin-bottom: 0;">${provenienz}<br>
-    Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a></p>`;
+    <p class="meta">${provenienz}</p>
+    </div>`;
 }
 
 function chartSektion(trend: TrendPunkt[]): string {
@@ -463,8 +500,7 @@ export function renderDashboardOhneDatenSeite(sweepLaeuft: boolean): string {
     titel: 'Dashboard',
     aktiv: 'dashboard',
     ueberschrift: 'Wohnungsmarkt Kärnten',
-    untertitel: `Alle Wohnungen (Kauf &amp; Miete) von willhaben.at und immoscout24.at,
-    täglich vollständig gecrawlt und zu Objekten dedupliziert.`,
+    untertitel: 'willhaben.at &amp; immoscout24.at · täglich gecrawlt',
     sweepLaeuft,
   });
 }
@@ -487,41 +523,42 @@ export function renderDashboardSeite(daten: DashboardDaten): string {
     })),
   ).replace(/</g, '\\u003c');
 
+  // Filter zusammengeklappt, solange keiner aktiv ist: die Seite beginnt mit
+  // den Zahlen, nicht mit Formular-Feldern. Ein aktiver Filter öffnet die
+  // Leiste und benennt sich in der Summary — geteilte URLs erklären sich.
+  const filterAktiv =
+    beschreibung !== '' ||
+    daten.filter.ausreisserEinbeziehen === true ||
+    daten.filter.zeitraum !== undefined;
+  const filterLabel = beschreibung ? `Gefiltert: ${escapeHtml(beschreibung)}` : 'Filtern';
   const inhalt = `  <header>
     <h1>Wohnungsmarkt Kärnten</h1>
-    <p class="intro">Auf einen Blick, was Wohnungen in Kärnten pro Quadratmeter kosten — beim Kauf wie bei der Miete — und ob die Preise zuletzt gestiegen oder gefallen sind.</p>
-    <p class="meta">Alle Wohnungen (Kauf & Miete) von willhaben.at und immoscout24.at,
-    täglich vollständig gecrawlt und zu Objekten dedupliziert · Stand ${escapeHtml(datumMedium(daten.stichtag))}</p>${
-      beschreibung ? `\n    <p class="meta">Gefiltert: ${escapeHtml(beschreibung)}</p>` : ''
-    }
+    <p class="meta">willhaben.at &amp; immoscout24.at · täglich gecrawlt · Stand ${escapeHtml(datumMedium(daten.stichtag))}</p>
   </header>
 
-  <section>
+  <section class="filter-sektion">
+    <details class="filter"${filterAktiv ? ' open' : ''}>
+      <summary>${filterLabel}</summary>
 ${filterleiste(daten)}
+    </details>
   </section>
 
-  <section>
 ${kpiZeile(daten, zielProzent)}
-  </section>
 
-  <section>
+  <section class="verlauf">
     <h2>Preisentwicklung über die Zeit</h2>
-    <p class="meta">Ein Punkt je fertigem Crawl-Lauf: Median über die am Stichtag aktiven
-    Objekte (${
+    <p class="meta">Ein Punkt je Crawl-Lauf: Median der aktiven Objekte (${
       daten.filter.ausreisserEinbeziehen === true
         ? 'Ausreißer einbezogen'
         : 'ohne Ausreißer'
-    }); ein Objekt zählt einmal, auch wenn
-    es auf beiden Portalen inseriert ist. <a href="/methodik#objekte">Details</a></p>
+    }). <a href="/methodik#objekte">Details</a></p>
 ${chartSektion(daten.trend)}
   </section>
 ${datenpunkteSektion(daten)}
   <footer>
-    <p><strong>Datenbasis:</strong> dedupliziert nach PLZ/Fläche/Zimmer-Heuristik
-      (<a href="/methodik#objekte">Matching-Regeln</a>); Wiedereinstellungen führen die
-      Preishistorie fort. Delisting bleibt ein Näherungswert für verkauft/vermietet.</p>
-    <p>Stichtag: letzter fertiger Sweep (${escapeHtml(datumMedium(daten.stichtag))}).
-      Rohdaten: <a href="/inserate">alle Inserate</a>.</p>
+    <p>Objekte über beide Portale dedupliziert (<a href="/methodik#objekte">Matching-Regeln</a>);
+      Delisting bleibt ein Näherungswert für verkauft/vermietet ·
+      Rohdaten: <a href="/inserate">alle Inserate</a></p>
   </footer>
 
   <script>const TREND = ${trendJson}; const RENDITE = ${renditeJson}; const STREUUNG = ${streuungJson};</script>

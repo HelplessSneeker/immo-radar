@@ -67,7 +67,7 @@ function filterleiste(daten: TopPicksDaten): string {
         } hier ignoriert.</p>`
       : '';
   return `    <form class="filterleiste" method="get" action="/top-picks">
-      <div class="feld">
+      <div class="feld feld-plz">
         <label for="f-plz">PLZ (Anfang genügt)</label>
         <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(daten.filterPlz ?? '')}" placeholder="z. B. 9020 oder 95">
       </div>
@@ -75,7 +75,7 @@ function filterleiste(daten: TopPicksDaten): string {
         <label><input type="checkbox" name="ausreisser" value="an"${daten.ausreisserEinbeziehen ? ' checked' : ''}> Ausreißer einbeziehen</label>
         <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
       </div>
-      <button>Filtern</button>${zuruecksetzen}
+      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
     </form>${flaecheHinweis}`;
 }
 

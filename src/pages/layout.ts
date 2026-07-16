@@ -330,7 +330,15 @@ export const BASIS_CSS = `
     display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
   }
   .filterleiste .feld { display: grid; gap: 6px; }
-  .filterleiste label { font-weight: 600; font-size: 13px; }
+  .filterleiste label, .filterleiste legend { font-weight: 600; font-size: 13px; }
+  .filterleiste fieldset { border: 0; padding: 0; margin: 0; }
+  /* Bereichs-Felder (von–bis) in der Filterleiste: ein Label, zwei kompakte
+     Eingaben – die Feldbreite folgt dem Inhalt (PLZ, m², Datum), nicht dem
+     Browser-Default; sonst wirken kurze Werte in 200px-Boxen verloren. */
+  .filterleiste .von-bis { display: flex; gap: 8px; }
+  .filterleiste .feld-plz input { width: 150px; }
+  .filterleiste .von-bis input[type="text"] { width: 76px; }
+  .filterleiste .von-bis input[type="date"] { width: 145px; }
   .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
     padding: 6px 10px; font: inherit; font-size: 13px;
     color: var(--text-primary); background: var(--page);
