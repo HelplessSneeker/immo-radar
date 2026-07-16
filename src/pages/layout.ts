@@ -4,7 +4,12 @@
  * Typografie, Navbar, Tabellen, Badges und Fokus-Zustände – Seiten ergänzen
  * nur seitenspezifisches CSS (Formulare, Tiles, Charts) über `extraCss`.
  *
- * Alle Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes);
+ * Alle normalgroßen Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes)
+ * auf ihrem tatsächlichen Grund (Statustexte sitzen in Sections/Tabellen auf
+ * --surface-1, nicht auf dem cremigen --page). Einzige Ausnahme: die
+ * Fehlerseiten-h1 in --status-critical steht auf --page (4,33:1) – als
+ * 20px/600-Überschrift Large-Text und damit AA über die 3:1-Schwelle.
+ * --text-muted bleibt wie dokumentiert auf Bold-Labels/Fußnoten beschränkt.
  * Änderungen an den Tokens mit DESIGN.md synchron halten.
  */
 
@@ -24,15 +29,19 @@ export const TOKEN_CSS = `
        dem aktiven Theme folgen – ohne color-scheme rendert der Browser sie
        immer hell, auch im Dark-Theme. */
     color-scheme: light dark;
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
+    /* Papier ist bewusst cremiger als die Fläche (nicht nur ~1 % heller wie
+       zuvor #f9f9f7/#fcfcfb): so heben sich Sections und Tiles sichtbar vom
+       Seitengrund ab, ohne Schatten (Flach-Regel). Wärmer, aber weit weg von
+       Portal-Weiß. */
+    --page: #f5f3ec;
+    --surface-1: #fcfbf7;
     --surface-hover: rgba(11,11,11,0.035);
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
     --text-muted: #898781;
     --grid: #e1e0d9;
     --baseline: #c3c2b7;
-    --border: rgba(11,11,11,0.10);
+    --border: rgba(11,11,11,0.12);
     --akzent: #1a66c4;
     --akzent-flaeche: #1a66c4;
     --akzent-flaeche-hover: #155aab;
@@ -88,10 +97,13 @@ export const BASIS_CSS = `
     background: var(--surface-1);
     border-bottom: 1px solid var(--baseline);
   }
-  .hauptnav a { text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
+  .hauptnav a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
   .hauptnav a:hover { text-decoration: underline; }
+  .hauptnav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
+  .hauptnav a:hover svg { color: var(--text-primary); }
   .hauptnav .marke { color: var(--text-primary); font-weight: 600; margin-right: 8px; }
   .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
+  .hauptnav a[aria-current="page"] svg { color: var(--text-primary); }
   main {
     max-width: calc(560px + 2 * 24px); margin: 0 auto; padding: 24px;
     display: grid; gap: 20px;
@@ -100,6 +112,11 @@ export const BASIS_CSS = `
   h1 { font-size: 20px; margin: 0; }
   h2 { font-size: 15px; margin: 0 0 12px; }
   .meta { color: var(--text-secondary); font-size: 13px; }
+  /* Begrüßungs-/Orientierungszeile im Seitenkopf: sitzt in der Hierarchie
+     zwischen h1 (20px, Tinte) und der grauen Herkunfts-Meta – plain language
+     für Nicht-Techniker, ohne die stille Anmutung zu brechen. */
+  .intro { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
+  .intro + .meta { margin-top: 6px; }
   section {
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: 10px; padding: 20px;
@@ -154,6 +171,36 @@ export const BASIS_CSS = `
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td .sub, tbody th .sub {
     display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary);
+  }
+  /* Mobile-Karten: dichte Tabellen (Top Picks, Datenpunkte, Portfolio) brechen
+     auf schmalen Viewports in gestapelte Karten um – je Zeile eine Karte, die
+     Spaltenköpfe wandern als data-label vor den Wert. Opt-in via .tabelle-karten,
+     damit reine Übersichts-Tabellen (Inserate, Crawl) beim Scroll-Layout bleiben. */
+  @media (max-width: 640px) {
+    .tabelle-karten thead {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .tabelle-karten, .tabelle-karten tbody, .tabelle-karten tr, .tabelle-karten td { display: block; width: auto; }
+    .tabelle-karten tr {
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px;
+    }
+    .tabelle-karten tr:last-child { margin-bottom: 0; }
+    .tabelle-karten tr:hover { background: none; }
+    .tabelle-karten td { display: flow-root; border: 0; padding: 5px 0; text-align: right; }
+    .tabelle-karten td::before {
+      content: attr(data-label); float: left; padding-right: 12px;
+      color: var(--text-secondary); font-weight: 600; text-align: left;
+    }
+    /* Erste Zelle = Karten-Titel: linksbündig, kein Label. */
+    .tabelle-karten td:first-child { text-align: left; padding-top: 0; font-weight: 600; }
+    .tabelle-karten td:first-child::before { content: none; }
+    .tabelle-karten td:last-child { padding-bottom: 0; }
+    .tabelle-karten td .sub { text-align: right; }
+    .tabelle-karten td:first-child .sub { text-align: left; }
+    /* Ausreißer-Tönung wandert auf die Karte statt auf jede Teil-Zelle. */
+    .tabelle-karten tr.row-outlier { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+    .tabelle-karten tr.row-outlier td { background: none; }
   }
   .status-badge {
     font-size: 12px; font-weight: 600; white-space: nowrap;
@@ -283,7 +330,15 @@ export const BASIS_CSS = `
     display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
   }
   .filterleiste .feld { display: grid; gap: 6px; }
-  .filterleiste label { font-weight: 600; font-size: 13px; }
+  .filterleiste label, .filterleiste legend { font-weight: 600; font-size: 13px; }
+  .filterleiste fieldset { border: 0; padding: 0; margin: 0; }
+  /* Bereichs-Felder (von–bis) in der Filterleiste: ein Label, zwei kompakte
+     Eingaben – die Feldbreite folgt dem Inhalt (PLZ, m², Datum), nicht dem
+     Browser-Default; sonst wirken kurze Werte in 200px-Boxen verloren. */
+  .filterleiste .von-bis { display: flex; gap: 8px; }
+  .filterleiste .feld-plz input { width: 150px; }
+  .filterleiste .von-bis input[type="text"] { width: 76px; }
+  .filterleiste .von-bis input[type="date"] { width: 145px; }
   .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
     padding: 6px 10px; font: inherit; font-size: 13px;
     color: var(--text-primary); background: var(--page);
@@ -375,10 +430,29 @@ const NAV_EINTRAEGE: ReadonlyArray<readonly [NavAktiv, string, string]> = [
   ['crawl', '/crawl', 'Crawl-Läufe'],
 ];
 
+// Lucide-Icons (24er-viewBox, currentColor). Bewusst monochrom und in
+// text-secondary getönt – die Farbe bleibt für Labels/Zahlen reserviert, die
+// Ikonografie dient nur der schnellen visuellen Orientierung für Nicht-Techniker.
+const NAV_ICON_PFADE: Record<NavAktiv, string> = {
+  dashboard: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+  'top-picks':
+    '<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/>',
+  inserate:
+    '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
+  portfolio:
+    '<path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/>',
+  crawl:
+    '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+};
+
+function navIcon(key: NavAktiv): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ICON_PFADE[key]}</svg>`;
+}
+
 function renderNavbar(aktiv: NavAktiv | undefined): string {
   const links = NAV_EINTRAEGE.map(
     ([key, href, label]) =>
-      `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${label}</a>`,
+      `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${navIcon(key)}<span>${label}</span></a>`,
   ).join('\n  ');
   // Der Aktivitäts-Slot ist per default versteckt und wird vom Poll-Script
   // sichtbar, sobald `/api/laufend` etwas Laufendes meldet. Bewusst als kompaktes

@@ -27,10 +27,7 @@ function datenpunkt(overrides: Partial<StichtagDatenpunkt> = {}): StichtagDatenp
 function daten(overrides: Partial<DashboardDaten> = {}): DashboardDaten {
   return {
     stichtag: '2026-07-07',
-    sweepBeendetAm: new Date('2026-07-07T04:30:00Z'),
     portalAusfaelle: [],
-    sweepLaeuft: false,
-    inserateImLauf: { kauf: 2802, miete: 669 },
     trend: [
       { datum: '2026-06-30', medianKaufEurM2: 3900, medianMieteEurM2: 9.8, anzahlKauf: 40, anzahlMiete: 30 },
       { datum: '2026-07-07', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 42, anzahlMiete: 31 },
@@ -56,19 +53,24 @@ function daten(overrides: Partial<DashboardDaten> = {}): DashboardDaten {
 describe('renderDashboardSeite', () => {
   it('zeigt KPIs mit Urteil: Rendite unter Ziel ohne Good-Kachel', () => {
     const html = renderDashboardSeite(daten());
-    expect(html).toContain('3,00 %');
+    // Die Einheit steht abgesetzt neben dem 30px-Wert (tile-einheit).
+    expect(html).toContain('3,00<span class="tile-einheit">%</span>');
     expect(html).toContain('unter Ziel (≥ 4 %)');
     expect(html).not.toContain('class="tile tile-good"'); // CSS-Regel zählt nicht
-    expect(html).toContain('4 000 €/m²'); // de-AT gruppiert mit NBSP
-    expect(html).toContain('10,00 €/m²');
-    expect(html).toContain('42 aktive Kauf-Objekte');
+    expect(html).toContain('4 000<span class="tile-einheit">€/m²</span>'); // de-AT gruppiert mit NBSP
+    expect(html).toContain('10,00<span class="tile-einheit">€/m²</span>');
+    expect(html).toContain('42 Objekte');
   });
 
-  it('zeigt die Roh-Inserate des Laufs (Kauf/Miete) an der Sweep-Kachel', () => {
+  it('Provenienz ist eine leise Zeile: Rechenweise + Methodik, keine Roh-Zählungen', () => {
     const html = renderDashboardSeite(daten());
-    // de-AT gruppiert mit NBSP (U+00A0).
-    expect(html).toContain('2 802 Kauf- · 669 Miet-Inserate im Lauf');
-    expect(html).toContain('Roh-Inserate vor Deduplizierung');
+    expect(html).toContain('Ohne Ausreißer gerechnet');
+    expect(html).toContain('Alle Kennzahlen erklärt');
+    // Roh-Inserate und Sweep-Status leben auf /crawl (der Navbar-Chip zeigt
+    // Laufendes live) — die Seite wiederholt sie nicht.
+    expect(html).not.toContain('roh, vor Deduplizierung');
+    expect(html).not.toContain('Letzter Sweep</div>');
+    expect(html).not.toContain('nächster Sweep läuft gerade');
   });
 
   it('formatiert die Chart-Labels als dd.mm.yyyy (serverseitig vorformatiert)', () => {
@@ -85,19 +87,26 @@ describe('renderDashboardSeite', () => {
     expect(html).toContain('Ziel ≥ 4 % erreicht');
   });
 
-  it('spiegelt aktive Filter in der Überschrift und escapt die Eingaben', () => {
+  it('aktive Filter öffnen die Filter-Sektion und benennen sich in der Summary', () => {
     const html = renderDashboardSeite(daten({ filter: { plz: '9020', flaecheMin: 45, flaecheMax: 90 } }));
-    expect(html).toContain('Wohnungsmarkt Kärnten · PLZ 9020 · 45–90 m²');
+    expect(html).toContain('<h1>Wohnungsmarkt Kärnten</h1>');
+    expect(html).toContain('<details class="filter" open>');
+    expect(html).toContain('Gefiltert: PLZ 9020 · 45–90 m²');
     expect(html).toContain('value="9020"');
     expect(html).toContain('Filter zurücksetzen');
+    // Ohne aktiven Filter bleibt der Filter zugeklappt: die Seite beginnt
+    // mit den Zahlen, die Summary heißt schlicht "Filtern".
+    const ohneFilter = renderDashboardSeite(daten());
+    expect(ohneFilter).toContain('<details class="filter">');
+    expect(ohneFilter).toContain('<summary>Filtern</summary>');
+    expect(ohneFilter).not.toContain('Gefiltert:');
   });
 
   it('rendert den Ausreißer-Schalter: default aus und Kennzahlen als bereinigt beschriftet', () => {
     const html = renderDashboardSeite(daten());
     expect(html).toContain('name="ausreisser" value="an">');
     expect(html).not.toContain('name="ausreisser" value="an" checked');
-    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt');
-    expect(html).toContain('Median-Kaltmiete ×12 ÷ Median-Kaufpreis, je €/m², Ausreißer nicht mitgezählt');
+    expect(html).toContain('Ohne Ausreißer gerechnet');
     expect(html).toContain('(ohne Ausreißer)');
     expect(html).not.toContain('Filter zurücksetzen');
     expect(html).toContain('href="/methodik#ausreisser"');
@@ -107,7 +116,7 @@ describe('renderDashboardSeite', () => {
     const html = renderDashboardSeite(daten({ filter: { ausreisserEinbeziehen: true } }));
     expect(html).toContain('name="ausreisser" value="an" checked');
     expect(html).not.toContain('(ohne Ausreißer)');
-    expect(html).not.toContain('Ausreißer nicht mitgezählt');
+    expect(html).not.toContain('Ohne Ausreißer gerechnet');
     expect(html).toContain('(Ausreißer einbezogen)');
     expect(html).toContain('Filter zurücksetzen');
     // Der Schalter gehört nicht in die Überschrift (nur PLZ/m² beschreiben die Marktsicht).
@@ -149,7 +158,7 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     const html = renderDashboardSeite(daten());
     expect(html).toContain('id="datenpunkte"');
     expect(html).toContain('<details class="datenpunkte">');
-    expect(html).toContain('Datenpunkte (Stichtag 07.07.2026)');
+    expect(html).toContain('Die Objekte hinter den Zahlen (Stichtag 07.07.2026)');
   });
 
   it('rendert die Streu-Charts und serialisiert die Punktwolke gerundet', () => {
@@ -367,12 +376,14 @@ describe('renderDashboardSeite – Zeitraum-Filter & Trend-Pfeile', () => {
         filter: { zeitraum: { von: '2026-06-01', bis: '2026-07-07' } },
       }),
     );
-    expect(html).toContain('42 aktive Kauf-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
-    expect(html).toContain('31 aktive Miet-Objekte, Ausreißer nicht mitgezählt · Stand 07.07.2026');
-    expect(html).toContain('je €/m², Ausreißer nicht mitgezählt · Stand 07.07.2026');
+    expect(html).toContain('42 Objekte · Stand 07.07.2026');
+    expect(html).toContain('31 Objekte · Stand 07.07.2026');
+    // Die Rendite-Kachel hat sonst keine Sub-Zeile — beim geklemmten
+    // Zeitraum erscheint sie nur für das Stand-Datum.
+    expect(html).toContain('<div class="tile-sub">Stand 07.07.2026</div>');
     // Ohne Klemmen (Stichtag = letzter Trend-Punkt) kein Stand-Zusatz an den
     // Kacheln (die Kopfzeile "… · Stand <Stichtag>" zählt nicht).
-    expect(renderDashboardSeite(daten())).not.toContain('mitgezählt · Stand');
+    expect(renderDashboardSeite(daten())).not.toContain('Objekte · Stand');
   });
 
   it('Custom Von/Bis: kein Preset checked, Datumsfelder befüllt', () => {
