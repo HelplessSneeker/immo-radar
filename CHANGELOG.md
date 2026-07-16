@@ -7,6 +7,13 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-16
+
+Vierte Runde: harte Plausibilitätsregeln gegen strukturell falsche
+Inserate (persistiert als Ausreißer-Grund, mit eigener Inserate-Ansicht),
+dazu die Redesign-Politur für Nicht-Techniker — Plain Language,
+destilliertes Dashboard und Mobile-Karten für die dichten Tabellen.
+
 ### Geändert
 
 - Dashboard-Layout-Pass: die KPI-Kacheln liegen jetzt direkt auf dem
@@ -255,7 +262,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/HelplessSneeker/immo-radar/compare/43cc18e...v1.0.0
