@@ -407,11 +407,7 @@ function stichtagNav(daten: DashboardDaten, stichtag: string): string {
       </nav>`;
 }
 
-function datenpunktZeile(
-  p: StichtagDatenpunkt,
-  serienMedian: number | undefined,
-  kauf: boolean,
-): string {
+function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: boolean): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
   const dedup =
@@ -421,17 +417,13 @@ function datenpunktZeile(
   // Käufer-Perspektive: deutlich unter dem Median = Chance (grün). Kein Rot
   // für "teuer" – teuer ist kein Verdikt, nur eine Lage. Ausreißer bekommen
   // kein Chance-Grün: erst prüfen (Tippfehler? Sonderfall?), dann freuen.
-  // Ohne Serien-Median (alle Punkte Ausreißer) gibt es keine Abweichung.
-  let abwZelle = '–';
-  if (serienMedian !== undefined) {
-    const abweichung = p.eurM2 / serienMedian - 1;
-    const zeichen = abweichung < 0 ? '−' : '+';
-    const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
-    abwZelle =
-      abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
-        ? `<span class="gesenkt">${abwText}</span>`
-        : abwText;
-  }
+  const abweichung = p.eurM2 / serienMedian - 1;
+  const zeichen = abweichung < 0 ? '−' : '+';
+  const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
+  const abwZelle =
+    abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
+      ? `<span class="gesenkt">${abwText}</span>`
+      : abwText;
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
           <td>${link}${badge}<span class="sub">${sub}</span></td>
           <td class="num" data-label="Preis">${nfEur0.format(p.preis)} €</td>
@@ -442,24 +434,29 @@ function datenpunktZeile(
 }
 
 function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): string {
-  const punkte = kauf ? daten.datenpunkte.kauf : daten.datenpunkte.miete;
+  const alle = kauf ? daten.datenpunkte.kauf : daten.datenpunkte.miete;
   const label = kauf ? 'Kauf' : 'Miete';
   const anker = kauf ? 'dp-kauf' : 'dp-miete';
-  if (punkte.length === 0) {
+  if (alle.length === 0) {
     return `      <h3 id="${anker}">${label}</h3>
       <p class="meta">Keine aktiven ${label}-Objekte an diesem Stichtag.</p>`;
   }
-  // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite. Er folgt
-  // dem Drawer-eigenen Schalter (objekte_ausreisser), NICHT dem globalen
-  // Kennzahlen-Toggle. Die bereinigte Menge KANN leer sein: die IQR-Flags
-  // lassen zwar bei n≥4 die mittlere Hälfte stehen (bei n<4 flaggen sie
-  // nichts), aber Hard-Regel-Flags kennen kein Minimum — sind alle Punkte
-  // hart geflaggt, gibt es keinen bereinigten Median (kein 500er, Prinzip
-  // der teilbaren URLs).
+  // Der Drawer-eigene Schalter (objekte_ausreisser), NICHT der globale
+  // Kennzahlen-Toggle, entscheidet, ob Ausreißer überhaupt in Tabelle und
+  // Wolke erscheinen: aus (Default) blendet beide Klassen (Hard-Regel und
+  // 1,5×IQR) ganz aus, an zeigt sie markiert. Der Serien-Median folgt der
+  // sichtbaren Menge.
   const einbeziehen = daten.filter.objekteAusreisserEinbeziehen === true;
-  const imMedian = einbeziehen ? punkte : punkte.filter((p) => !p.istAusreisser);
-  const serienMedian = imMedian.length > 0 ? median(imMedian.map((p) => p.eurM2)) : undefined;
-  const anzahlAusreisser = punkte.filter((p) => p.istAusreisser).length;
+  const anzahlAusreisser = alle.filter((p) => p.istAusreisser).length;
+  const punkte = einbeziehen ? alle : alle.filter((p) => !p.istAusreisser);
+  if (punkte.length === 0) {
+    // Alle Objekte sind (hart) geflaggt: bei ausgeblendeten Ausreißern bleibt
+    // nichts übrig. Kein 500er — der Schalter macht sie wieder sichtbar.
+    return `      <h3 id="${anker}">${label} · ${nfEur0.format(alle.length)} Objekte · alle Ausreißer</h3>
+      <p class="meta">Alle ${nfEur0.format(alle.length)} ${label}-Objekte sind Ausreißer und
+      ausgeblendet. Mit „Ausreißer einbeziehen" oben einblenden.</p>`;
+  }
+  const serienMedian = median(punkte.map((p) => p.eurM2));
   const gesamtSeiten = Math.max(1, Math.ceil(punkte.length / DATENPUNKTE_PRO_SEITE));
   const gewuenscht = kauf ? daten.datenpunkteSeiten.kauf : daten.datenpunkteSeiten.miete;
   const seite = Math.min(Math.max(1, gewuenscht), gesamtSeiten);
@@ -484,11 +481,12 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
       </nav>`
       : '';
   const ausreisserText =
-    anzahlAusreisser > 0 ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer` : '';
-  const medianTeil =
-    serienMedian !== undefined
-      ? ` · Median ${kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian)} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}`
-      : ' · kein bereinigter Median (alle Punkte sind Ausreißer)';
+    anzahlAusreisser > 0
+      ? einbeziehen
+        ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer`
+        : ` · ${nfEur0.format(anzahlAusreisser)} Ausreißer ausgeblendet`
+      : '';
+  const medianTeil = ` · Median ${kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian)} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}`;
   return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText}${medianTeil}</h3>
       <div class="tabelle-scroll">
       <table class="tabelle-karten">
@@ -521,9 +519,10 @@ function drawerToggleForm(daten: DashboardDaten, stichtag: string): string {
         ${hidden}
         <label><input type="checkbox" name="objekte_ausreisser" value="an"${checked}> Ausreißer einbeziehen</label>
         <button class="klein" type="submit">Anwenden</button>
-        <p class="meta">Gilt nur für diese Ansicht: Serien-Median, die davon
-        abgeleitete Δ-Median-Spalte und die Median-Linie der Wolke — die
-        Kennzahlen oben steuert der Schalter in der Filterleiste.</p>
+        <p class="meta">Gilt nur für diese Ansicht: blendet die Ausreißer in
+        Tabelle und Punktwolke ein bzw. aus und rechnet sie entsprechend in den
+        Serien-Median — die Kennzahlen oben steuert der Schalter in der
+        Filterleiste.</p>
       </form>`;
 }
 
@@ -535,8 +534,9 @@ function datenpunkteSektion(daten: DashboardDaten): string {
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
       <summary><h2>Die Objekte hinter den Zahlen (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
-      Stichtag-Medianen, dazu die Median-Linie. Die Wolke zeigt immer alle
-      Objekte; die Median-Linie folgt dem Ausreißer-Schalter dieser Sektion.
+      Stichtag-Medianen, dazu die Median-Linie. Wolke, Tabelle und Median-Linie
+      folgen alle dem Ausreißer-Schalter dieser Sektion: aus (Default) blendet
+      die Ausreißer aus, an zeigt sie markiert mit.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">
@@ -548,9 +548,10 @@ function datenpunkteSektion(daten: DashboardDaten): string {
           <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
         </div>
       </div>
-      <p class="meta">Die Tabellen zeigen alle Punkte des gewählten Stichtags –
-      Ausreißer (Plausibilitätsregeln und 1,5×IQR) sind markiert und zählen nur mit
-      dem Schalter unten in den Serien-Median. <a href="/methodik#ausreisser">Details</a></p>
+      <p class="meta">Die Tabellen zeigen die Objekte des gewählten Stichtags.
+      Ausreißer (Plausibilitätsregeln und 1,5×IQR) sind standardmäßig ausgeblendet;
+      der Schalter unten blendet sie markiert wieder ein und rechnet sie in den
+      Serien-Median. <a href="/methodik#ausreisser">Details</a></p>
 ${drawerToggleForm(daten, stichtag)}
 ${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}

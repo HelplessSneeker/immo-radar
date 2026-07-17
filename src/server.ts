@@ -137,8 +137,9 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     ausreisserEinbeziehen: filter.ausreisserEinbeziehen === true,
   });
   // Die Datenpunkte-Sektion hat ihren eigenen Ausreißer-Schalter
-  // (?objekte_ausreisser=an) — ihre Median-Serie (Wolken-Linie) folgt ihm,
-  // nicht dem globalen Toggle. Bei gleicher Stellung reicht der Trend selbst.
+  // (?objekte_ausreisser=an) — Tabelle, Wolke UND ihre Median-Linie folgen
+  // ihm, nicht dem globalen Toggle. Bei gleicher Stellung reicht der Trend
+  // selbst (kein doppeltes Rechnen).
   const objekteAusreisser = filter.objekteAusreisserEinbeziehen === true;
   const datenpunkteTrend =
     objekteAusreisser === (filter.ausreisserEinbeziehen === true)
@@ -168,7 +169,9 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
     filter,
     zielRendite: ZIEL_RENDITE,
     datenpunkte,
-    streuung: streuungJeStichtag(objekte, trend.map((t) => t.datum)),
+    streuung: streuungJeStichtag(objekte, trend.map((t) => t.datum), {
+      ausreisserEinbeziehen: objekteAusreisser,
+    }),
     datenpunkteStichtag,
     datenpunkteOffen: params.has('stichtag'),
     datenpunkteSeiten: parseDatenpunkteSeiten(params),

@@ -246,7 +246,7 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('+33,3 %');
   });
 
-  it('badged Ausreißer-Zeilen unabhängig vom Schalter, ohne Chance-Grün; Median folgt dem Drawer-Schalter', () => {
+  it('blendet Ausreißer-Zeilen per Default aus und zeigt sie erst mit dem Drawer-Schalter markiert', () => {
     const datenpunkte = {
       kauf: [
         // −75 % unter dem bereinigten Median → wäre Chance, ist aber Ausreißer.
@@ -256,13 +256,14 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
       ],
       miete: [],
     };
+    // Default (Schalter aus): der Ausreißer verschwindet aus der Tabelle.
     const bereinigt = renderDashboardSeite(daten({ datenpunkte }));
-    expect(bereinigt).toContain('▲ Ausreißer');
-    expect(bereinigt).toContain('class="row-outlier"');
+    expect(bereinigt).not.toContain('▲ Ausreißer');
+    expect(bereinigt).not.toContain('class="row-outlier"');
     expect(bereinigt).not.toContain('class="gesenkt"');
-    // Median ohne den geflaggten Punkt: (3900+4100)/2, Anzahl nennt die Ausreißer.
+    // Median ohne den geflaggten Punkt: (3900+4100)/2; Kopf nennt die Ausgeblendeten.
     expect(bereinigt).toContain(
-      'Kauf · 3 Objekte · davon 1 Ausreißer · Median 4 000 €/m² (ohne Ausreißer)',
+      'Kauf · 2 Objekte · 1 Ausreißer ausgeblendet · Median 4 000 €/m² (ohne Ausreißer)',
     );
 
     const einbezogen = renderDashboardSeite(
@@ -282,7 +283,10 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
       ],
       miete: [],
     };
-    const html = renderDashboardSeite(daten({ datenpunkte }));
+    // Badges erscheinen nur mit gesetztem Drawer-Schalter (Default blendet aus).
+    const html = renderDashboardSeite(
+      daten({ datenpunkte, filter: { objekteAusreisserEinbeziehen: true } }),
+    );
     expect(html).toContain('▲ Ausreißer · Fläche unplausibel</span>');
     expect(html).toContain('▲ Ausreißer</span>'); // der IQR-Fall ohne Grund
   });
@@ -326,22 +330,24 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(drawerAn).toContain('Median der aktiven Objekte (ohne Ausreißer)'); // Chart-Meta
   });
 
-  it('rendert ohne bereinigten Median (alle Punkte hart geflaggt) statt zu crashen', () => {
+  it('blendet eine komplett geflaggte Serie ganz aus statt zu crashen', () => {
     // Hard-Regel-Flags kennen kein n≥4-Minimum: eine Serie kann komplett aus
-    // Ausreißern bestehen — früher warf median([]) und die Seite wurde 500.
+    // Ausreißern bestehen. Bei ausgeblendeten Ausreißern bleibt nichts übrig —
+    // kein 500er, sondern ein eigener Hinweis-Block.
     const datenpunkte = {
       kauf: [datenpunkt({ eurM2: 24, istAusreisser: true, datenqualitaet: 'flaeche_ausreisser' })],
       miete: [],
     };
     const html = renderDashboardSeite(daten({ datenpunkte }));
-    expect(html).toContain('kein bereinigter Median (alle Punkte sind Ausreißer)');
-    expect(html).toContain('<td class="num" data-label="Δ Median">–</td>');
-    // Mit dem Drawer-Schalter gibt es wieder einen (unbereinigten) Median.
+    expect(html).toContain('Kauf · 1 Objekte · alle Ausreißer</h3>');
+    expect(html).toContain('sind Ausreißer und');
+    expect(html).not.toContain('▲ Ausreißer'); // keine Tabellenzeile
+    // Mit dem Drawer-Schalter erscheint die Zeile wieder samt (unbereinigtem) Median.
     const einbezogen = renderDashboardSeite(
       daten({ datenpunkte, filter: { objekteAusreisserEinbeziehen: true } }),
     );
     expect(einbezogen).toContain('Median 24 €/m²');
-    expect(einbezogen).not.toContain('kein bereinigter Median');
+    expect(einbezogen).not.toContain('alle Ausreißer</h3>');
   });
 
   it('Drawer-Toggle: GET-Form hält Filter, Stichtag und Seiten als Hidden-Felder', () => {

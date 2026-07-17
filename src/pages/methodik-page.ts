@@ -200,14 +200,14 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Regel umgekehrt streng: alles abseits dieses Werts gilt als Ausreißer – bei engen
     Filtern mit runden Mieten lohnt der Blick auf die markierten Punkte. Die festen
     Grenzen sind bewusst grob: ein Chalet am See kann echt teurer sein, ein Sanierungsfall
-    echt billiger – deshalb wird geflaggt, nie gelöscht. In der Datenpunkte-Tabelle sind
-    Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; die
-    Schalter steuern nur, ob sie in Median, Anzahl und Rendite einfließen. Die Sektion
+    echt billiger – deshalb wird geflaggt, nie gelöscht. Die Sektion
     „Die Objekte hinter den Zahlen" hat dafür einen eigenen Schalter
-    (<code>?objekte_ausreisser=an</code>): Er wirkt nur auf ihren Serien-Median samt der
-    daraus gerechneten Δ-Median-Spalte und auf die Median-Linie der Punktwolke, während
-    der Schalter in der Filterleiste die Kennzahlen und Zeitreihen der Seite steuert.
-    Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
+    (<code>?objekte_ausreisser=an</code>): Standardmäßig aus, blendet er die Ausreißer
+    komplett aus Tabelle und Punktwolke aus und rechnet sie aus dem Serien-Median samt
+    der daraus gerechneten Δ-Median-Spalte heraus; eingeschaltet zeigt er sie mit
+    „▲ Ausreißer" markiert wieder und rechnet sie mit. Er wirkt nur auf diese Sektion,
+    während der Schalter in der Filterleiste die Kennzahlen und Zeitreihen der Seite
+    steuert. Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
