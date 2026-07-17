@@ -536,7 +536,7 @@ function datenpunkteSektion(daten: DashboardDaten): string {
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
       Stichtag-Medianen, dazu die Median-Linie. Wolke, Tabelle und Median-Linie
       folgen alle dem Ausreißer-Schalter dieser Sektion: aus (Default) blendet
-      die Ausreißer aus, an zeigt sie markiert mit.
+      die Ausreißer aus, an zeigt sie wieder — in der Tabelle markiert.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">

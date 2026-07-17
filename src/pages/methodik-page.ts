@@ -191,8 +191,9 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     </table>
     </div>
     <p>Diese Befunde persistieren im Bestand als Ausreißer-Grund
-    (<code>datenqualitaet</code>-Feld) und werden bei jedem Sweep neu bewertet – sichtbar
-    in der Datenpunkte-Tabelle neben dem Badge und gesammelt unter
+    (<code>datenqualitaet</code>-Feld) und werden bei jedem Sweep neu bewertet – mit
+    eingeschaltetem „Ausreißer einbeziehen" sichtbar in der Datenpunkte-Tabelle neben
+    dem Badge, jederzeit gesammelt unter
     <a href="/inserate?nur=ausreisser">Inserate mit „Nur Ausreißer"</a>.</p>
     <p><strong>Grenzen:</strong> Unter 4 Werten je Stichtag und Markt ist der IQR nicht
     belastbar – dann schließt nur die Plausibilitätsprüfung aus und der Schalter wirkt
