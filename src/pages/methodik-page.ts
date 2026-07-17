@@ -204,9 +204,10 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; die
     Schalter steuern nur, ob sie in Median, Anzahl und Rendite einfließen. Die Sektion
     „Die Objekte hinter den Zahlen" hat dafür einen eigenen Schalter
-    (<code>?objekte_ausreisser=an</code>): Er wirkt nur auf ihren Serien-Median und die
-    Median-Linie der Punktwolke, während der Schalter in der Filterleiste die Kennzahlen
-    und Zeitreihen der Seite steuert. Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
+    (<code>?objekte_ausreisser=an</code>): Er wirkt nur auf ihren Serien-Median samt der
+    daraus gerechneten Δ-Median-Spalte und auf die Median-Linie der Punktwolke, während
+    der Schalter in der Filterleiste die Kennzahlen und Zeitreihen der Seite steuert.
+    Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',

@@ -326,6 +326,24 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(drawerAn).toContain('Median der aktiven Objekte (ohne Ausreißer)'); // Chart-Meta
   });
 
+  it('rendert ohne bereinigten Median (alle Punkte hart geflaggt) statt zu crashen', () => {
+    // Hard-Regel-Flags kennen kein n≥4-Minimum: eine Serie kann komplett aus
+    // Ausreißern bestehen — früher warf median([]) und die Seite wurde 500.
+    const datenpunkte = {
+      kauf: [datenpunkt({ eurM2: 24, istAusreisser: true, datenqualitaet: 'flaeche_ausreisser' })],
+      miete: [],
+    };
+    const html = renderDashboardSeite(daten({ datenpunkte }));
+    expect(html).toContain('kein bereinigter Median (alle Punkte sind Ausreißer)');
+    expect(html).toContain('<td class="num" data-label="Δ Median">–</td>');
+    // Mit dem Drawer-Schalter gibt es wieder einen (unbereinigten) Median.
+    const einbezogen = renderDashboardSeite(
+      daten({ datenpunkte, filter: { objekteAusreisserEinbeziehen: true } }),
+    );
+    expect(einbezogen).toContain('Median 24 €/m²');
+    expect(einbezogen).not.toContain('kein bereinigter Median');
+  });
+
   it('Drawer-Toggle: GET-Form hält Filter, Stichtag und Seiten als Hidden-Felder', () => {
     const html = renderDashboardSeite(
       daten({ filter: { plz: '9020', ausreisserEinbeziehen: true }, datenpunkteOffen: true }),
@@ -373,6 +391,19 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     );
     // Die Wolken-Median-Linie zeichnet aus DP_TREND, nicht aus TREND.
     expect(html).toContain('data: DP_TREND.map((t, i) => ({ x: i, y: medianVon(t) }))');
+  });
+
+  it('aliast DP_TREND auf TREND, wenn der Server dieselbe Serie durchreicht', () => {
+    // Beide Schalter gleich → server.ts übergibt dasselbe Array; die Seite
+    // dupliziert die Mediane dann nicht als zweite JSON-Kopie.
+    const trend = [
+      { datum: '2026-07-07', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 42, anzahlMiete: 31 },
+    ];
+    const html = renderDashboardSeite(
+      daten({ trend, datenpunkteTrend: trend, renditeTrend: [{ datum: '2026-07-07', bruttoRendite: 0.03 }] }),
+    );
+    expect(html).toContain('const DP_TREND = TREND;');
+    expect(html).not.toContain('const DP_TREND = [');
   });
 
   it('paginiert die Tabellen mit 20 Zeilen und hält die Seite der anderen Serie', () => {

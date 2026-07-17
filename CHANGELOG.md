@@ -23,10 +23,12 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 - Der Datenpunkte-Drawer „Die Objekte hinter den Zahlen" hat einen
   eigenen Ausreißer-Schalter (`?objekte_ausreisser=an`, Checkbox in der
   Sektion): Er steuert nur den Serien-Median der Tabellen, das „(ohne
-  Ausreißer)"-Label und die Median-Linie der Punktwolke. KPIs,
-  Zeitreihen-Charts und Portfolio bleiben beim globalen
-  `?ausreisser=an`; beide Schalter sind unabhängig. Der Drawer bleibt
-  beim Umschalten offen, Filter und Stichtag werden mitgeführt.
+  Ausreißer)"-Label, die davon abgeleitete Δ-Median-Spalte und die
+  Median-Linie der Punktwolke. KPIs und Zeitreihen-Charts bleiben beim
+  globalen `?ausreisser=an`; beide Schalter sind unabhängig. Der
+  Portfolio-Marktvergleich hat keinen Schalter — er rechnet immer
+  bereinigt (siehe „Geändert"). Der Drawer bleibt beim Umschalten
+  offen, Filter und Stichtag werden mitgeführt.
 
 ### Behoben
 

@@ -407,23 +407,31 @@ function stichtagNav(daten: DashboardDaten, stichtag: string): string {
       </nav>`;
 }
 
-function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: boolean): string {
+function datenpunktZeile(
+  p: StichtagDatenpunkt,
+  serienMedian: number | undefined,
+  kauf: boolean,
+): string {
   const titel = `${p.ort} · ${nfEur0.format(p.zimmer)} Zi.`;
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
   const dedup =
     p.anzahlInserate > 1 ? ` · ${nfEur0.format(p.anzahlInserate)} Inserate (dedupliziert)` : '';
   const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${dedup}`;
   const badge = ausreisserBadge(p);
-  const abweichung = p.eurM2 / serienMedian - 1;
-  const zeichen = abweichung < 0 ? '−' : '+';
-  const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
   // Käufer-Perspektive: deutlich unter dem Median = Chance (grün). Kein Rot
   // für "teuer" – teuer ist kein Verdikt, nur eine Lage. Ausreißer bekommen
   // kein Chance-Grün: erst prüfen (Tippfehler? Sonderfall?), dann freuen.
-  const abwZelle =
-    abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
-      ? `<span class="gesenkt">${abwText}</span>`
-      : abwText;
+  // Ohne Serien-Median (alle Punkte Ausreißer) gibt es keine Abweichung.
+  let abwZelle = '–';
+  if (serienMedian !== undefined) {
+    const abweichung = p.eurM2 / serienMedian - 1;
+    const zeichen = abweichung < 0 ? '−' : '+';
+    const abwText = `${zeichen}${nfPct.format(Math.abs(abweichung) * 100)} %`;
+    abwZelle =
+      abweichung <= CHANCE_SCHWELLE && !p.istAusreisser
+        ? `<span class="gesenkt">${abwText}</span>`
+        : abwText;
+  }
   return `        <tr${p.istAusreisser ? ' class="row-outlier"' : ''}>
           <td>${link}${badge}<span class="sub">${sub}</span></td>
           <td class="num" data-label="Preis">${nfEur0.format(p.preis)} €</td>
@@ -443,13 +451,15 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
   }
   // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite. Er folgt
   // dem Drawer-eigenen Schalter (objekte_ausreisser), NICHT dem globalen
-  // Kennzahlen-Toggle; nie leer, weil ausreisserFlags bei n≥4 die mittlere
-  // Hälfte stehen lässt und bei n<4 nichts flaggt.
+  // Kennzahlen-Toggle. Die bereinigte Menge KANN leer sein: die IQR-Flags
+  // lassen zwar bei n≥4 die mittlere Hälfte stehen (bei n<4 flaggen sie
+  // nichts), aber Hard-Regel-Flags kennen kein Minimum — sind alle Punkte
+  // hart geflaggt, gibt es keinen bereinigten Median (kein 500er, Prinzip
+  // der teilbaren URLs).
   const einbeziehen = daten.filter.objekteAusreisserEinbeziehen === true;
   const imMedian = einbeziehen ? punkte : punkte.filter((p) => !p.istAusreisser);
-  const serienMedian = median(imMedian.map((p) => p.eurM2));
+  const serienMedian = imMedian.length > 0 ? median(imMedian.map((p) => p.eurM2)) : undefined;
   const anzahlAusreisser = punkte.filter((p) => p.istAusreisser).length;
-  const medianText = kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian);
   const gesamtSeiten = Math.max(1, Math.ceil(punkte.length / DATENPUNKTE_PRO_SEITE));
   const gewuenscht = kauf ? daten.datenpunkteSeiten.kauf : daten.datenpunkteSeiten.miete;
   const seite = Math.min(Math.max(1, gewuenscht), gesamtSeiten);
@@ -475,7 +485,11 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
       : '';
   const ausreisserText =
     anzahlAusreisser > 0 ? ` · davon ${nfEur0.format(anzahlAusreisser)} Ausreißer` : '';
-  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText} · Median ${medianText} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}</h3>
+  const medianTeil =
+    serienMedian !== undefined
+      ? ` · Median ${kauf ? nfEur0.format(serienMedian) : nfEur2.format(serienMedian)} €/m²${einbeziehen ? '' : ' (ohne Ausreißer)'}`
+      : ' · kein bereinigter Median (alle Punkte sind Ausreißer)';
+  return `      <h3 id="${anker}">${label} · ${nfEur0.format(punkte.length)} Objekte${ausreisserText}${medianTeil}</h3>
       <div class="tabelle-scroll">
       <table class="tabelle-karten">
         <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
@@ -507,8 +521,9 @@ function drawerToggleForm(daten: DashboardDaten, stichtag: string): string {
         ${hidden}
         <label><input type="checkbox" name="objekte_ausreisser" value="an"${checked}> Ausreißer einbeziehen</label>
         <button class="klein" type="submit">Anwenden</button>
-        <p class="meta">Gilt nur für diese Ansicht (Serien-Median und Median-Linie) —
-        die Kennzahlen oben steuert der Schalter in der Filterleiste.</p>
+        <p class="meta">Gilt nur für diese Ansicht: Serien-Median, die davon
+        abgeleitete Δ-Median-Spalte und die Median-Linie der Wolke — die
+        Kennzahlen oben steuert der Schalter in der Filterleiste.</p>
       </form>`;
 }
 
@@ -567,13 +582,18 @@ export function renderDashboardSeite(daten: DashboardDaten): string {
   const renditeJson = JSON.stringify(daten.renditeTrend).replace(/</g, '\\u003c');
   // Median-Serie der Wolken-Linie: folgt dem Drawer-Schalter, nicht dem
   // globalen Toggle. Nur die zwei Median-Felder — Stichtage/Labels kommen
-  // positionsgleich aus TREND.
-  const dpTrendJson = JSON.stringify(
-    daten.datenpunkteTrend.map((t) => ({
-      medianKaufEurM2: t.medianKaufEurM2,
-      medianMieteEurM2: t.medianMieteEurM2,
-    })),
-  ).replace(/</g, '\\u003c');
+  // positionsgleich aus TREND. Stehen beide Schalter gleich, reicht der
+  // Server dasselbe Array durch — dann alias statt Byte-Kopie (der Payload
+  // wächst sonst mit jedem Sweep-Tag doppelt).
+  const dpTrendJson =
+    daten.datenpunkteTrend === daten.trend
+      ? 'TREND'
+      : JSON.stringify(
+          daten.datenpunkteTrend.map((t) => ({
+            medianKaufEurM2: t.medianKaufEurM2,
+            medianMieteEurM2: t.medianMieteEurM2,
+          })),
+        ).replace(/</g, '\\u003c');
   // Gerundet serialisieren: bei tausenden Punkten spart das spürbar HTML-Gewicht,
   // und feiner als ganze € (Kauf) bzw. Cent (Miete) zeichnet kein Pixel.
   const streuungJson = JSON.stringify(
