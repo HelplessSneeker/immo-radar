@@ -369,18 +369,29 @@ export interface StreuungsPunkt {
  * Punktwolke hinter der Zeitreihe: je Stichtag die einzelnen €/m²-Werte,
  * deren Median berechneObjektTrend bildet (dieselbe Kernlogik, daher
  * deckungsgleich mit den Trend-Linien).
+ *
+ * ausreisserEinbeziehen=false blendet je (Stichtag, Typ) beide
+ * Ausreißer-Klassen aus der Wolke aus — dieselbe Reihenfolge wie in
+ * berechneObjektTrend (erst Hard-Regel, dann 1,5×IQR über die bereinigte
+ * Basis), damit Wolke und Median-Linie deckungsgleich bleiben.
  */
 export function streuungJeStichtag(
   objekte: ObjektZeitreihe[],
   stichtage: string[],
+  optionen: BerechneObjektTrendOptionen = {},
 ): StreuungsPunkt[] {
+  const { ausreisserEinbeziehen = true } = optionen;
   return stichtage.map((stichtag) => {
     const werte: Record<InseratTyp, number[]> = { kauf: [], miete: [] };
     for (const objekt of objekte) {
-      const wert = objektEurM2AmStichtag(objekt, stichtag);
-      if (wert !== undefined) werte[objekt.typ].push(wert);
+      const wert = objektDatenpunktAmStichtag(objekt, stichtag);
+      if (wert === undefined) continue;
+      if (!ausreisserEinbeziehen && wert.datenqualitaet !== undefined) continue;
+      werte[objekt.typ].push(wert.eurM2);
     }
-    return { datum: stichtag, kauf: werte.kauf, miete: werte.miete };
+    const werteVon = (typ: InseratTyp): number[] =>
+      ausreisserEinbeziehen ? werte[typ] : ohneAusreisser(werte[typ]);
+    return { datum: stichtag, kauf: werteVon('kauf'), miete: werteVon('miete') };
   });
 }
 

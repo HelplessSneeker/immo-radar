@@ -7,6 +7,41 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+
+- Portfolio-Marktvergleich rechnet jetzt wie Dashboard und Top Picks
+  ausreißerbereinigt: hart geflaggte Objekte (Plausibilitätsregeln,
+  `datenqualitaet`) fliegen zuerst aus den Markt-Medianen, danach die
+  1,5×IQR-Ausreißer der bereinigten €/m²-Verteilung je Ebene (PLZ →
+  Bezirk → Kärnten) und Markt. Der Ebenen-Aufstieg
+  (`MIN_VERGLEICHSOBJEKTE`) zählt die bereinigte Objektzahl — ein
+  einzelnes Datenmüll-Inserat (z. B. 9758 m² Grundstücks- statt
+  Wohnfläche) verzerrt Markt-Miete und -Rendite nicht mehr.
+
+### Hinzugefügt
+
+- Der Datenpunkte-Drawer „Die Objekte hinter den Zahlen" hat einen
+  eigenen Ausreißer-Schalter (`?objekte_ausreisser=an`, Checkbox in der
+  Sektion): Standardmäßig (aus) blendet er beide Ausreißer-Klassen
+  komplett aus Tabelle und Punktwolke aus (der Serien-Kopf nennt
+  „N Ausreißer ausgeblendet"); eingeschaltet erscheinen sie wieder —
+  in der Tabelle mit „▲ Ausreißer" gebadged — und zählen in
+  Serien-Median, Δ-Median-Spalte und die Median-Linie der Punktwolke.
+  KPIs und Zeitreihen-Charts bleiben beim globalen `?ausreisser=an`;
+  beide Schalter sind unabhängig. Der Portfolio-Marktvergleich hat
+  keinen Schalter — er rechnet immer bereinigt (siehe „Geändert").
+  Der Drawer bleibt beim Umschalten offen, Filter und Stichtag werden
+  mitgeführt.
+
+### Behoben
+
+- Auth-Doku (README, RELEASE) beschrieb noch den alten
+  HTTP-Basic-Auth-Stand: `SESSION_SECRET` fehlte als dritte Pflicht-Env
+  (Boot-Exit 1), der Post-Deploy-Smoke erwartete fälschlich `401
+  WWW-Authenticate: Basic` statt des `303`-Redirects nach `/login`, und
+  die ≥-32-Zeichen-Anforderung war `BASIC_AUTH_PASS` statt
+  `SESSION_SECRET` zugeschrieben.
+
 ## [1.3.0] - 2026-07-16
 
 Vierte Runde: harte Plausibilitätsregeln gegen strukturell falsche

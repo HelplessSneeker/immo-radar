@@ -167,6 +167,12 @@ export interface DashboardFilter {
   flaecheMax?: number;
   /** true = 1,5×IQR-Ausreißer in die Kennzahlen einrechnen; fehlt = ausgeschlossen. */
   ausreisserEinbeziehen?: boolean;
+  /**
+   * Drawer-lokaler Schalter der Datenpunkte-Sektion (?objekte_ausreisser=an):
+   * true = Ausreißer in Serien-Median und Wolken-Median-Linie einrechnen.
+   * Unabhängig vom globalen Schalter — KPIs und Zeitreihen bleiben unberührt.
+   */
+  objekteAusreisserEinbeziehen?: boolean;
   /** Zeitraum-Preset oder Custom-Range; fehlt = "Alle". */
   zeitraum?: ZeitraumFilter;
 }
@@ -199,6 +205,9 @@ export function parseDashboardFilter(params: URLSearchParams): DashboardFilter {
 
   if (params.get('ausreisser')?.trim().toLowerCase() === 'an') {
     filter.ausreisserEinbeziehen = true;
+  }
+  if (params.get('objekte_ausreisser')?.trim().toLowerCase() === 'an') {
+    filter.objekteAusreisserEinbeziehen = true;
   }
 
   const datum = (name: string): string | undefined => {

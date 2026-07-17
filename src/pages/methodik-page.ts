@@ -191,8 +191,9 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     </table>
     </div>
     <p>Diese Befunde persistieren im Bestand als Ausreißer-Grund
-    (<code>datenqualitaet</code>-Feld) und werden bei jedem Sweep neu bewertet – sichtbar
-    in der Datenpunkte-Tabelle neben dem Badge und gesammelt unter
+    (<code>datenqualitaet</code>-Feld) und werden bei jedem Sweep neu bewertet – mit
+    eingeschaltetem „Ausreißer einbeziehen" sichtbar in der Datenpunkte-Tabelle neben
+    dem Badge, jederzeit gesammelt unter
     <a href="/inserate?nur=ausreisser">Inserate mit „Nur Ausreißer"</a>.</p>
     <p><strong>Grenzen:</strong> Unter 4 Werten je Stichtag und Markt ist der IQR nicht
     belastbar – dann schließt nur die Plausibilitätsprüfung aus und der Schalter wirkt
@@ -200,10 +201,14 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Regel umgekehrt streng: alles abseits dieses Werts gilt als Ausreißer – bei engen
     Filtern mit runden Mieten lohnt der Blick auf die markierten Punkte. Die festen
     Grenzen sind bewusst grob: ein Chalet am See kann echt teurer sein, ein Sanierungsfall
-    echt billiger – deshalb wird geflaggt, nie gelöscht. In der Datenpunkte-Tabelle sind
-    Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der
-    Schalter steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer
-    ist ein Prüfkandidat, kein Urteil.</p>`,
+    echt billiger – deshalb wird geflaggt, nie gelöscht. Die Sektion
+    „Die Objekte hinter den Zahlen" hat dafür einen eigenen Schalter
+    (<code>?objekte_ausreisser=an</code>): Standardmäßig aus, blendet er die Ausreißer
+    komplett aus Tabelle und Punktwolke aus und rechnet sie aus dem Serien-Median samt
+    der daraus gerechneten Δ-Median-Spalte heraus; eingeschaltet zeigt er sie mit
+    „▲ Ausreißer" markiert wieder und rechnet sie mit. Er wirkt nur auf diese Sektion,
+    während der Schalter in der Filterleiste die Kennzahlen und Zeitreihen der Seite
+    steuert. Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -278,10 +283,14 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     die eigene Kaltmiete/m² dem Markt-Median vergleichbarer Mietwohnungen, die eigene
     Ist-Rendite (Jahres-Kaltmiete ÷ Kaufpreis) der Markt-Bruttorendite. Liegt die eigene Miete
     unter Markt, wird das monatliche Potenzial ausgewiesen.</p>
-    <p><strong>Formel:</strong> Verglichen wird zuerst innerhalb derselben PLZ; gibt es dort
-    weniger als ${MIN_VERGLEICHSOBJEKTE} aktive Vergleichsobjekte, weitet sich der Vergleich
-    auf den Bezirk, dann auf ganz Kärnten – die verwendete Ebene steht immer dabei, denn ein
-    Kärnten-weiter Vergleich ist etwas anderes als einer in derselben Straße.</p>
+    <p><strong>Formel:</strong> Die Markt-Mediane rechnen wie Dashboard und Top Picks ohne
+    <a href="#ausreisser">Ausreißer</a>: erst fliegen die von den Plausibilitätsregeln
+    geflaggten Objekte raus, dann die 1,5×IQR-Ausreißer der bereinigten €/m²-Verteilung
+    je Ebene und Markt. Verglichen wird zuerst innerhalb derselben PLZ; bleiben dort nach
+    der Bereinigung weniger als ${MIN_VERGLEICHSOBJEKTE} aktive Vergleichsobjekte, weitet
+    sich der Vergleich auf den Bezirk, dann auf ganz Kärnten – die verwendete Ebene steht
+    immer dabei, denn ein Kärnten-weiter Vergleich ist etwas anderes als einer in derselben
+    Straße.</p>
     <p><strong>Grenzen:</strong> Der Markt-Median vergleicht Angebots-, keine Abschlusspreise;
     Ausstattung, Zustand und Lage innerhalb der PLZ bleiben unberücksichtigt. Das Potenzial
     ist eine Rechen-, keine Rechtsgröße (Mietrecht, Befristungen und Bestandsverträge setzen

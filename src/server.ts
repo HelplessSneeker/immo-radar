@@ -136,6 +136,17 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
   const trend = berechneObjektTrend(objekte, stichtageImZeitraum, {
     ausreisserEinbeziehen: filter.ausreisserEinbeziehen === true,
   });
+  // Die Datenpunkte-Sektion hat ihren eigenen Ausreißer-Schalter
+  // (?objekte_ausreisser=an) — Tabelle, Wolke UND ihre Median-Linie folgen
+  // ihm, nicht dem globalen Toggle. Bei gleicher Stellung reicht der Trend
+  // selbst (kein doppeltes Rechnen).
+  const objekteAusreisser = filter.objekteAusreisserEinbeziehen === true;
+  const datenpunkteTrend =
+    objekteAusreisser === (filter.ausreisserEinbeziehen === true)
+      ? trend
+      : berechneObjektTrend(objekte, stichtageImZeitraum, {
+          ausreisserEinbeziehen: objekteAusreisser,
+        });
   // Datenpunkte-Sektion: gewünschter Stichtag muss im Trend liegen, sonst
   // still der letzte (alte Links, Filterwechsel verschiebt den Trend-Start).
   const gewuenscht = parseStichtag(params);
@@ -154,10 +165,13 @@ async function dashboardSeite(params: URLSearchParams): Promise<string> {
       .map((s) => s.quelle ?? `${s.portal} ${s.bezirk}`),
     trend,
     renditeTrend: berechneRenditeTrend(trend),
+    datenpunkteTrend,
     filter,
     zielRendite: ZIEL_RENDITE,
     datenpunkte,
-    streuung: streuungJeStichtag(objekte, trend.map((t) => t.datum)),
+    streuung: streuungJeStichtag(objekte, trend.map((t) => t.datum), {
+      ausreisserEinbeziehen: objekteAusreisser,
+    }),
     datenpunkteStichtag,
     datenpunkteOffen: params.has('stichtag'),
     datenpunkteSeiten: parseDatenpunkteSeiten(params),
