@@ -536,6 +536,27 @@ describe('streuungJeStichtag', () => {
     // Dedupliziert: Objekt 1 liefert einen Wert (das Minimum), nicht zwei.
     expect(streuung.at(-1)!.kauf.sort((a, b) => a - b)).toEqual([3900, 4000]);
   });
+
+  it('entfernt bei ausreisserEinbeziehen=false beide Ausreißer-Klassen aus der Wolke', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', preis: 180000 }),
+      inserat({ id: 'wh-2', preis: 190000 }),
+      inserat({ id: 'wh-3', preis: 200000 }),
+      inserat({ id: 'wh-4', preis: 210000 }),
+      inserat({ id: 'wh-5', preis: 1000000 }), // 20000 €/m², IQR-Ausreißer
+      inserat({ id: 'wh-h1', preis: 2500000, datenqualitaet: 'preis_kauf_ausreisser' }),
+      inserat({ id: 'wh-h2', preis: 3000000, datenqualitaet: 'preis_kauf_ausreisser' }),
+    ];
+    const historie = bestand.map((i) => punkt('willhaben.at', i.id, i.preis, '2026-06-01'));
+    const objekte = objekteAusBestand(bestand, historie);
+    const stichtage = ['2026-07-01'];
+
+    const mit = streuungJeStichtag(objekte, stichtage)[0]!;
+    expect(mit.kauf.slice().sort((a, b) => a - b)).toEqual([3600, 3800, 4000, 4200, 20000, 50000, 60000]);
+
+    const ohne = streuungJeStichtag(objekte, stichtage, { ausreisserEinbeziehen: false })[0]!;
+    expect(ohne.kauf.slice().sort((a, b) => a - b)).toEqual([3600, 3800, 4000, 4200]);
+  });
 });
 
 describe('berechneRenditeTrend', () => {

@@ -55,6 +55,34 @@ function marktObjekte(
   return objekteAusBestand(bestand, historie);
 }
 
+/**
+ * Ein hart geflaggtes Miet-Objekt (Datenmüll à la 9758-m²-Inserat): absurde
+ * Fläche drückt den €/m² gegen null, datenqualitaet trägt den Hard-Befund.
+ */
+function datenmuellMiete(plz: string, bezirk: string, id: string): ObjektZeitreihe[] {
+  const bestand: BestandInserat[] = [
+    {
+      id,
+      portal: 'willhaben.at',
+      typ: 'miete',
+      ort: 'Testort',
+      plz,
+      bezirk,
+      preis: 600,
+      flaeche_m2: 9758,
+      zimmer: 2,
+      datum_erfasst: '2026-06-01',
+      zuerstGesehen: '2026-06-01',
+      zuletztGesehen: STICHTAG,
+      datenqualitaet: 'flaeche_ausreisser',
+    },
+  ];
+  const historie: PreisPunkt[] = [
+    { portal: 'willhaben.at', inseratId: id, preis: 600, erfasstAm: '2026-06-01' },
+  ];
+  return objekteAusBestand(bestand, historie);
+}
+
 describe('vergleichePortfolio', () => {
   it('vergleicht auf PLZ-Ebene, wenn genug Vergleichsobjekte da sind', () => {
     const markt = [
@@ -124,6 +152,46 @@ describe('vergleichePortfolio', () => {
     const markt = marktObjekte('miete', '9020', 'Klagenfurt Stadt', 8, 5, 'm');
     const v = vergleichePortfolio(portfolioObjekt(), markt, STICHTAG); // eigene: 10 €/m²
     expect(v.mietPotenzialMonat).toBeUndefined();
+  });
+
+  it('Hard-Regel-Objekte verschieben den Markt-Median nicht mehr (9758-m²-Regression)', () => {
+    // Clean-Mieten mit klarem Median 12; drei Datenmüll-Objekte würden die
+    // IQR-Grenzen so weit aufreißen, dass die Statistik allein sie NICHT
+    // fängt — nur die Hard-Regel (datenqualitaet) hält den Median bei 12.
+    const markt = [
+      ...[10, 11, 12, 13, 14].flatMap((eurM2, i) =>
+        marktObjekte('miete', '9020', 'Klagenfurt Stadt', eurM2, 1, `m${i}`),
+      ),
+      ...datenmuellMiete('9020', 'Klagenfurt Stadt', 'muell-1'),
+      ...datenmuellMiete('9020', 'Klagenfurt Stadt', 'muell-2'),
+      ...datenmuellMiete('9020', 'Klagenfurt Stadt', 'muell-3'),
+    ];
+    const v = vergleichePortfolio(portfolioObjekt(), markt, STICHTAG);
+    expect(v.miete).toMatchObject({ ebene: 'plz', marktMieteM2: 12, anzahl: 5 });
+  });
+
+  it('1,5×IQR-Ausreißer fliegen nach der Hard-Bereinigung aus Median und Anzahl', () => {
+    const markt = [
+      ...marktObjekte('miete', '9020', 'Klagenfurt Stadt', 10, 5, 'm'),
+      // Kein Hard-Befund, aber statistisch absurd: 100 €/m² Kaltmiete.
+      ...marktObjekte('miete', '9020', 'Klagenfurt Stadt', 100, 1, 'teuer'),
+    ];
+    const v = vergleichePortfolio(portfolioObjekt(), markt, STICHTAG);
+    expect(v.miete).toMatchObject({ ebene: 'plz', marktMieteM2: 10, anzahl: 5 });
+  });
+
+  it('der Ebenen-Aufstieg zählt die bereinigte Objektzahl', () => {
+    // 5 Objekte in der PLZ, aber eines hart geflaggt → nur 4 bereinigte
+    // Vergleichsobjekte → die Kette steigt in den Bezirk auf.
+    const markt = [
+      ...marktObjekte('miete', '9020', 'Klagenfurt Stadt', 11, 4, 'eigen'),
+      ...datenmuellMiete('9020', 'Klagenfurt Stadt', 'muell'),
+      ...marktObjekte('miete', '9021', 'Klagenfurt Stadt', 13, 4, 'nachbar'),
+    ];
+    const v = vergleichePortfolio(portfolioObjekt(), markt, STICHTAG);
+    expect(v.miete).toMatchObject({ ebene: 'bezirk', anzahl: 8 });
+    // Median über die 8 bereinigten Bezirk-Werte: [11×4, 13×4] → 12.
+    expect(v.miete!.marktMieteM2).toBe(12);
   });
 
   it('delistete Markt-Objekte zählen nicht als Vergleich', () => {

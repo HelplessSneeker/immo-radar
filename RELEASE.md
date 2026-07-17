@@ -32,17 +32,21 @@ Reihenfolge einhalten: erst die Datenbank, dann die Anwendung.
 1. `DATABASE_URL` — Verbindungs-URL aus der Postgres-Ressource
    (interner Host, kein SSL), z. B.
    `postgres://immo:<passwort>@<interner-host>:5432/immo`.
-2. `BASIC_AUTH_USER` — kurzer Login-Name.
-3. `BASIC_AUTH_PASS` — langes Secret, mindestens 32 Zeichen.
-   Erzeugen mit: `openssl rand -base64 32`.
-4. `PORT` — optional, Default 8787. Nur setzen, wenn Coolify auf einen
+2. `BASIC_AUTH_USER` — kurzer Login-Name für das `/login`-Formular.
+3. `BASIC_AUTH_PASS` — Passwort für das `/login`-Formular; für Prod ein
+   langes Secret wählen.
+4. `SESSION_SECRET` — Geheimnis, mit dem das Session-Cookie signiert wird
+   (HMAC-SHA256); **mindestens 32 Zeichen**, sonst startet der Server nicht.
+   Erzeugen mit: `openssl rand -base64 32`. Rotation invalidiert alle
+   bestehenden Sitzungen.
+5. `PORT` — optional, Default 8787. Nur setzen, wenn Coolify auf einen
    anderen Port bindet. Mindestens 1024: Der Container läuft als
    unprivilegierter `node`-User und kann keine Ports darunter binden
    (z. B. `PORT=80` → Crash beim Start).
 
-Ohne `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` beendet sich der Container sofort
-mit Exit 1 (fail-closed) — der Deploy schlägt sichtbar fehl statt
-ungeschützt zu laufen.
+Ohne `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` oder mit fehlendem bzw. zu kurzem
+`SESSION_SECRET` beendet sich der Container sofort mit Exit 1 (fail-closed)
+— der Deploy schlägt sichtbar fehl statt ungeschützt zu laufen.
 
 ## 4. Healthcheck
 
@@ -61,16 +65,19 @@ Bauen lassen und die Logs beobachten:
    Instanzen sind unkritisch).
 2. `immo-radar läuft: http://localhost:<PORT>` — der Server ist oben.
 3. Kein sofortiger Exit 1 — der würde auf fehlende
-   `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` hindeuten (siehe Schritt 3).
+   `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` oder ein fehlendes/zu kurzes
+   `SESSION_SECRET` hindeuten (siehe Schritt 3).
 
 ## 6. Post-Deploy-Smoke
 
 Einmal durchklicken bzw. curlen:
 
 1. `curl -f https://<host>/health` → `200 {"status":"ok"}`.
-2. Aufruf `/` ohne Auth → `401` mit Header
-   `WWW-Authenticate: Basic realm="immo-radar"`.
-3. Aufruf `/` mit Credentials → Dashboard lädt (leer, noch keine Daten).
+2. Aufruf `/` ohne Anmeldung → `303` nach `/login?return=%2F`
+   (Session-Cookie-Login, kein Basic-Auth-Popup).
+3. Anmelden über das `/login`-Formular (`BASIC_AUTH_USER`/`BASIC_AUTH_PASS`)
+   → Dashboard lädt (leer, noch keine Daten); der Browser trägt ab jetzt das
+   signierte Cookie `sitzung`.
 4. `/crawl` → Sweep-Liste zeigt bereits den ersten Lauf: Der Scheduler
    tickt sofort beim Boot, der erste Sweep läuft also schon Sekunden nach
    dem Start (danach alle `CRAWL_TICK_MS`, Default 30 Minuten). Einen
