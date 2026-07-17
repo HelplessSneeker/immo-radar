@@ -201,9 +201,12 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     Filtern mit runden Mieten lohnt der Blick auf die markierten Punkte. Die festen
     Grenzen sind bewusst grob: ein Chalet am See kann echt teurer sein, ein Sanierungsfall
     echt billiger – deshalb wird geflaggt, nie gelöscht. In der Datenpunkte-Tabelle sind
-    Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; der
-    Schalter steuert nur, ob sie in Median, Anzahl und Rendite einfließen. Ein Ausreißer
-    ist ein Prüfkandidat, kein Urteil.</p>`,
+    Ausreißer mit „▲ Ausreißer" markiert, in der Punktwolke bleiben sie sichtbar; die
+    Schalter steuern nur, ob sie in Median, Anzahl und Rendite einfließen. Die Sektion
+    „Die Objekte hinter den Zahlen" hat dafür einen eigenen Schalter
+    (<code>?objekte_ausreisser=an</code>): Er wirkt nur auf ihren Serien-Median und die
+    Median-Linie der Punktwolke, während der Schalter in der Filterleiste die Kennzahlen
+    und Zeitreihen der Seite steuert. Ein Ausreißer ist ein Prüfkandidat, kein Urteil.</p>`,
     },
     {
       id: 'preisaenderungen',
@@ -278,10 +281,14 @@ function abschnitte(p: MethodikParameter): Abschnitt[] {
     die eigene Kaltmiete/m² dem Markt-Median vergleichbarer Mietwohnungen, die eigene
     Ist-Rendite (Jahres-Kaltmiete ÷ Kaufpreis) der Markt-Bruttorendite. Liegt die eigene Miete
     unter Markt, wird das monatliche Potenzial ausgewiesen.</p>
-    <p><strong>Formel:</strong> Verglichen wird zuerst innerhalb derselben PLZ; gibt es dort
-    weniger als ${MIN_VERGLEICHSOBJEKTE} aktive Vergleichsobjekte, weitet sich der Vergleich
-    auf den Bezirk, dann auf ganz Kärnten – die verwendete Ebene steht immer dabei, denn ein
-    Kärnten-weiter Vergleich ist etwas anderes als einer in derselben Straße.</p>
+    <p><strong>Formel:</strong> Die Markt-Mediane rechnen wie Dashboard und Top Picks ohne
+    <a href="#ausreisser">Ausreißer</a>: erst fliegen die von den Plausibilitätsregeln
+    geflaggten Objekte raus, dann die 1,5×IQR-Ausreißer der bereinigten €/m²-Verteilung
+    je Ebene und Markt. Verglichen wird zuerst innerhalb derselben PLZ; bleiben dort nach
+    der Bereinigung weniger als ${MIN_VERGLEICHSOBJEKTE} aktive Vergleichsobjekte, weitet
+    sich der Vergleich auf den Bezirk, dann auf ganz Kärnten – die verwendete Ebene steht
+    immer dabei, denn ein Kärnten-weiter Vergleich ist etwas anderes als einer in derselben
+    Straße.</p>
     <p><strong>Grenzen:</strong> Der Markt-Median vergleicht Angebots-, keine Abschlusspreise;
     Ausstattung, Zustand und Lage innerhalb der PLZ bleiben unberücksichtigt. Das Potenzial
     ist eine Rechen-, keine Rechtsgröße (Mietrecht, Befristungen und Bestandsverträge setzen

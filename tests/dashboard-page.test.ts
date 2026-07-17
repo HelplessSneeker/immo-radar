@@ -36,6 +36,11 @@ function daten(overrides: Partial<DashboardDaten> = {}): DashboardDaten {
       { datum: '2026-06-30', bruttoRendite: 0.0302 },
       { datum: '2026-07-07', bruttoRendite: 0.03 },
     ],
+    // Ohne Drawer-Toggle identisch zum Trend (beide Schalter stehen auf aus).
+    datenpunkteTrend: [
+      { datum: '2026-06-30', medianKaufEurM2: 3900, medianMieteEurM2: 9.8, anzahlKauf: 40, anzahlMiete: 30 },
+      { datum: '2026-07-07', medianKaufEurM2: 4000, medianMieteEurM2: 10, anzahlKauf: 42, anzahlMiete: 31 },
+    ],
     filter: {},
     zielRendite: 0.04,
     datenpunkte: { kauf: [datenpunkt()], miete: [] },
@@ -115,7 +120,9 @@ describe('renderDashboardSeite', () => {
   it('checked bei ?ausreisser=an; der Reset-Link erscheint auch für den Schalter allein', () => {
     const html = renderDashboardSeite(daten({ filter: { ausreisserEinbeziehen: true } }));
     expect(html).toContain('name="ausreisser" value="an" checked');
-    expect(html).not.toContain('(ohne Ausreißer)');
+    // KPIs und Chart-Meta folgen dem globalen Schalter; der Drawer-Serie-Kopf
+    // hat seinen eigenen (hier aus) und darf weiter "(ohne Ausreißer)" sagen.
+    expect(html).not.toContain('Median der aktiven Objekte (ohne Ausreißer)');
     expect(html).not.toContain('Ohne Ausreißer gerechnet');
     expect(html).toContain('(Ausreißer einbezogen)');
     expect(html).toContain('Filter zurücksetzen');
@@ -193,9 +200,12 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
   });
 
   it('hält die Sektion über die Filterleiste offen (Hidden-Field nur bei offener Sektion)', () => {
-    const feld = '<input type="hidden" name="stichtag" value="2026-07-07">';
+    // Das Feld in der FILTERLEISTE (direkt nach dem Form-Tag) erscheint nur
+    // bei offener Sektion; das Drawer-Toggle-Formular trägt stichtag immer.
+    const feld =
+      '<form class="filterleiste" method="get" action="/">\n      <input type="hidden" name="stichtag" value="2026-07-07">';
     expect(renderDashboardSeite(daten({ datenpunkteOffen: true }))).toContain(feld);
-    expect(renderDashboardSeite(daten())).not.toContain('name="stichtag"');
+    expect(renderDashboardSeite(daten())).not.toContain(feld);
   });
 
   it('zeigt je Serie Anzahl und Median und formatiert die Zeile', () => {
@@ -236,7 +246,7 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('+33,3 %');
   });
 
-  it('badged Ausreißer-Zeilen unabhängig vom Schalter, ohne Chance-Grün; Median folgt dem Schalter', () => {
+  it('badged Ausreißer-Zeilen unabhängig vom Schalter, ohne Chance-Grün; Median folgt dem Drawer-Schalter', () => {
     const datenpunkte = {
       kauf: [
         // −75 % unter dem bereinigten Median → wäre Chance, ist aber Ausreißer.
@@ -256,11 +266,11 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     );
 
     const einbezogen = renderDashboardSeite(
-      daten({ datenpunkte, filter: { ausreisserEinbeziehen: true } }),
+      daten({ datenpunkte, filter: { objekteAusreisserEinbeziehen: true } }),
     );
     expect(einbezogen).toContain('▲ Ausreißer'); // Badge bleibt sichtbar
     expect(einbezogen).toContain('Kauf · 3 Objekte · davon 1 Ausreißer · Median 3 900 €/m²');
-    expect(einbezogen).not.toContain('(ohne Ausreißer)');
+    expect(einbezogen).not.toContain('€/m² (ohne Ausreißer)'); // Serie-Kopf ohne Suffix
   });
 
   it('nennt den Hard-Regel-Grund neben dem Badge; rein statistische Ausreißer bleiben ohne Grund', () => {
@@ -290,6 +300,79 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     );
     expect(html).toContain('href="/?ausreisser=an&stichtag=2026-06-30#datenpunkte"');
     expect(html).toContain('href="/?ausreisser=an&stichtag=2026-07-07&kauf_seite=2#dp-kauf"');
+  });
+
+  it('der Serien-Median ist vom globalen Schalter unabhängig — in beide Richtungen', () => {
+    const datenpunkte = {
+      kauf: [
+        datenpunkt({ eurM2: 1000, istAusreisser: true }),
+        datenpunkt({ inseratId: 'wh-2', eurM2: 3900 }),
+        datenpunkt({ inseratId: 'wh-3', eurM2: 4100 }),
+      ],
+      miete: [],
+    };
+    // Globaler Schalter an, Drawer aus → Tabellen-Median bleibt bereinigt.
+    const globalAn = renderDashboardSeite(
+      daten({ datenpunkte, filter: { ausreisserEinbeziehen: true } }),
+    );
+    expect(globalAn).toContain('Median 4 000 €/m² (ohne Ausreißer)');
+    // Drawer an, global aus → Tabellen-Median einbezogen, KPIs bleiben bereinigt.
+    const drawerAn = renderDashboardSeite(
+      daten({ datenpunkte, filter: { objekteAusreisserEinbeziehen: true } }),
+    );
+    expect(drawerAn).toContain('Median 3 900 €/m²');
+    expect(drawerAn).not.toContain('€/m² (ohne Ausreißer)'); // Serie-Kopf ohne Suffix
+    expect(drawerAn).toContain('Ohne Ausreißer gerechnet'); // Provenienz-Zeile der KPIs
+    expect(drawerAn).toContain('Median der aktiven Objekte (ohne Ausreißer)'); // Chart-Meta
+  });
+
+  it('Drawer-Toggle: GET-Form hält Filter, Stichtag und Seiten als Hidden-Felder', () => {
+    const html = renderDashboardSeite(
+      daten({ filter: { plz: '9020', ausreisserEinbeziehen: true }, datenpunkteOffen: true }),
+    );
+    expect(html).toContain('class="drawer-toggle feld-toggle" method="get" action="/#datenpunkte"');
+    expect(html).toContain('name="objekte_ausreisser" value="an">'); // Checkbox, default aus
+    expect(html).not.toContain('name="objekte_ausreisser" value="an" checked');
+    // Hidden-Felder: Filter und Stichtag überleben das Absenden.
+    expect(html).toContain('<input type="hidden" name="plz" value="9020">');
+    expect(html).toContain('<input type="hidden" name="ausreisser" value="an">');
+    expect(html).toContain('<input type="hidden" name="stichtag" value="2026-07-07">');
+
+    const an = renderDashboardSeite(daten({ filter: { objekteAusreisserEinbeziehen: true } }));
+    expect(an).toContain('name="objekte_ausreisser" value="an" checked');
+  });
+
+  it('Stichtag-/Seiten-Links und Filterleiste führen ?objekte_ausreisser=an mit', () => {
+    const kauf = Array.from({ length: 50 }, (_, i) =>
+      datenpunkt({ ort: `Ort${i}`, inseratId: `wh-${i}`, eurM2: 3000 + i }),
+    );
+    const html = renderDashboardSeite(
+      daten({
+        filter: { objekteAusreisserEinbeziehen: true },
+        datenpunkte: { kauf, miete: [] },
+        datenpunkteOffen: true,
+      }),
+    );
+    expect(html).toContain('href="/?objekte_ausreisser=an&stichtag=2026-06-30#datenpunkte"');
+    expect(html).toContain('href="/?objekte_ausreisser=an&stichtag=2026-07-07&kauf_seite=2#dp-kauf"');
+    // Die Haupt-Filterleiste trägt den Drawer-Schalter als Hidden-Feld weiter.
+    expect(html).toContain('<input type="hidden" name="objekte_ausreisser" value="an">');
+  });
+
+  it('serialisiert die Drawer-Median-Serie (DP_TREND) getrennt vom Trend', () => {
+    const html = renderDashboardSeite(
+      daten({
+        datenpunkteTrend: [
+          { datum: '2026-06-30', medianKaufEurM2: 3500, medianMieteEurM2: 9.5, anzahlKauf: 41, anzahlMiete: 31 },
+          { datum: '2026-07-07', medianKaufEurM2: 3600, medianMieteEurM2: 9.6, anzahlKauf: 43, anzahlMiete: 32 },
+        ],
+      }),
+    );
+    expect(html).toContain(
+      'const DP_TREND = [{"medianKaufEurM2":3500,"medianMieteEurM2":9.5},{"medianKaufEurM2":3600,"medianMieteEurM2":9.6}];',
+    );
+    // Die Wolken-Median-Linie zeichnet aus DP_TREND, nicht aus TREND.
+    expect(html).toContain('data: DP_TREND.map((t, i) => ({ x: i, y: medianVon(t) }))');
   });
 
   it('paginiert die Tabellen mit 20 Zeilen und hält die Seite der anderen Serie', () => {
@@ -523,6 +606,26 @@ describe('parseDashboardFilter', () => {
     expect(parseDashboardFilter(params(''))).toEqual({});
     expect(parseDashboardFilter(params('plz=9020&ausreisser=an'))).toEqual({
       plz: '9020',
+      ausreisserEinbeziehen: true,
+    });
+  });
+
+  it('?objekte_ausreisser=an schaltet den Drawer-Schalter an — unabhängig vom globalen', () => {
+    expect(parseDashboardFilter(params('objekte_ausreisser=an'))).toEqual({
+      objekteAusreisserEinbeziehen: true,
+    });
+    expect(parseDashboardFilter(params('objekte_ausreisser=AN'))).toEqual({
+      objekteAusreisserEinbeziehen: true,
+    });
+    expect(parseDashboardFilter(params('objekte_ausreisser=aus'))).toEqual({});
+    expect(parseDashboardFilter(params('objekte_ausreisser=quatsch'))).toEqual({});
+    expect(parseDashboardFilter(params('objekte_ausreisser='))).toEqual({});
+    // Beide Schalter koexistieren, keiner impliziert den anderen.
+    expect(parseDashboardFilter(params('ausreisser=an&objekte_ausreisser=an'))).toEqual({
+      ausreisserEinbeziehen: true,
+      objekteAusreisserEinbeziehen: true,
+    });
+    expect(parseDashboardFilter(params('ausreisser=an'))).toEqual({
       ausreisserEinbeziehen: true,
     });
   });

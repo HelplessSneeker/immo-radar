@@ -26,9 +26,11 @@ pnpm serve            # wendet Migrationen automatisch an
 ```
 
 Dann <http://localhost:8787> im Browser öffnen (Port über die Umgebungsvariable
-`PORT` änderbar). Alle Seiten liegen hinter HTTP-Basic-Auth
-(`BASIC_AUTH_USER`/`BASIC_AUTH_PASS` aus der `.env`; ohne sie startet der
-Server nicht). Die Seiten:
+`PORT` änderbar). Alle Seiten liegen hinter einem Session-Cookie-Login:
+Unangemeldete Aufrufe leiten auf `/login` um, das Formular prüft
+`BASIC_AUTH_USER`/`BASIC_AUTH_PASS` aus der `.env` und setzt ein mit
+`SESSION_SECRET` (mindestens 32 Zeichen) HMAC-signiertes Cookie. Ohne diese
+drei Variablen startet der Server nicht. Die Seiten:
 
 - **`/` – Dashboard** (Startseite): Bruttorendite, Median-Kauf-€/m² und
   Median-Kaltmiete-€/m² als Zeitreihen (ein Punkt je Crawl-Lauf) über die deduplizierten
@@ -112,16 +114,19 @@ Dockerfile-Build anlegen, Postgres als separate Ressource (interner Hostname,
 kein SSL nötig) und diese Env-Vars setzen:
 
 - `DATABASE_URL` – Verbindungs-URL der Postgres-Ressource
-- `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` – Zugangsdaten für alle Seiten;
-  für Prod ein langes Secret wählen
+- `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` – Zugangsdaten für das
+  `/login`-Formular; für Prod ein langes Passwort wählen
+- `SESSION_SECRET` – signiert das Session-Cookie (HMAC-SHA256); mindestens
+  32 Zeichen, z. B. `openssl rand -base64 32`
 - `PORT` – optional, Default 8787
 
 Healthcheck-Pfad: **`/health`** (auth-frei; `200 {"status":"ok"}` bei
 erreichbarer DB, sonst `503`). Migrationen laufen beim Start automatisch
 (Advisory-Lock, mehrere Instanzen sind unkritisch). `SIGTERM` fährt sauber
 herunter (offene Requests zu Ende, dann Pool schließen). Fehlen die
-Auth-Vars, beendet sich der Container sofort mit Exit 1 (fail-closed) —
-der Deploy schlägt dann sichtbar fehl statt ungeschützt zu laufen.
+Auth-Vars oder ist `SESSION_SECRET` zu kurz, beendet sich der Container
+sofort mit Exit 1 (fail-closed) — der Deploy schlägt dann sichtbar fehl
+statt ungeschützt zu laufen.
 
 Schritt-für-Schritt: [RELEASE.md](RELEASE.md)
 

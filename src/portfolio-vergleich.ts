@@ -1,7 +1,7 @@
 import type { PortfolioObjekt } from './db/portfolio-repo.js';
 import { normalisierePlz } from './normalisierung.js';
-import { bruttoRendite, median } from './stats.js';
-import { objektEurM2AmStichtag, type ObjektZeitreihe } from './trend.js';
+import { bruttoRendite, median, ohneAusreisser } from './stats.js';
+import { objektDatenpunktAmStichtag, type ObjektZeitreihe } from './trend.js';
 
 /**
  * Marktvergleich eines Portfolio-Objekts gegen die deduplizierten
@@ -9,9 +9,17 @@ import { objektEurM2AmStichtag, type ObjektZeitreihe } from './trend.js';
  * PLZ → Bezirk (per Mehrheits-Zuordnung der PLZ) → ganz Kärnten — die
  * verwendete Ebene wird immer mit ausgewiesen (Ehrlichkeits-Prinzip: ein
  * Kärnten-weiter Vergleich ist etwas anderes als einer in derselben PLZ).
+ *
+ * Die Markt-Mediane rechnen wie Dashboard und Top Picks ohne beide
+ * Ausreißer-Klassen: erst fliegen hart geflaggte Objekte raus
+ * (datenqualitaet, src/plausibilitaet.ts — ein geflaggtes Inserat macht das
+ * ganze Objekt zum Ausreißer, wie in top-picks.ts), dann die 1,5×IQR-
+ * Ausreißer der hart-bereinigten €/m²-Verteilung je Ebene und Typ (unter
+ * 4 Werten folgenlos, siehe ohneAusreisser). MIN_VERGLEICHSOBJEKTE zählt
+ * die bereinigte Menge.
  */
 
-/** Unter so vielen Vergleichsobjekten steigt die Kette zur nächsten Ebene auf. */
+/** Unter so vielen BEREINIGTEN Vergleichsobjekten steigt die Kette zur nächsten Ebene auf. */
 export const MIN_VERGLEICHSOBJEKTE = 5;
 
 export type VergleichsEbene = 'plz' | 'bezirk' | 'land';
@@ -24,8 +32,9 @@ export const EBENEN_LABEL: Record<VergleichsEbene, string> = {
 
 export interface MieteVergleich {
   ebene: VergleichsEbene;
-  /** Median-Kaltmiete €/m² der aktiven Miet-Objekte der Ebene. */
+  /** Median-Kaltmiete €/m² der aktiven, ausreißerbereinigten Miet-Objekte der Ebene. */
   marktMieteM2: number;
+  /** Anzahl nach der Bereinigung (Hard-Regeln + 1,5×IQR). */
   anzahl: number;
 }
 
@@ -33,6 +42,7 @@ export interface RenditeVergleich {
   ebene: VergleichsEbene;
   /** Markt-Bruttorendite der Ebene (Median Miete ×12 ÷ Median Kauf, je €/m²). */
   marktRendite: number;
+  /** Anzahlen nach der Bereinigung (Hard-Regeln + 1,5×IQR). */
   anzahlKauf: number;
   anzahlMiete: number;
 }
@@ -103,19 +113,26 @@ export function vergleichePortfolio(
   const plz = normalisierePlz(objekt.plz, objekt.ort) ?? objekt.plz.trim();
   const bezirk = bezirkZuPlz(marktObjekte, plz);
 
-  // Aktive Marktwerte einmal berechnen, dann je Ebene filtern.
+  // Aktive Marktwerte einmal berechnen, dann je Ebene filtern. Hart
+  // geflaggte Objekte (datenqualitaet) fliegen schon hier raus — die
+  // IQR-Bereinigung läuft je Ebene, weil sich die Verteilung dort ändert.
   const aktive: AktiveWerte[] = [];
   for (const markt of marktObjekte) {
-    const eurM2 = objektEurM2AmStichtag(markt, stichtag);
-    if (eurM2 !== undefined) aktive.push({ objekt: markt, eurM2 });
+    const punkt = objektDatenpunktAmStichtag(markt, stichtag);
+    if (punkt === undefined || punkt.datenqualitaet !== undefined) continue;
+    aktive.push({ objekt: markt, eurM2: punkt.eurM2 });
   }
 
   const ebenen: VergleichsEbene[] = ['plz', 'bezirk', 'land'];
   for (const ebene of ebenen) {
     if (ebene === 'bezirk' && bezirk === undefined) continue;
     const passend = aktive.filter((a) => ebenenFilter(ebene, plz, bezirk)(a.objekt));
-    const mieten = passend.filter((a) => a.objekt.typ === 'miete').map((a) => a.eurM2);
-    const kaeufe = passend.filter((a) => a.objekt.typ === 'kauf').map((a) => a.eurM2);
+    const mieten = ohneAusreisser(
+      passend.filter((a) => a.objekt.typ === 'miete').map((a) => a.eurM2),
+    );
+    const kaeufe = ohneAusreisser(
+      passend.filter((a) => a.objekt.typ === 'kauf').map((a) => a.eurM2),
+    );
 
     if (vergleich.miete === undefined && mieten.length >= MIN_VERGLEICHSOBJEKTE) {
       vergleich.miete = { ebene, marktMieteM2: median(mieten), anzahl: mieten.length };

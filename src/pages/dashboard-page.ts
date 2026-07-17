@@ -37,6 +37,12 @@ export interface DashboardDaten {
   portalAusfaelle: string[];
   trend: TrendPunkt[];
   renditeTrend: RenditeTrendPunkt[];
+  /**
+   * Median-Serie der Datenpunkte-Sektion (Wolken-Median-Linie): dieselben
+   * Stichtage wie trend, aber nach dem Drawer-Schalter
+   * (objekteAusreisserEinbeziehen) gerechnet statt nach dem globalen.
+   */
+  datenpunkteTrend: TrendPunkt[];
   filter: DashboardFilter;
   /** Ziel-Bruttorendite (Anteil), ab der die Kachel als "gut" gilt. */
   zielRendite: number;
@@ -133,6 +139,9 @@ const DASHBOARD_CSS = `
   /* Aufklapp-Affordance sichtbar machen: der Titel reagiert wie ein Link. */
   .datenpunkte summary:hover h2 { color: var(--akzent); }
   .datenpunkte h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; }
+  /* Drawer-eigener Ausreißer-Schalter: eine schlanke Zeile aus Checkbox,
+     Anwenden-Button und Erklär-Meta — kein zweites Filterleisten-Gewicht. */
+  .drawer-toggle { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
   .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
   .feld-toggle .meta { margin: 0; font-size: 12px; }
@@ -189,7 +198,13 @@ function filterleiste(daten: DashboardDaten): string {
     daten.datenpunkteOffen && daten.datenpunkteStichtag !== undefined
       ? `\n      <input type="hidden" name="stichtag" value="${escapeHtml(daten.datenpunkteStichtag)}">`
       : '';
-  return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}
+  // Der Drawer-Schalter überlebt den Filterwechsel — er gehört zur
+  // Datenpunkte-Sektion, nicht zu dieser Leiste.
+  const drawerFeld =
+    filter.objekteAusreisserEinbeziehen === true
+      ? `\n      <input type="hidden" name="objekte_ausreisser" value="an">`
+      : '';
+  return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}${drawerFeld}
       <div class="feld feld-plz">
         <label for="f-plz">PLZ (Anfang genügt)</label>
         <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filter.plz ?? '')}" placeholder="z. B. 9020 oder 95">
@@ -342,17 +357,17 @@ function chartSektion(trend: TrendPunkt[]): string {
  * (bzw. per anker eine der Tabellen). Ohne seiten starten die Tabellen auf
  * Seite 1 (Stichtag-Wechsel setzt die Pagination bewusst zurück).
  */
-function dashboardUrl(
+function dashboardParams(
   filter: DashboardFilter,
   stichtag: string,
   seiten?: { kauf: number; miete: number },
-  anker = 'datenpunkte',
-): string {
+): URLSearchParams {
   const params = new URLSearchParams();
   if (filter.plz) params.set('plz', filter.plz);
   if (filter.flaecheMin !== undefined) params.set('flaeche_min', String(filter.flaecheMin));
   if (filter.flaecheMax !== undefined) params.set('flaeche_max', String(filter.flaecheMax));
   if (filter.ausreisserEinbeziehen === true) params.set('ausreisser', 'an');
+  if (filter.objekteAusreisserEinbeziehen === true) params.set('objekte_ausreisser', 'an');
   if (filter.zeitraum?.von !== undefined && filter.zeitraum.bis !== undefined) {
     params.set('von', filter.zeitraum.von);
     params.set('bis', filter.zeitraum.bis);
@@ -362,7 +377,16 @@ function dashboardUrl(
   params.set('stichtag', stichtag);
   if (seiten !== undefined && seiten.kauf > 1) params.set('kauf_seite', String(seiten.kauf));
   if (seiten !== undefined && seiten.miete > 1) params.set('miete_seite', String(seiten.miete));
-  return `/?${params.toString()}#${anker}`;
+  return params;
+}
+
+function dashboardUrl(
+  filter: DashboardFilter,
+  stichtag: string,
+  seiten?: { kauf: number; miete: number },
+  anker = 'datenpunkte',
+): string {
+  return `/?${dashboardParams(filter, stichtag, seiten).toString()}#${anker}`;
 }
 
 function stichtagNav(daten: DashboardDaten, stichtag: string): string {
@@ -418,9 +442,10 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
       <p class="meta">Keine aktiven ${label}-Objekte an diesem Stichtag.</p>`;
   }
   // Median über ALLE Punkte der Serie, nicht über die Tabellen-Seite. Er folgt
-  // dem Ausreißer-Toggle (wie die KPI-Kacheln); nie leer, weil ausreisserFlags
-  // bei n≥4 die mittlere Hälfte stehen lässt und bei n<4 nichts flaggt.
-  const einbeziehen = daten.filter.ausreisserEinbeziehen === true;
+  // dem Drawer-eigenen Schalter (objekte_ausreisser), NICHT dem globalen
+  // Kennzahlen-Toggle; nie leer, weil ausreisserFlags bei n≥4 die mittlere
+  // Hälfte stehen lässt und bei n<4 nichts flaggt.
+  const einbeziehen = daten.filter.objekteAusreisserEinbeziehen === true;
   const imMedian = einbeziehen ? punkte : punkte.filter((p) => !p.istAusreisser);
   const serienMedian = median(imMedian.map((p) => p.eurM2));
   const anzahlAusreisser = punkte.filter((p) => p.istAusreisser).length;
@@ -461,6 +486,32 @@ ${zeilen}
       </div>${nav}`;
 }
 
+/**
+ * Der Drawer-eigene Ausreißer-Schalter: ein GET-Formular, das alle aktiven
+ * Parameter (Filter, Stichtag, Tabellen-Seiten) als Hidden-Felder mitführt —
+ * der Drawer bleibt beim Absenden offen (stichtag gesetzt) und die Seite
+ * springt per Anker zurück zur Sektion. Nur objekte_ausreisser kommt aus
+ * der Checkbox selbst.
+ */
+function drawerToggleForm(daten: DashboardDaten, stichtag: string): string {
+  const params = dashboardParams(daten.filter, stichtag, daten.datenpunkteSeiten);
+  params.delete('objekte_ausreisser');
+  const hidden = [...params.entries()]
+    .map(
+      ([name, wert]) =>
+        `<input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(wert)}">`,
+    )
+    .join('\n        ');
+  const checked = daten.filter.objekteAusreisserEinbeziehen === true ? ' checked' : '';
+  return `      <form class="drawer-toggle feld-toggle" method="get" action="/#datenpunkte">
+        ${hidden}
+        <label><input type="checkbox" name="objekte_ausreisser" value="an"${checked}> Ausreißer einbeziehen</label>
+        <button class="klein" type="submit">Anwenden</button>
+        <p class="meta">Gilt nur für diese Ansicht (Serien-Median und Median-Linie) —
+        die Kennzahlen oben steuert der Schalter in der Filterleiste.</p>
+      </form>`;
+}
+
 function datenpunkteSektion(daten: DashboardDaten): string {
   const stichtag = daten.datenpunkteStichtag;
   if (daten.trend.length === 0 || stichtag === undefined) return '';
@@ -469,8 +520,8 @@ function datenpunkteSektion(daten: DashboardDaten): string {
     <details class="datenpunkte"${daten.datenpunkteOffen ? ' open' : ''}>
       <summary><h2>Die Objekte hinter den Zahlen (Stichtag ${escapeHtml(datumMedium(stichtag))})</h2></summary>
       <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
-      Stichtag-Medianen, dazu die Median-Linie aus der Zeitreihe. Die Wolke zeigt
-      immer alle Objekte; die Median-Linie folgt dem Ausreißer-Filter.
+      Stichtag-Medianen, dazu die Median-Linie. Die Wolke zeigt immer alle
+      Objekte; die Median-Linie folgt dem Ausreißer-Schalter dieser Sektion.
       <a href="/methodik#objekte">Details</a></p>
       <div class="charts-2">
         <div class="chart-box">
@@ -484,7 +535,8 @@ function datenpunkteSektion(daten: DashboardDaten): string {
       </div>
       <p class="meta">Die Tabellen zeigen alle Punkte des gewählten Stichtags –
       Ausreißer (Plausibilitätsregeln und 1,5×IQR) sind markiert und zählen nur mit
-      „Ausreißer einbeziehen" in die Kennzahlen. <a href="/methodik#ausreisser">Details</a></p>
+      dem Schalter unten in den Serien-Median. <a href="/methodik#ausreisser">Details</a></p>
+${drawerToggleForm(daten, stichtag)}
 ${stichtagNav(daten, stichtag)}
 ${serieBlock(daten, stichtag, true)}
 ${serieBlock(daten, stichtag, false)}
@@ -513,6 +565,15 @@ export function renderDashboardSeite(daten: DashboardDaten): string {
     daten.trend.map((t) => ({ ...t, label: datumMedium(t.datum) })),
   ).replace(/</g, '\\u003c'); // "</script>"-sicher
   const renditeJson = JSON.stringify(daten.renditeTrend).replace(/</g, '\\u003c');
+  // Median-Serie der Wolken-Linie: folgt dem Drawer-Schalter, nicht dem
+  // globalen Toggle. Nur die zwei Median-Felder — Stichtage/Labels kommen
+  // positionsgleich aus TREND.
+  const dpTrendJson = JSON.stringify(
+    daten.datenpunkteTrend.map((t) => ({
+      medianKaufEurM2: t.medianKaufEurM2,
+      medianMieteEurM2: t.medianMieteEurM2,
+    })),
+  ).replace(/</g, '\\u003c');
   // Gerundet serialisieren: bei tausenden Punkten spart das spürbar HTML-Gewicht,
   // und feiner als ganze € (Kauf) bzw. Cent (Miete) zeichnet kein Pixel.
   const streuungJson = JSON.stringify(
@@ -561,7 +622,7 @@ ${datenpunkteSektion(daten)}
       Rohdaten: <a href="/inserate">alle Inserate</a></p>
   </footer>
 
-  <script>const TREND = ${trendJson}; const RENDITE = ${renditeJson}; const STREUUNG = ${streuungJson};</script>
+  <script>const TREND = ${trendJson}; const RENDITE = ${renditeJson}; const STREUUNG = ${streuungJson}; const DP_TREND = ${dpTrendJson};</script>
 <script src="${CHART_JS_CDN}"></script>
 <script>
 (function () {
@@ -671,7 +732,9 @@ ${datenpunkteSektion(daten)}
           },
           {
             type: 'line',
-            data: TREND.map((t, i) => ({ x: i, y: medianVon(t) })),
+            // Median-Serie aus DP_TREND: folgt dem Drawer-Schalter der
+            // Sektion, nicht dem globalen Kennzahlen-Toggle.
+            data: DP_TREND.map((t, i) => ({ x: i, y: medianVon(t) })),
             borderColor: farbe,
             backgroundColor: farbe,
             borderWidth: 2,
