@@ -7,6 +7,14 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-17
+
+Fünfte Runde (kleines Sammel-Release vor 1.4): Ausreißer-Bereinigung
+jetzt überall konsistent — der Portfolio-Marktvergleich rechnet wie
+Dashboard und Top Picks, der Datenpunkte-Drawer bekommt einen eigenen
+Ausreißer-Schalter; dazu die Auth-Doku auf den Cookie-Session-Stand
+und CI via GitHub Actions.
+
 ### Geändert
 
 - Portfolio-Marktvergleich rechnet jetzt wie Dashboard und Top Picks
@@ -32,6 +40,9 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   keinen Schalter — er rechnet immer bereinigt (siehe „Geändert").
   Der Drawer bleibt beim Umschalten offen, Filter und Stichtag werden
   mitgeführt.
+- GitHub-Actions-CI: Typecheck und Tests laufen auf Push/PR gegen
+  `main` und `dev` (Node 22, `pnpm install --frozen-lockfile`; ohne
+  `DATABASE_URL` überspringen sich die Integrationstests still).
 
 ### Behoben
 
@@ -41,6 +52,10 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
   WWW-Authenticate: Basic` statt des `303`-Redirects nach `/login`, und
   die ≥-32-Zeichen-Anforderung war `BASIC_AUTH_PASS` statt
   `SESSION_SECRET` zugeschrieben.
+- Dashboard-500er, wenn alle Datenpunkte einer Serie am Stichtag hart
+  geflaggt waren (Median über die leere bereinigte Menge): Der Drawer
+  zeigt jetzt einen Hinweis-Block mit Weg zurück („Ausreißer
+  einbeziehen") statt einer Fehlerseite.
 
 ## [1.3.0] - 2026-07-16
 
@@ -297,7 +312,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.0.0...v1.1.0
