@@ -4,6 +4,7 @@ import type { SweepSegmentKey } from '../src/db/sweep-repo.js';
 import { segmentSchluessel } from '../src/db/sweep-repo.js';
 import type { SuchKriterien } from '../src/search.js';
 import { basisSegmente, fuehreSweepAus, preisBaender, type SweepDeps } from '../src/sweep.js';
+import type { DetailKandidat } from '../src/db/inserat-details-repo.js';
 import type { Inserat } from '../src/types.js';
 
 function inserat(id: string, typ: 'kauf' | 'miete' = 'kauf'): Inserat {
@@ -29,6 +30,9 @@ interface PortalVerhalten {
    */
   antwort?: (kriterien: SuchKriterien) => { anzahl: number; gesamtTreffer: number };
 }
+
+/** URLs mit diesem Fragment lassen ladeDetail des Fake-Portals scheitern. */
+const DETAIL_KAPUTT = 'kaputt';
 
 function fakePortal(
   portalName: string,
@@ -58,6 +62,11 @@ function fakePortal(
       );
       return Promise.resolve([{ typ, inserate, uebersprungen: 0, gesamtTreffer }]);
     },
+    ladeDetail: (url: string) => {
+      aufrufe.push(`detail:${url}`);
+      if (url.includes(DETAIL_KAPUTT)) return Promise.reject(new PortalFehler(`${portalName} Detail down`));
+      return Promise.resolve({ baujahr: 1990 });
+    },
   };
 }
 
@@ -67,6 +76,8 @@ interface FakeZustand {
   fertige?: SweepSegmentKey[];
   /** Sweep-Claim geht leer aus (heute schon gesweept). */
   nichtClaimbar?: boolean;
+  /** Cache-Misses, die detailsFehlen liefert (Default: keine). */
+  detailKandidaten?: DetailKandidat[];
 }
 
 function fakeDeps(zustand: FakeZustand): SweepDeps {
@@ -104,6 +115,14 @@ function fakeDeps(zustand: FakeZustand): SweepDeps {
       zustand.aufrufe.push(`upsert:${inserate.length}:${bundesland}`);
       return Promise.resolve({ neu: inserate.length, preisAenderungen: 0 });
     },
+    detailsFehlen: (bundesland, stichtag) => {
+      zustand.aufrufe.push(`details-fehlen:${bundesland}:${stichtag}`);
+      return Promise.resolve(zustand.detailKandidaten ?? []);
+    },
+    detailUpsert: (portal, inseratId) => {
+      zustand.aufrufe.push(`detail-upsert:${portal}:${inseratId}`);
+      return Promise.resolve();
+    },
     objekteZuordnen: () => {
       zustand.aufrufe.push('objekte-zuordnen');
       return Promise.resolve({ neueObjekte: 0, zugeordnet: 0 });
@@ -112,6 +131,7 @@ function fakeDeps(zustand: FakeZustand): SweepDeps {
     heute: () => '2026-07-07',
     warte: () => Promise.resolve(),
     segmentPauseMs: 0,
+    detailPauseMs: 0,
   };
 }
 
@@ -293,5 +313,101 @@ describe('fuehreSweepAus', () => {
     await fuehreSweepAus(portale, fakeDeps(zustand));
 
     expect(zustand.aufrufe.at(-1)).toMatch(/^sweep-fehlgeschlagen:Kein Segment abfragbar/);
+  });
+
+  it('holt Detailseiten genau für die Cache-Misses und upserted sie (kein Re-Fetch)', async () => {
+    const zustand: FakeZustand = {
+      aufrufe: [],
+      detailKandidaten: [
+        { portal: 'willhaben.at', inseratId: 'wh-1', url: 'https://wh/1' },
+        { portal: 'willhaben.at', inseratId: 'wh-2', url: 'https://wh/2' },
+      ],
+    };
+    await fuehreSweepAus([fakePortal('willhaben.at', zustand.aufrufe)], fakeDeps(zustand));
+
+    // Genau ein Fetch + Upsert je Kandidat — bereits gecachte Inserate tauchen
+    // in detailsFehlen gar nicht erst auf.
+    expect(zustand.aufrufe.filter((a) => a.startsWith('detail:'))).toEqual([
+      'detail:https://wh/1',
+      'detail:https://wh/2',
+    ]);
+    expect(zustand.aufrufe.filter((a) => a.startsWith('detail-upsert:'))).toEqual([
+      'detail-upsert:willhaben.at:wh-1',
+      'detail-upsert:willhaben.at:wh-2',
+    ]);
+    // Reihenfolge: nach dem letzten Segment, vor dem Objekt-Matching.
+    const reihenfolge = zustand.aufrufe.filter(
+      (a) => a === 'objekte-zuordnen' || a.startsWith('detail:') || a.startsWith('segment-fertig:'),
+    );
+    expect(reihenfolge.at(-1)).toBe('objekte-zuordnen');
+    expect(reihenfolge.at(-2)).toBe('detail:https://wh/2');
+    expect(zustand.aufrufe.at(-1)).toBe('sweep-fertig:20');
+  });
+
+  it('ohne Cache-Misses wird keine einzige Detailseite geladen', async () => {
+    const zustand: FakeZustand = { aufrufe: [] };
+    await fuehreSweepAus([fakePortal('willhaben.at', zustand.aufrufe)], fakeDeps(zustand));
+
+    expect(zustand.aufrufe.filter((a) => a.startsWith('details-fehlen:'))).toHaveLength(1);
+    expect(zustand.aufrufe.some((a) => a.startsWith('detail:'))).toBe(false);
+    expect(zustand.aufrufe.at(-1)).toBe('sweep-fertig:20');
+  });
+
+  it('ein fehlgeschlagener Detail-Fetch kostet nur dieses Inserat', async () => {
+    const zustand: FakeZustand = {
+      aufrufe: [],
+      detailKandidaten: [
+        { portal: 'willhaben.at', inseratId: 'wh-1', url: 'https://wh/kaputt-1' },
+        { portal: 'willhaben.at', inseratId: 'wh-2', url: 'https://wh/2' },
+      ],
+    };
+    await fuehreSweepAus([fakePortal('willhaben.at', zustand.aufrufe)], fakeDeps(zustand));
+
+    // Kein Upsert für den Fehlschlag (Cache-Miss bleibt), der Rest läuft weiter.
+    expect(zustand.aufrufe.filter((a) => a.startsWith('detail-upsert:'))).toEqual([
+      'detail-upsert:willhaben.at:wh-2',
+    ]);
+    expect(zustand.aufrufe.at(-1)).toBe('sweep-fertig:20');
+  });
+
+  it('setzt ein Portal nach 3 PortalFehlern in Folge aus (Bot-Block-Breaker)', async () => {
+    const zustand: FakeZustand = {
+      aufrufe: [],
+      detailKandidaten: [
+        { portal: 'willhaben.at', inseratId: 'wh-1', url: 'https://wh/kaputt-1' },
+        { portal: 'willhaben.at', inseratId: 'wh-2', url: 'https://wh/kaputt-2' },
+        { portal: 'willhaben.at', inseratId: 'wh-3', url: 'https://wh/kaputt-3' },
+        { portal: 'willhaben.at', inseratId: 'wh-4', url: 'https://wh/4' },
+        { portal: 'immoscout24.at', inseratId: 'is24-1', url: 'https://is24/1' },
+      ],
+    };
+    const portale = [
+      fakePortal('willhaben.at', zustand.aufrufe),
+      fakePortal('immoscout24.at', zustand.aufrufe),
+    ];
+    await fuehreSweepAus(portale, fakeDeps(zustand));
+
+    // wh-4 wird nicht mehr versucht; das andere Portal läuft normal weiter.
+    expect(zustand.aufrufe.filter((a) => a.startsWith('detail:'))).toEqual([
+      'detail:https://wh/kaputt-1',
+      'detail:https://wh/kaputt-2',
+      'detail:https://wh/kaputt-3',
+      'detail:https://is24/1',
+    ]);
+    expect(zustand.aufrufe.at(-1)).toBe('sweep-fertig:40');
+  });
+
+  it('überspringt Kandidaten von Portalen ohne Adapter still', async () => {
+    const zustand: FakeZustand = {
+      aufrufe: [],
+      detailKandidaten: [
+        { portal: 'zukunft.at', inseratId: 'z-1', url: 'https://zukunft/1' },
+        { portal: 'willhaben.at', inseratId: 'wh-1', url: 'https://wh/1' },
+      ],
+    };
+    await fuehreSweepAus([fakePortal('willhaben.at', zustand.aufrufe)], fakeDeps(zustand));
+
+    expect(zustand.aufrufe.filter((a) => a.startsWith('detail:'))).toEqual(['detail:https://wh/1']);
+    expect(zustand.aufrufe.at(-1)).toBe('sweep-fertig:20');
   });
 });

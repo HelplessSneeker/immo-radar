@@ -1,4 +1,4 @@
-import type { Inserat, InseratTyp } from '../types.js';
+import type { Inserat, InseratDetail, InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
 import type { SourceAdapter } from './source-adapter.js';
 
@@ -42,4 +42,6 @@ export interface PortalAdapter extends SourceAdapter {
   readonly portal: string;
   /** Baut die Such-URLs zu den Kriterien und crawlt sie (ein Ergebnis pro URL/Typ). */
   sucheMitStatistik(kriterien: SuchKriterien, optionen?: SuchOptionen): Promise<PortalSuchErgebnis[]>;
+  /** Lädt die Detailseite eines Inserats (Inserat.url) und extrahiert die Kategorie-Felder. */
+  ladeDetail(url: string): Promise<InseratDetail>;
 }
