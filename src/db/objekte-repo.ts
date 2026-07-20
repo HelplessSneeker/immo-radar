@@ -35,11 +35,14 @@ async function bestandMitObjektLaden(
   bundesland: string,
 ): Promise<MatchInserat[]> {
   const { rows } = await client.query<BestandZeileMitObjekt>(
-    `SELECT portal, inserat_id, typ, ort, plz, bezirk, preis, flaeche_m2, zimmer,
-            baujahr, zustand, url, datum_erfasst::text AS datum_erfasst,
-            zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen,
-            datenqualitaet, objekt_id
-     FROM inserate_bestand WHERE bundesland = $1 ORDER BY portal, inserat_id`,
+    `SELECT b.portal, b.inserat_id, b.typ, b.ort, b.plz, b.bezirk, b.preis, b.flaeche_m2, b.zimmer,
+            COALESCE(b.baujahr, d.baujahr) AS baujahr, COALESCE(b.zustand, d.zustand) AS zustand,
+            b.url, b.datum_erfasst::text AS datum_erfasst,
+            b.zuerst_gesehen::text AS zuerst_gesehen, b.zuletzt_gesehen::text AS zuletzt_gesehen,
+            b.datenqualitaet, b.objekt_id
+     FROM inserate_bestand b
+     LEFT JOIN inserat_details d USING (portal, inserat_id)
+     WHERE b.bundesland = $1 ORDER BY b.portal, b.inserat_id`,
     [bundesland],
   );
   return rows.map(matchInseratAusZeile);
@@ -55,11 +58,14 @@ export async function objektBestandLaden(
   const pool = holePool();
   const [bestandErgebnis, historieErgebnis] = await Promise.all([
     pool.query<BestandZeileMitObjekt>(
-      `SELECT portal, inserat_id, typ, ort, plz, bezirk, preis, flaeche_m2, zimmer,
-              baujahr, zustand, url, datum_erfasst::text AS datum_erfasst,
-              zuerst_gesehen::text AS zuerst_gesehen, zuletzt_gesehen::text AS zuletzt_gesehen,
-              datenqualitaet, objekt_id
-       FROM inserate_bestand WHERE bundesland = $1 ORDER BY portal, inserat_id`,
+      `SELECT b.portal, b.inserat_id, b.typ, b.ort, b.plz, b.bezirk, b.preis, b.flaeche_m2, b.zimmer,
+              COALESCE(b.baujahr, d.baujahr) AS baujahr, COALESCE(b.zustand, d.zustand) AS zustand,
+              b.url, b.datum_erfasst::text AS datum_erfasst,
+              b.zuerst_gesehen::text AS zuerst_gesehen, b.zuletzt_gesehen::text AS zuletzt_gesehen,
+              b.datenqualitaet, b.objekt_id
+       FROM inserate_bestand b
+       LEFT JOIN inserat_details d USING (portal, inserat_id)
+       WHERE b.bundesland = $1 ORDER BY b.portal, b.inserat_id`,
       [bundesland],
     ),
     pool.query<PreisPunktZeile>(
