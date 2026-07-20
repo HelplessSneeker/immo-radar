@@ -21,14 +21,25 @@ const STATE_MARKER = 'window.__INITIAL_STATE__';
 
 /** Extrahiert und parst das __INITIAL_STATE__-Objekt aus einer immoscout24-HTML-Seite. */
 export function extractInitialState(html: string): unknown {
-  const marker = html.indexOf(STATE_MARKER);
+  return extractStateLiteral(html, STATE_MARKER);
+}
+
+/**
+ * Schneidet das Objekt-Literal hinter `markerText` (z. B.
+ * "window.__INITIAL_STATE__") per Klammertiefen-Scan aus und parst es —
+ * gemeinsame Basis für Suchseiten (__INITIAL_STATE__) und Expose-Seiten
+ * (__APOLLO_STATE__, siehe detail.ts).
+ */
+export function extractStateLiteral(html: string, markerText: string): unknown {
+  const name = markerText.replace('window.', '');
+  const marker = html.indexOf(markerText);
   if (marker === -1) {
     throw new ImmoScout24ParseFehler(
-      'Kein __INITIAL_STATE__ in der immoscout24-Antwort gefunden – Seitenaufbau geändert oder Anfrage blockiert.',
+      `Kein ${name} in der immoscout24-Antwort gefunden – Seitenaufbau geändert oder Anfrage blockiert.`,
     );
   }
-  const start = html.indexOf('{', marker + STATE_MARKER.length);
-  if (start === -1) throw new ImmoScout24ParseFehler('__INITIAL_STATE__ ohne Objekt-Literal.');
+  const start = html.indexOf('{', marker + markerText.length);
+  if (start === -1) throw new ImmoScout24ParseFehler(`${name} ohne Objekt-Literal.`);
 
   const teile: string[] = [];
   let teilStart = start;
@@ -71,11 +82,11 @@ export function extractInitialState(html: string): unknown {
     if (ch !== ' ' && ch !== '\n' && ch !== '\r' && ch !== '\t') letztesZeichen = ch;
   }
 
-  if (json === null) throw new ImmoScout24ParseFehler('__INITIAL_STATE__-Objekt endet nicht.');
+  if (json === null) throw new ImmoScout24ParseFehler(`${name}-Objekt endet nicht.`);
   try {
     return JSON.parse(json);
   } catch (e) {
-    throw new ImmoScout24ParseFehler(`__INITIAL_STATE__ ist kein gültiges JSON (${(e as Error).message}).`);
+    throw new ImmoScout24ParseFehler(`${name} ist kein gültiges JSON (${(e as Error).message}).`);
   }
 }
 
