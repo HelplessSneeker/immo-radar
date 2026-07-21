@@ -198,6 +198,19 @@ export interface InserateFilter {
    * (Stichtag, Serie) und nicht am Bestand persistiert.
    */
   nurAusreisser?: boolean;
+  /**
+   * Baujahr-Bereich (inklusive Grenzen) aus inserat_details — bewusst d.baujahr,
+   * nicht das Listen-Feld b.baujahr; ohne Detail-Zeile fällt das Inserat bei
+   * aktiver Facette raus (LEFT JOIN, NULL-Vergleich).
+   */
+  baujahrMin?: number;
+  baujahrMax?: number;
+  /** Exakter Match gegen die rohen Portal-Strings in inserat_details (d.*). */
+  heizung?: string;
+  zustand?: string;
+  baustil?: string;
+  /** Alle Werte müssen enthalten sein (jsonb @>-Containment = UND). */
+  ausstattung?: string[];
 }
 
 export type InserateSortierung =
@@ -268,9 +281,18 @@ export async function bestandSeiteLaden(
     bedingungen.push(`(b.ort ILIKE ${muster} OR b.plz ILIKE ${muster} OR b.bezirk ILIKE ${muster})`);
   }
   if (filter.nurAusreisser) bedingungen.push('b.datenqualitaet IS NOT NULL');
+  if (filter.baujahrMin !== undefined) bedingungen.push(`d.baujahr >= ${param(filter.baujahrMin)}`);
+  if (filter.baujahrMax !== undefined) bedingungen.push(`d.baujahr <= ${param(filter.baujahrMax)}`);
+  if (filter.heizung) bedingungen.push(`d.heizung = ${param(filter.heizung)}`);
+  if (filter.zustand) bedingungen.push(`d.zustand = ${param(filter.zustand)}`);
+  if (filter.baustil) bedingungen.push(`d.baustil = ${param(filter.baustil)}`);
+  if (filter.ausstattung !== undefined && filter.ausstattung.length > 0) {
+    bedingungen.push(`d.ausstattung @> ${param(JSON.stringify(filter.ausstattung))}::jsonb`);
+  }
   const von = `FROM inserate_bestand b
      JOIN (SELECT bundesland, portal, max(zuletzt_gesehen) AS stichtag
            FROM inserate_bestand GROUP BY bundesland, portal) s USING (bundesland, portal)
+     LEFT JOIN inserat_details d USING (portal, inserat_id)
      ${bedingungen.length > 0 ? `WHERE ${bedingungen.join(' AND ')}` : ''}`;
   // Ab hier teilen sich Count- und Seiten-Query die Filter-Parameter; nur die
   // Seiten-Query bekommt zusätzlich LIMIT/OFFSET.
