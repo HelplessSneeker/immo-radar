@@ -95,6 +95,61 @@ export async function detailsLaden(bundesland: string): Promise<GespeichertesIns
   return rows.map(inseratDetailAusZeile);
 }
 
+/**
+ * Anwählbare Facetten-Werte der Inserate-Liste — die Portale liefern rohe
+ * Anzeige-Strings ohne kanonisches Vokabular, daher werden die Optionen aus
+ * dem Bestand abgeleitet statt in Code gepflegt.
+ */
+export interface DetailFacetten {
+  heizung: string[];
+  zustand: string[];
+  baustil: string[];
+  ausstattung: string[];
+}
+
+/** Offenes Portal-Vokabular ("2 Terrassen", …) — nur die häufigsten Werte anbieten. */
+const AUSSTATTUNG_MAX_OPTIONEN = 30;
+
+/**
+ * Distinct-Werte je Facette, global über alle Details (bewusst nicht auf den
+ * aktiven Listen-Filter gescoped — eine kleine, billige Query). Text-Facetten
+ * alphabetisch; ausstattung auf die häufigsten Werte gekappt, dann alphabetisch.
+ */
+export async function detailFacettenLaden(): Promise<DetailFacetten> {
+  const { rows } = await holePool().query<{ facette: string; wert: string; anzahl: number }>(
+    `SELECT 'heizung' AS facette, heizung AS wert, count(*)::int AS anzahl
+       FROM inserat_details WHERE heizung IS NOT NULL GROUP BY heizung
+     UNION ALL
+     SELECT 'zustand', zustand, count(*)::int
+       FROM inserat_details WHERE zustand IS NOT NULL GROUP BY zustand
+     UNION ALL
+     SELECT 'baustil', baustil, count(*)::int
+       FROM inserat_details WHERE baustil IS NOT NULL GROUP BY baustil
+     UNION ALL
+     SELECT 'ausstattung', wert, count(*)::int
+       FROM inserat_details, jsonb_array_elements_text(ausstattung) AS wert
+       GROUP BY wert`,
+  );
+  const alphabetisch = (facette: string): string[] =>
+    rows
+      .filter((z) => z.facette === facette)
+      .map((z) => z.wert)
+      .sort((a, b) => a.localeCompare(b, 'de'));
+  const ausstattungTop = new Set(
+    rows
+      .filter((z) => z.facette === 'ausstattung')
+      .sort((a, b) => b.anzahl - a.anzahl)
+      .slice(0, AUSSTATTUNG_MAX_OPTIONEN)
+      .map((z) => z.wert),
+  );
+  return {
+    heizung: alphabetisch('heizung'),
+    zustand: alphabetisch('zustand'),
+    baustil: alphabetisch('baustil'),
+    ausstattung: alphabetisch('ausstattung').filter((wert) => ausstattungTop.has(wert)),
+  };
+}
+
 /** Ein Inserat, dessen Detailseite noch aussteht. */
 export interface DetailKandidat {
   portal: string;

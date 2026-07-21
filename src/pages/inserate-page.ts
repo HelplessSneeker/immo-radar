@@ -3,6 +3,7 @@ import type {
   InserateFilter,
   InserateSortierung,
 } from '../db/bestand-repo.js';
+import type { DetailFacetten } from '../db/inserat-details-repo.js';
 import { tageZwischen } from '../datum.js';
 import { datenqualitaetLabels } from '../plausibilitaet.js';
 import { BUNDESLAENDER } from '../search.js';
@@ -25,6 +26,8 @@ export interface InserateSeitenDaten {
   proSeite: number;
   filter: InserateFilter;
   sortierung: InserateSortierung;
+  /** Anwählbare Werte der Detail-Facetten; leere Listen blenden die Felder aus. */
+  facetten: DetailFacetten;
   /** Letzte Preisänderung je Inserat (Schlüssel siehe inseratSchluessel). */
   aenderungen: Map<string, PreisAenderung>;
 }
@@ -49,6 +52,12 @@ function inserateUrl(
   if (filter.status) params.set('status', filter.status);
   if (filter.ort) params.set('ort', filter.ort);
   if (filter.nurAusreisser) params.set('nur', 'ausreisser');
+  if (filter.baujahrMin !== undefined) params.set('baujahr_min', String(filter.baujahrMin));
+  if (filter.baujahrMax !== undefined) params.set('baujahr_max', String(filter.baujahrMax));
+  if (filter.heizung) params.set('heizung', filter.heizung);
+  if (filter.zustand) params.set('zustand', filter.zustand);
+  if (filter.baustil) params.set('baustil', filter.baustil);
+  for (const wert of filter.ausstattung ?? []) params.append('ausstattung', wert);
   if (sortierung !== 'zuletzt_gesehen') params.set('sortierung', sortierung);
   if (seiteNr > 1) params.set('seite', String(seiteNr));
   const query = params.toString();
@@ -63,6 +72,12 @@ function filterGesetzt(daten: InserateSeitenDaten): boolean {
       f.status ||
       f.ort ||
       f.nurAusreisser ||
+      f.baujahrMin !== undefined ||
+      f.baujahrMax !== undefined ||
+      f.heizung ||
+      f.zustand ||
+      f.baustil ||
+      f.ausstattung !== undefined ||
       daten.sortierung !== 'zuletzt_gesehen',
   );
 }
@@ -77,6 +92,48 @@ function optionen(
         `<option value="${escapeHtml(wert)}"${wert === (ausgewaehlt ?? '') ? ' selected' : ''}>${escapeHtml(label)}</option>`,
     )
     .join('');
+}
+
+/**
+ * Select einer Detail-Facette; ohne Optionen (frische DB ohne Details) fällt
+ * das Feld weg. Ein aktiver Wert außerhalb der Optionen (handgebaute URL)
+ * wird mit angeboten — sonst verlöre das Formular den Filter beim Neu-Absenden.
+ */
+function facettenFeld(
+  name: 'heizung' | 'zustand' | 'baustil',
+  label: string,
+  alleLabel: string,
+  werte: string[],
+  aktiv: string | undefined,
+): string {
+  if (werte.length === 0 && !aktiv) return '';
+  const alleWerte = aktiv && !werte.includes(aktiv) ? [...werte, aktiv] : werte;
+  const eintraege: Array<readonly [string, string]> = [
+    ['', alleLabel],
+    ...alleWerte.map((w) => [w, w] as const),
+  ];
+  return `
+      <div class="feld">
+        <label for="f-${name}">${label}</label>
+        <select id="f-${name}" name="${name}">${optionen(eintraege, aktiv)}</select>
+      </div>`;
+}
+
+/** Mehrfach-Facette Ausstattung als Checkbox-Gruppe (wiederholter GET-Param). */
+function ausstattungFeld(werte: string[], aktiv: string[] | undefined): string {
+  const alleWerte = [...werte, ...(aktiv ?? []).filter((w) => !werte.includes(w))];
+  if (alleWerte.length === 0) return '';
+  const boxen = alleWerte
+    .map(
+      (w) =>
+        `<label><input type="checkbox" name="ausstattung" value="${escapeHtml(w)}"${aktiv?.includes(w) ? ' checked' : ''}> ${escapeHtml(w)}</label>`,
+    )
+    .join('\n          ');
+  return `
+      <fieldset class="feld feld-ausstattung">
+        <legend>Ausstattung</legend>
+          ${boxen}
+      </fieldset>`;
 }
 
 function filterleiste(daten: InserateSeitenDaten): string {
@@ -118,6 +175,10 @@ function filterleiste(daten: InserateSeitenDaten): string {
         <label for="f-ort">Ort / PLZ / Bezirk</label>
         <input type="text" id="f-ort" name="ort" value="${escapeHtml(daten.filter.ort ?? '')}" placeholder="z. B. Villach">
       </div>
+      <div class="feld">
+        <label for="f-baujahr-min">Baujahr von / bis</label>
+        <span class="bereich"><input type="number" id="f-baujahr-min" name="baujahr_min" min="1800" max="2100" value="${daten.filter.baujahrMin ?? ''}" placeholder="von"> – <input type="number" id="f-baujahr-max" name="baujahr_max" min="1800" max="2100" value="${daten.filter.baujahrMax ?? ''}" placeholder="bis"></span>
+      </div>${facettenFeld('heizung', 'Heizung', 'alle Heizungen', daten.facetten.heizung, daten.filter.heizung)}${facettenFeld('zustand', 'Zustand', 'alle Zustände', daten.facetten.zustand, daten.filter.zustand)}${facettenFeld('baustil', 'Baustil', 'alle Baustile', daten.facetten.baustil, daten.filter.baustil)}${ausstattungFeld(daten.facetten.ausstattung, daten.filter.ausstattung)}
       <div class="feld">
         <label for="f-sortierung">Sortierung</label>
         <select id="f-sortierung" name="sortierung">${optionen(
@@ -201,7 +262,12 @@ ${seitenNav(daten)}`;
     Kärnten-Sweep. <a href="/crawl">Zu den Crawl-Läufen →</a></p>`;
   }
   const f = daten.filter;
-  if (daten.gesamt === 0 && f.nurAusreisser && !f.bundesland && !f.typ && !f.status && !f.ort) {
+  // "nur Ausreißer" ist der einzige gesetzte Filter — robust gegen künftige
+  // Filter-Felder, statt jede Negation von Hand zu pflegen.
+  const nurAusreisserAllein =
+    f.nurAusreisser === true &&
+    Object.entries(f).every(([schluessel, wert]) => schluessel === 'nurAusreisser' || wert === undefined);
+  if (daten.gesamt === 0 && nurAusreisserAllein) {
     return `    <p class="meta">Keine Ausreißer im aktuellen Bestand — Datenqualität passt.
     <a href="/inserate">Alle Inserate ansehen →</a></p>`;
   }
