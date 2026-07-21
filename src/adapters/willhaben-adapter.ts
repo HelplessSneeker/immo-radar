@@ -1,5 +1,5 @@
 import { setTimeout as warte } from 'node:timers/promises';
-import type { Inserat, InseratTyp } from '../types.js';
+import type { Inserat, InseratDetail, InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
 import {
   PortalFehler,
@@ -10,6 +10,7 @@ import {
 import type { RetryOptionen } from '../retry.js';
 import { ladePortalSeite, PORTAL_RETRY } from './portal-seite.js';
 import { extractNextData, extractSearchResult, mapPage } from '../willhaben/map.js';
+import { mapDetail } from '../willhaben/detail.js';
 import { buildSearchUrls } from '../willhaben/url.js';
 
 /** willhaben ist nicht erreichbar oder blockiert die Anfrage. */
@@ -105,6 +106,11 @@ export class WillhabenAdapter implements PortalAdapter {
     }
 
     return { inserate, uebersprungen, rowsFound };
+  }
+
+  async ladeDetail(url: string): Promise<InseratDetail> {
+    const html = await this.ladeSeite(new URL(url));
+    return mapDetail(extractNextData(html));
   }
 
   private ladeSeite(url: URL): Promise<string> {

@@ -412,7 +412,9 @@ function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: bool
   const link = p.url ? `<a href="${escapeHtml(p.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
   const dedup =
     p.anzahlInserate > 1 ? ` · ${nfEur0.format(p.anzahlInserate)} Inserate (dedupliziert)` : '';
-  const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${dedup}`;
+  // Bewusst String statt nf-Formatter: "Bj. 1990", kein Tausenderpunkt.
+  const baujahr = p.baujahr !== undefined ? ` · Bj. ${p.baujahr}` : '';
+  const sub = `${escapeHtml(p.plz)} · ${escapeHtml(p.portal)}${baujahr}${dedup}`;
   const badge = ausreisserBadge(p);
   // Käufer-Perspektive: deutlich unter dem Median = Chance (grün). Kein Rot
   // für "teuer" – teuer ist kein Verdikt, nur eine Lage. Ausreißer bekommen

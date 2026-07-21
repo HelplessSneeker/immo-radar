@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { bestandUpsert } from '../src/db/bestand-repo.js';
 import { holePool, schliessePool } from '../src/db/client.js';
+import { detailUpsert } from '../src/db/inserat-details-repo.js';
 import { wendeMigrationenAn } from '../src/db/migrieren.js';
 import { objekteRebuild, objekteZuordnungsLauf } from '../src/db/objekte-repo.js';
 import type { InseratMitPortal } from '../src/types.js';
@@ -74,6 +75,30 @@ describe.runIf(!!process.env.DATABASE_URL)('objekte-repo (Integration)', () => {
       { regel: 'neu', aktion: 'zugeordnet' },
       { regel: 'duplikat', aktion: 'zugeordnet' },
     ]);
+  });
+
+  it('Detail-Baujahr fließt via COALESCE in den Objekt-Kanon (objekte.baujahr)', async () => {
+    await bestandUpsert([inserat('wh-1', 'willhaben.at')], 'kaernten', '2026-07-01');
+    await detailUpsert('willhaben.at', 'wh-1', { baujahr: 1990 });
+
+    await objekteZuordnungsLauf('kaernten');
+    const { rows } = await holePool().query<{ baujahr: number | null }>(
+      'SELECT baujahr FROM objekte',
+    );
+    expect(rows).toEqual([{ baujahr: 1990 }]);
+  });
+
+  it('Detail-Baujahre wirken als Match-Guard: weit auseinander ⇒ zwei Objekte', async () => {
+    await bestandUpsert(
+      [inserat('wh-1', 'willhaben.at'), inserat('is24-1', 'immoscout24.at')],
+      'kaernten',
+      '2026-07-01',
+    );
+    await detailUpsert('willhaben.at', 'wh-1', { baujahr: 1970 });
+    await detailUpsert('immoscout24.at', 'is24-1', { baujahr: 2020 });
+
+    const ergebnis = await objekteZuordnungsLauf('kaernten');
+    expect(ergebnis.neueObjekte).toBe(2);
   });
 
   it('ist idempotent: ein zweiter Lauf ohne neue Inserate schreibt nichts', async () => {

@@ -26,3 +26,20 @@ export interface Inserat {
 export interface InseratMitPortal extends Inserat {
   portal: string;
 }
+
+/**
+ * Strukturierte Kategorie-Felder einer Portal-Detailseite. Alles optional —
+ * die Portale liefern die Angaben nicht immer; fehlende Felder sind normal
+ * und kein Parse-Fehler.
+ */
+export interface InseratDetail {
+  baujahr?: number;
+  zustand?: string;
+  baustil?: string;
+  heizung?: string;
+  ausstattung?: string[];
+  /** Heizwärmebedarf in kWh/m²a. */
+  energieHwb?: number;
+  energieFgee?: number;
+  beschreibung?: string;
+}

@@ -71,6 +71,28 @@ describe('objekteAusBestand', () => {
     expect(objekte[0]).toMatchObject({ plz: '9020', ort: 'Klagenfurt' });
     expect(objekte[0]!.objektId).toBeUndefined();
   });
+
+  it('Baujahr stammt vom ältesten Inserat mit Angabe', () => {
+    const objekte = objekteAusBestand(
+      [
+        // Das älteste Inserat hat KEINE Angabe — das nächstälteste füllt auf.
+        inserat({ id: 'wh-1', objektId: 1, zuerstGesehen: '2026-06-01' }),
+        inserat({
+          id: 'is24-1',
+          portal: 'immoscout24.at',
+          objektId: 1,
+          zuerstGesehen: '2026-06-10',
+          baujahr: 1990,
+        }),
+        inserat({ id: 'wh-9', objektId: 1, zuerstGesehen: '2026-06-20', baujahr: 1992 }),
+        // Kontrollgruppe ohne jede Angabe:
+        inserat({ id: 'wh-2', objektId: 2 }),
+      ],
+      [],
+    );
+    expect(objekte[0]!.baujahr).toBe(1990);
+    expect(objekte[1]!.baujahr).toBeUndefined();
+  });
 });
 
 describe('berechneObjektTrend', () => {
@@ -314,6 +336,20 @@ describe('datenpunkteAmStichtag', () => {
     expect(kauf.map((p) => p.eurM2)).toEqual([3600, 4000]);
     expect(miete.map((p) => p.eurM2)).toEqual([10]);
     expect(kauf[0]).toMatchObject({ ort: 'Klagenfurt', plz: '9020', zimmer: 3, flaecheM2: 50, preis: 180000 });
+  });
+
+  it('trägt das Objekt-Baujahr in den Datenpunkt; ohne Angabe fehlt es', () => {
+    const bestand = [
+      inserat({ id: 'wh-1', baujahr: 1990 }),
+      inserat({ id: 'wh-2', preis: 180000 }),
+    ];
+    const historie = [
+      punkt('willhaben.at', 'wh-1', 200000, '2026-06-01'),
+      punkt('willhaben.at', 'wh-2', 180000, '2026-06-01'),
+    ];
+    const { kauf } = datenpunkteAmStichtag(objekteAusBestand(bestand, historie), '2026-07-01');
+    expect(kauf.find((p) => p.inseratId === 'wh-1')!.baujahr).toBe(1990);
+    expect(kauf.find((p) => p.inseratId === 'wh-2')!.baujahr).toBeUndefined();
   });
 
   it('liefert pro Objekt einen Punkt: das Minimum-Inserat samt url/portal, Anzahl dedupliziert', () => {

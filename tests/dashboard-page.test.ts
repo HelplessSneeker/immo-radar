@@ -228,6 +228,21 @@ describe('renderDashboardSeite – Datenpunkte-Sektion', () => {
     expect(html).toContain('Keine aktiven Miete-Objekte an diesem Stichtag.');
   });
 
+  it('zeigt das Baujahr in der Unterzeile, ohne Angabe fehlt es', () => {
+    const html = renderDashboardSeite(
+      daten({
+        datenpunkte: {
+          kauf: [datenpunkt({ baujahr: 1990 }), datenpunkt({ inseratId: 'wh-2', eurM2: 4100 })],
+          miete: [],
+        },
+      }),
+    );
+    // Ohne Tausenderpunkt ("Bj. 1990", nicht "Bj. 1.990").
+    expect(html).toContain('· Bj. 1990');
+    expect(html).not.toContain('Bj. 1.990');
+    expect(html.match(/· Bj\. /g)).toHaveLength(1); // wh-2 hat keine Angabe
+  });
+
   it('markiert nur deutlich unter dem Median liegende Punkte als Chance (grün)', () => {
     const html = renderDashboardSeite(
       daten({

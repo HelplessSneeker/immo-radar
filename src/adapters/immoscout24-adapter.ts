@@ -1,5 +1,5 @@
 import { setTimeout as warte } from 'node:timers/promises';
-import type { Inserat, InseratTyp } from '../types.js';
+import type { Inserat, InseratDetail, InseratTyp } from '../types.js';
 import type { SuchKriterien } from '../search.js';
 import { BUNDESLAENDER } from '../search.js';
 import {
@@ -11,6 +11,7 @@ import {
 import type { RetryOptionen } from '../retry.js';
 import { ladePortalSeite, PORTAL_RETRY } from './portal-seite.js';
 import { extractInitialState, extractPageData, mapPage } from '../immoscout24/map.js';
+import { extractApolloState, mapDetail } from '../immoscout24/detail.js';
 import { buildSearchUrls } from '../immoscout24/url.js';
 
 /** immoscout24 ist nicht erreichbar oder blockiert die Anfrage. */
@@ -106,6 +107,12 @@ export class ImmoScout24Adapter implements PortalAdapter {
     }
 
     return { inserate, uebersprungen, gesamtTreffer };
+  }
+
+  /** Expose-URLs zeigen auf immobilienscout24.at; Fetch-Konfiguration ist dieselbe. */
+  async ladeDetail(url: string): Promise<InseratDetail> {
+    const html = await this.ladeSeite(new URL(url));
+    return mapDetail(extractApolloState(html));
   }
 
   private ladeSeite(url: URL): Promise<string> {
