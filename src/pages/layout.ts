@@ -354,6 +354,21 @@ export const BASIS_CSS = `
     border-color: var(--akzent);
   }
   .filterleiste button { margin-bottom: 1px; }
+  /* Mehrfach-Facette (Ausstattung): zugeklapptes natives <details> in der
+     Leiste — Summary wie die Dashboard-Filter-Summary (13px/600 in Akzent);
+     aufgeklappt nimmt das Checkbox-Grid eine eigene volle Formularzeile ein. */
+  .filterleiste .feld-ausstattung summary {
+    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent);
+    padding-bottom: 6px;
+  }
+  .filterleiste .feld-ausstattung summary:hover { text-decoration: underline; }
+  .filterleiste .feld-ausstattung[open] { flex-basis: 100%; }
+  .filterleiste .feld-ausstattung[open] summary { padding-bottom: 10px; }
+  .filterleiste .facetten-panel {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 4px 16px;
+  }
+  .filterleiste .facetten-panel label { font-weight: 400; }
 
   /* Sanftes Ausblenden vor einem Reload – der harte Cut wirkt sonst als „Ruckler",
      besonders wenn eine Suche/ein Crawl gerade fertig geworden ist und die Seite

@@ -119,10 +119,16 @@ function facettenFeld(
       </div>`;
 }
 
-/** Mehrfach-Facette Ausstattung als Checkbox-Gruppe (wiederholter GET-Param). */
+/**
+ * Mehrfach-Facette Ausstattung (wiederholter GET-Param) als zugeklapptes
+ * natives <details> — gleiche Affordance wie die zusammenklappbare
+ * Dashboard-Filterleiste: die Summary nennt den Zustand („Ausstattung:
+ * 2 gewählt"), eine aktive Auswahl öffnet das Panel.
+ */
 function ausstattungFeld(werte: string[], aktiv: string[] | undefined): string {
   const alleWerte = [...werte, ...(aktiv ?? []).filter((w) => !werte.includes(w))];
   if (alleWerte.length === 0) return '';
+  const gewaehlt = aktiv?.length ?? 0;
   const boxen = alleWerte
     .map(
       (w) =>
@@ -130,10 +136,12 @@ function ausstattungFeld(werte: string[], aktiv: string[] | undefined): string {
     )
     .join('\n          ');
   return `
-      <fieldset class="feld feld-ausstattung">
-        <legend>Ausstattung</legend>
+      <details class="feld-ausstattung"${gewaehlt > 0 ? ' open' : ''}>
+        <summary>Ausstattung${gewaehlt > 0 ? `: ${gewaehlt} gewählt` : ''}</summary>
+        <div class="facetten-panel">
           ${boxen}
-      </fieldset>`;
+        </div>
+      </details>`;
 }
 
 function filterleiste(daten: InserateSeitenDaten): string {
@@ -175,10 +183,13 @@ function filterleiste(daten: InserateSeitenDaten): string {
         <label for="f-ort">Ort / PLZ / Bezirk</label>
         <input type="text" id="f-ort" name="ort" value="${escapeHtml(daten.filter.ort ?? '')}" placeholder="z. B. Villach">
       </div>
-      <div class="feld">
-        <label for="f-baujahr-min">Baujahr von / bis</label>
-        <span class="bereich"><input type="number" id="f-baujahr-min" name="baujahr_min" min="1800" max="2100" value="${daten.filter.baujahrMin ?? ''}" placeholder="von"> – <input type="number" id="f-baujahr-max" name="baujahr_max" min="1800" max="2100" value="${daten.filter.baujahrMax ?? ''}" placeholder="bis"></span>
-      </div>${facettenFeld('heizung', 'Heizung', 'alle Heizungen', daten.facetten.heizung, daten.filter.heizung)}${facettenFeld('zustand', 'Zustand', 'alle Zustände', daten.facetten.zustand, daten.filter.zustand)}${facettenFeld('baustil', 'Baustil', 'alle Baustile', daten.facetten.baustil, daten.filter.baustil)}${ausstattungFeld(daten.facetten.ausstattung, daten.filter.ausstattung)}
+      <fieldset class="feld">
+        <legend>Baujahr</legend>
+        <div class="von-bis">
+          <input type="text" id="f-baujahr-min" name="baujahr_min" inputmode="numeric" value="${daten.filter.baujahrMin ?? ''}" placeholder="von" aria-label="Baujahr von">
+          <input type="text" id="f-baujahr-max" name="baujahr_max" inputmode="numeric" value="${daten.filter.baujahrMax ?? ''}" placeholder="bis" aria-label="Baujahr bis">
+        </div>
+      </fieldset>${facettenFeld('heizung', 'Heizung', 'alle Heizungen', daten.facetten.heizung, daten.filter.heizung)}${facettenFeld('zustand', 'Zustand', 'alle Zustände', daten.facetten.zustand, daten.filter.zustand)}${facettenFeld('baustil', 'Baustil', 'alle Baustile', daten.facetten.baustil, daten.filter.baustil)}${ausstattungFeld(daten.facetten.ausstattung, daten.filter.ausstattung)}
       <div class="feld">
         <label for="f-sortierung">Sortierung</label>
         <select id="f-sortierung" name="sortierung">${optionen(

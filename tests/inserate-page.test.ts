@@ -121,6 +121,19 @@ describe('renderInserateSeite', () => {
     expect(html).toContain('name="ausstattung" value="Lift" checked');
     expect(html).toContain('name="ausstattung" value="Balkon">');
     expect(html).toContain('name="baujahr_min"');
+    // Details-Feld: aktive Auswahl öffnet das Panel, die Summary zählt sie.
+    expect(html).toContain('<details class="feld-ausstattung" open>');
+    expect(html).toContain('<summary>Ausstattung: 1 gewählt</summary>');
+  });
+
+  it('klappt die Ausstattung ohne Auswahl zu und lässt die Summary unbeziffert', () => {
+    const html = renderInserateSeite(
+      daten({
+        facetten: { heizung: [], zustand: [], baustil: [], ausstattung: ['Balkon'] },
+      }),
+    );
+    expect(html).toContain('<details class="feld-ausstattung">');
+    expect(html).toContain('<summary>Ausstattung</summary>');
   });
 
   it('bietet aktive Facetten-Werte außerhalb der Optionen mit an (handgebaute URL)', () => {

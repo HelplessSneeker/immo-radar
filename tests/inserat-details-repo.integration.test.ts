@@ -115,7 +115,7 @@ describe.runIf(!!process.env.DATABASE_URL)('inserat-details-repo (Integration)',
     expect(await detailsFehlen('kaernten', '2026-07-02')).toHaveLength(0);
   });
 
-  it('detailFacettenLaden liefert Distinct-Werte alphabetisch, Ausstattung geflattet', async () => {
+  it('detailFacettenLaden liefert Distinct-Werte alphabetisch; Ausstattung geflattet und auf die Allowlist geschnitten', async () => {
     await bestandUpsert(
       [inserat('wh-1', 'willhaben.at'), inserat('wh-2', 'willhaben.at'), inserat('wh-3', 'willhaben.at')],
       'kaernten',
@@ -129,7 +129,8 @@ describe.runIf(!!process.env.DATABASE_URL)('inserat-details-repo (Integration)',
     await detailUpsert('willhaben.at', 'wh-2', {
       heizung: 'Elektroheizung',
       zustand: 'sehr gut', // Duplikat → nur einmal
-      ausstattung: ['Balkon', 'Garten'],
+      // Portal-Rauschen: Zähl-Werte und Bausubstanz stehen nicht in der Allowlist.
+      ausstattung: ['Balkon', 'Garten', '1 Badezimmer', 'Massivbauweise'],
     });
     // NULL-Spalten und fehlende Ausstattung werden übersprungen, kein Baustil im Bestand.
     await detailUpsert('willhaben.at', 'wh-3', { baujahr: 1990 });

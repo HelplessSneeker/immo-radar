@@ -107,46 +107,59 @@ export interface DetailFacetten {
   ausstattung: string[];
 }
 
-/** Offenes Portal-Vokabular ("2 Terrassen", …) — nur die häufigsten Werte anbieten. */
-const AUSSTATTUNG_MAX_OPTIONEN = 30;
+/**
+ * Kuratierte Ausstattungs-Merkmale für die Facetten-Auswahl: die Portale
+ * mischen echte Ausstattung mit Zähl-Rauschen („1 Badezimmer", „3 Zimmer")
+ * und Bausubstanz („Massivbauweise"). Angeboten wird nur diese Allowlist,
+ * geschnitten mit den real im Bestand vorkommenden Werten — der Filter
+ * selbst akzeptiert weiterhin beliebige Strings (0 Treffer statt Fehler).
+ */
+const AUSSTATTUNG_FACETTEN: ReadonlySet<string> = new Set([
+  'Balkon',
+  'Barrierefrei',
+  'Carport',
+  'Einbauküche',
+  'Fahrstuhl',
+  'Garage',
+  'Garten',
+  'Keller',
+  'Lift',
+  'Loggia',
+  'Parkett',
+  'Parkplatz',
+  'Personenaufzug',
+  'Terrasse',
+  'Tiefgarage',
+  'Unterkellert',
+]);
 
 /**
  * Distinct-Werte je Facette, global über alle Details (bewusst nicht auf den
- * aktiven Listen-Filter gescoped — eine kleine, billige Query). Text-Facetten
- * alphabetisch; ausstattung auf die häufigsten Werte gekappt, dann alphabetisch.
+ * aktiven Listen-Filter gescoped — eine kleine, billige Query), alphabetisch
+ * (de); ausstattung zusätzlich auf die kuratierte Allowlist geschnitten.
  */
 export async function detailFacettenLaden(): Promise<DetailFacetten> {
-  const { rows } = await holePool().query<{ facette: string; wert: string; anzahl: number }>(
-    `SELECT 'heizung' AS facette, heizung AS wert, count(*)::int AS anzahl
-       FROM inserat_details WHERE heizung IS NOT NULL GROUP BY heizung
-     UNION ALL
-     SELECT 'zustand', zustand, count(*)::int
-       FROM inserat_details WHERE zustand IS NOT NULL GROUP BY zustand
-     UNION ALL
-     SELECT 'baustil', baustil, count(*)::int
-       FROM inserat_details WHERE baustil IS NOT NULL GROUP BY baustil
-     UNION ALL
-     SELECT 'ausstattung', wert, count(*)::int
-       FROM inserat_details, jsonb_array_elements_text(ausstattung) AS wert
-       GROUP BY wert`,
+  const { rows } = await holePool().query<{ facette: string; wert: string }>(
+    `SELECT DISTINCT 'heizung' AS facette, heizung AS wert
+       FROM inserat_details WHERE heizung IS NOT NULL
+     UNION
+     SELECT DISTINCT 'zustand', zustand FROM inserat_details WHERE zustand IS NOT NULL
+     UNION
+     SELECT DISTINCT 'baustil', baustil FROM inserat_details WHERE baustil IS NOT NULL
+     UNION
+     SELECT DISTINCT 'ausstattung', wert
+       FROM inserat_details, jsonb_array_elements_text(ausstattung) AS wert`,
   );
   const alphabetisch = (facette: string): string[] =>
     rows
       .filter((z) => z.facette === facette)
       .map((z) => z.wert)
       .sort((a, b) => a.localeCompare(b, 'de'));
-  const ausstattungTop = new Set(
-    rows
-      .filter((z) => z.facette === 'ausstattung')
-      .sort((a, b) => b.anzahl - a.anzahl)
-      .slice(0, AUSSTATTUNG_MAX_OPTIONEN)
-      .map((z) => z.wert),
-  );
   return {
     heizung: alphabetisch('heizung'),
     zustand: alphabetisch('zustand'),
     baustil: alphabetisch('baustil'),
-    ausstattung: alphabetisch('ausstattung').filter((wert) => ausstattungTop.has(wert)),
+    ausstattung: alphabetisch('ausstattung').filter((wert) => AUSSTATTUNG_FACETTEN.has(wert)),
   };
 }
 
