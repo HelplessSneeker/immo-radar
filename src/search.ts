@@ -105,6 +105,23 @@ export function parseInserateAnfrage(params: URLSearchParams): InserateAnfrage {
   if (baujahrMin !== undefined) filter.baujahrMin = baujahrMin;
   if (baujahrMax !== undefined) filter.baujahrMax = baujahrMax;
 
+  // Zimmer-Bereich: Kommawerte erlaubt — die Portale liefern halbe Zimmer
+  // (2,5 Zi.), ein reiner Ganzzahl-Filter würde sie zwischen den Grenzen
+  // verlieren. Sonst wie der Baujahr-Bereich (verdreht → umdrehen).
+  const zimmer = (name: string): number | undefined => {
+    const roh = params.get(name)?.trim();
+    if (!roh) return undefined;
+    const n = Number(roh.replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  let zimmerMin = zimmer('zimmer_min');
+  let zimmerMax = zimmer('zimmer_max');
+  if (zimmerMin !== undefined && zimmerMax !== undefined && zimmerMin > zimmerMax) {
+    [zimmerMin, zimmerMax] = [zimmerMax, zimmerMin];
+  }
+  if (zimmerMin !== undefined) filter.zimmerMin = zimmerMin;
+  if (zimmerMax !== undefined) filter.zimmerMax = zimmerMax;
+
   // Detail-Facetten sind rohe Portal-Strings ("Fernwärme") — exakter Match in
   // der Query, daher nur trimmen, kein toLowerCase. Unbekannte Werte liefern
   // schlicht 0 Treffer (wie der Ort-Filter), das ist die nachsichtige Absicherung.

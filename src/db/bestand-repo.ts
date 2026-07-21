@@ -199,6 +199,13 @@ export interface InserateFilter {
    */
   nurAusreisser?: boolean;
   /**
+   * Zimmer-Bereich (inklusive Grenzen) auf dem Listen-Feld b.zimmer — anders
+   * als die Detail-Facetten kein Join nötig, jede Zeile hat einen Wert.
+   * Kommawerte möglich (halbe Zimmer, z. B. 2,5).
+   */
+  zimmerMin?: number;
+  zimmerMax?: number;
+  /**
    * Baujahr-Bereich (inklusive Grenzen) aus inserat_details — bewusst d.baujahr,
    * nicht das Listen-Feld b.baujahr; ohne Detail-Zeile fällt das Inserat bei
    * aktiver Facette raus (LEFT JOIN, NULL-Vergleich).
@@ -281,6 +288,8 @@ export async function bestandSeiteLaden(
     bedingungen.push(`(b.ort ILIKE ${muster} OR b.plz ILIKE ${muster} OR b.bezirk ILIKE ${muster})`);
   }
   if (filter.nurAusreisser) bedingungen.push('b.datenqualitaet IS NOT NULL');
+  if (filter.zimmerMin !== undefined) bedingungen.push(`b.zimmer >= ${param(filter.zimmerMin)}`);
+  if (filter.zimmerMax !== undefined) bedingungen.push(`b.zimmer <= ${param(filter.zimmerMax)}`);
   if (filter.baujahrMin !== undefined) bedingungen.push(`d.baujahr >= ${param(filter.baujahrMin)}`);
   if (filter.baujahrMax !== undefined) bedingungen.push(`d.baujahr <= ${param(filter.baujahrMax)}`);
   if (filter.heizung) bedingungen.push(`d.heizung = ${param(filter.heizung)}`);

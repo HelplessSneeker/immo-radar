@@ -160,6 +160,12 @@ describe('renderInserateSeite', () => {
     expect(html).toContain(
       'baujahr_min=1980&heizung=Fernw%C3%A4rme&ausstattung=Balkon&ausstattung=Lift&seite=2',
     );
+
+    const mitZimmer = renderInserateSeite(
+      daten({ filter: { zimmerMin: 2.5, zimmerMax: 4 }, gesamt: 120, proSeite: 50 }),
+    );
+    expect(mitZimmer).toContain('zimmer_min=2.5&zimmer_max=4&seite=2');
+    expect(mitZimmer).toContain('name="zimmer_min"');
   });
 
   it('zeigt den Reset-Link, wenn nur eine Facette gesetzt ist', () => {

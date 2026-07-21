@@ -97,6 +97,29 @@ describe('parseInserateAnfrage', () => {
     ).toEqual({ baujahrMax: 1990 });
   });
 
+  it('parst den Zimmer-Bereich inklusive Kommawerten (halbe Zimmer)', () => {
+    expect(parseInserateAnfrage(params({ zimmer_min: '2', zimmer_max: '3' })).filter).toEqual({
+      zimmerMin: 2,
+      zimmerMax: 3,
+    });
+    expect(parseInserateAnfrage(params({ zimmer_min: '2,5' })).filter).toEqual({
+      zimmerMin: 2.5,
+    });
+    expect(parseInserateAnfrage(params({ zimmer_max: '3.5' })).filter).toEqual({
+      zimmerMax: 3.5,
+    });
+  });
+
+  it('dreht verdrehte Zimmer-Grenzen um und verwirft Unbrauchbares still', () => {
+    expect(parseInserateAnfrage(params({ zimmer_min: '4', zimmer_max: '2' })).filter).toEqual({
+      zimmerMin: 2,
+      zimmerMax: 4,
+    });
+    expect(parseInserateAnfrage(params({ zimmer_min: 'abc' })).filter).toEqual({});
+    expect(parseInserateAnfrage(params({ zimmer_min: '0' })).filter).toEqual({});
+    expect(parseInserateAnfrage(params({ zimmer_max: '-2' })).filter).toEqual({});
+  });
+
   it('übernimmt Heizung/Zustand/Baustil getrimmt und case-erhaltend (rohe Portal-Strings)', () => {
     expect(
       parseInserateAnfrage(

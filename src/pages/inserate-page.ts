@@ -52,6 +52,8 @@ function inserateUrl(
   if (filter.status) params.set('status', filter.status);
   if (filter.ort) params.set('ort', filter.ort);
   if (filter.nurAusreisser) params.set('nur', 'ausreisser');
+  if (filter.zimmerMin !== undefined) params.set('zimmer_min', String(filter.zimmerMin));
+  if (filter.zimmerMax !== undefined) params.set('zimmer_max', String(filter.zimmerMax));
   if (filter.baujahrMin !== undefined) params.set('baujahr_min', String(filter.baujahrMin));
   if (filter.baujahrMax !== undefined) params.set('baujahr_max', String(filter.baujahrMax));
   if (filter.heizung) params.set('heizung', filter.heizung);
@@ -72,6 +74,8 @@ function filterGesetzt(daten: InserateSeitenDaten): boolean {
       f.status ||
       f.ort ||
       f.nurAusreisser ||
+      f.zimmerMin !== undefined ||
+      f.zimmerMax !== undefined ||
       f.baujahrMin !== undefined ||
       f.baujahrMax !== undefined ||
       f.heizung ||
@@ -183,6 +187,13 @@ function filterleiste(daten: InserateSeitenDaten): string {
         <label for="f-ort">Ort / PLZ / Bezirk</label>
         <input type="text" id="f-ort" name="ort" value="${escapeHtml(daten.filter.ort ?? '')}" placeholder="z. B. Villach">
       </div>
+      <fieldset class="feld">
+        <legend>Zimmer</legend>
+        <div class="von-bis">
+          <input type="text" id="f-zimmer-min" name="zimmer_min" inputmode="decimal" value="${daten.filter.zimmerMin ?? ''}" placeholder="von" aria-label="Zimmer von">
+          <input type="text" id="f-zimmer-max" name="zimmer_max" inputmode="decimal" value="${daten.filter.zimmerMax ?? ''}" placeholder="bis" aria-label="Zimmer bis">
+        </div>
+      </fieldset>
       <fieldset class="feld">
         <legend>Baujahr</legend>
         <div class="von-bis">

@@ -321,6 +321,37 @@ describe.runIf(!!process.env.DATABASE_URL)('bestand (Integration)', () => {
       expect(passend.inserate.map((i) => i.id)).toEqual(['wh-fernwaerme']);
     });
 
+    it('filtert den Zimmer-Bereich auf b.zimmer inklusive halber Zimmer, kombinierbar mit Detail-Facetten', async () => {
+      await bestandUpsert(
+        [
+          { ...inserat('wh-2zi'), zimmer: 2 },
+          { ...inserat('wh-2.5zi'), zimmer: 2.5 },
+          { ...inserat('wh-4zi'), zimmer: 4 },
+        ],
+        'kaernten',
+        '2026-07-01',
+      );
+      await detailUpsert('willhaben.at', 'wh-2.5zi', { heizung: 'Fernwärme' });
+
+      // 2,5 liegt zwischen den ganzzahligen Grenzen — inklusiv, kein Detail-Join nötig.
+      const bereich = await bestandSeiteLaden(
+        { zimmerMin: 2, zimmerMax: 3 },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(bereich.inserate.map((i) => i.id).sort()).toEqual(['wh-2.5zi', 'wh-2zi']);
+
+      // Kombination b.zimmer + d.heizung: das Detail-lose 2-Zimmer-Inserat fällt raus.
+      const kombi = await bestandSeiteLaden(
+        { zimmerMin: 2, zimmerMax: 3, heizung: 'Fernwärme' },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(kombi.inserate.map((i) => i.id)).toEqual(['wh-2.5zi']);
+    });
+
     it('liefert für unbekannte Facetten-Werte 0 Treffer statt eines Fehlers', async () => {
       await seedeMitDetails();
       const seite = await bestandSeiteLaden({ heizung: 'Gibtsnicht' }, 'zuletzt_gesehen', 10, 0);
