@@ -79,6 +79,8 @@ export interface ObjektZeitreihe {
   bezirk: string;
   flaecheM2: number;
   zimmer: number;
+  /** Vom ältesten Inserat mit Angabe (Detail-Crawl bzw. Datei-Import). */
+  baujahr?: number;
   zuerstGesehen: string; // min über die Inserate
   zuletztGesehen: string; // max über die Inserate
   inserate: ObjektInserat[];
@@ -127,11 +129,15 @@ export function objekteAusBestand(
         inserate: [mitglied],
       };
       if (i.objektId !== undefined) neu.objektId = i.objektId;
+      if (i.baujahr !== undefined) neu.baujahr = i.baujahr;
       gruppen.set(schluessel, neu);
     } else {
       objekt.inserate.push(mitglied);
       if (i.zuerstGesehen < objekt.zuerstGesehen) objekt.zuerstGesehen = i.zuerstGesehen;
       if (i.zuletztGesehen > objekt.zuletztGesehen) objekt.zuletztGesehen = i.zuletztGesehen;
+      // Attribute stammen vom ältesten Inserat — außer es hat keine Angabe:
+      // dann füllt das nächstälteste Mitglied das Baujahr auf.
+      if (objekt.baujahr === undefined && i.baujahr !== undefined) objekt.baujahr = i.baujahr;
     }
   }
   return [...gruppen.values()];
@@ -287,6 +293,8 @@ export interface StichtagDatenpunkt {
   ort: string;
   plz: string;
   zimmer: number;
+  /** Objekt-Baujahr (ObjektZeitreihe.baujahr); fehlt = keine Angabe. */
+  baujahr?: number;
   /** Fläche des Minimum-Inserats, damit preis/flaeche = eurM2 aufgeht. */
   flaecheM2: number;
   /** Preis am Stichtag (aus der Historie, nicht der heutige). */
@@ -337,6 +345,7 @@ export function datenpunkteAmStichtag(
       istAusreisser: false,
     };
     if (objekt.objektId !== undefined) punkt.objektId = objekt.objektId;
+    if (objekt.baujahr !== undefined) punkt.baujahr = objekt.baujahr;
     if (wert.inserat.url !== undefined) punkt.url = wert.inserat.url;
     if (wert.datenqualitaet !== undefined) {
       punkt.datenqualitaet = wert.datenqualitaet;

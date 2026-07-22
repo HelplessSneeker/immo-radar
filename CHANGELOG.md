@@ -7,6 +7,40 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-22
+
+Sechste Runde (Release 1.4): Inserats-Kategorien werden jetzt deterministisch
+von den Portal-**Detailseiten** eingesammelt und persistiert — kein LLM — und
+sind als Facetten-Filter auf `/inserate` nutzbar.
+
+### Hinzugefügt
+
+- Detail-Crawl mit Kategorie-Persistenz (Migration 008, `inserat_details`):
+  tägliches Einsammeln strukturierter Felder (Baujahr, Zustand, Heizung,
+  Baustil, Ausstattung, Energie, Beschreibung) von den Detailseiten mit
+  Cache-Semantik — jede `(portal, inserat_id)` wird höchstens einmal gefetcht.
+  Eigene Sweep-Phase VOR dem Objekt-Matching (der Kanon soll das Baujahr
+  sehen), sequentiell unter `mitCrawlSperre` mit Pause `SWEEP_DETAIL_PAUSE_MS`
+  (Default 1 s); Einzelfehler kosten nur das Inserat (Cache-Miss heilt sich),
+  3 `PortalFehler` in Folge setzen das Portal für den Rest der Phase aus
+  (Bot-Block-Breaker). Detail-Parser je Portal (willhaben `__NEXT_DATA__`,
+  immoscout24 `__APOLLO_STATE__`), fehlende Felder = weglassen. Das Baujahr
+  fließt über Match-Guard und Objekt-Kanon bis in die Datenpunkte-Drawer-Zeile
+  („· Bj. NNNN").
+- Facetten-Filter auf `/inserate` über die Detail-Kategorien: Baujahr-Bereich,
+  Selects für Heizung/Zustand/Baustil und Ausstattungs-Checkboxen
+  (JSONB-Containment `@>`). Die Optionen werden distinkt aus dem Bestand
+  abgeleitet (kein Vokabular in Code), Ausstattung auf die 30 häufigsten
+  gekappt; kombinierte Facetten wirken als UND-Verknüpfung. Inserate ohne
+  Detail-Daten fallen bei aktivem Filter raus, bleiben sonst sichtbar. Die
+  Facetten leaken nicht in KPI-Kacheln oder Zeitreihe.
+
+### Geändert
+
+- Feldbreiten der von-bis-Inputs inhaltsgerecht: Zimmer 56px, Baujahr 72px
+  (die geteilte 76px-Regel für Fläche bleibt unverändert); DESIGN.md um die
+  zwei neuen Breiten ergänzt.
+
 ## [1.3.1] - 2026-07-17
 
 Fünfte Runde (kleines Sammel-Release vor 1.4): Ausreißer-Bereinigung
@@ -312,7 +346,8 @@ Marktbeobachter mit eigenem Deploy.
 - CLI-Erstversion: Analyse von CSV/JSON-Inseratsdaten und Portal-Such-URLs,
   Rendering als HTML-Report (`43cc18e`).
 
-[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/HelplessSneeker/immo-radar/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/HelplessSneeker/immo-radar/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/HelplessSneeker/immo-radar/compare/v1.1.0...v1.2.0

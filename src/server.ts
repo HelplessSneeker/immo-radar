@@ -7,6 +7,7 @@ import { hatGueltigeSitzung, pruefeAuth, verarbeiteLogin } from './auth.js';
 import { KAERNTEN } from './bezirke.js';
 import { bestandSeiteLaden, preisHistorieFuerInserate } from './db/bestand-repo.js';
 import { holePool, schliessePool } from './db/client.js';
+import { detailFacettenLaden } from './db/inserat-details-repo.js';
 import { wendeMigrationenAn } from './db/migrieren.js';
 import { objektBestandLaden } from './db/objekte-repo.js';
 import {
@@ -413,12 +414,15 @@ const server = createServer((req, res) => {
     }
     if (url.pathname === '/inserate') {
       const anfrage = parseInserateAnfrage(url.searchParams);
-      const { inserate, gesamt } = await bestandSeiteLaden(
-        anfrage.filter,
-        anfrage.sortierung,
-        INSERATE_PRO_SEITE,
-        (anfrage.seite - 1) * INSERATE_PRO_SEITE,
-      );
+      const [{ inserate, gesamt }, facetten] = await Promise.all([
+        bestandSeiteLaden(
+          anfrage.filter,
+          anfrage.sortierung,
+          INSERATE_PRO_SEITE,
+          (anfrage.seite - 1) * INSERATE_PRO_SEITE,
+        ),
+        detailFacettenLaden(),
+      ]);
       const aenderungen = letztePreisAenderungen(await preisHistorieFuerInserate(inserate));
       sende(
         res,
@@ -430,6 +434,7 @@ const server = createServer((req, res) => {
           proSeite: INSERATE_PRO_SEITE,
           filter: anfrage.filter,
           sortierung: anfrage.sortierung,
+          facetten,
           aenderungen,
         }),
       );

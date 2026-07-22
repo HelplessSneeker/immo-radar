@@ -132,6 +132,43 @@ describe('WillhabenAdapter', () => {
     expect(aufrufe).toHaveLength(8);
   });
 
+  it('ladeDetail holt die Detailseite und mappt die Kategorie-Felder', async () => {
+    const detailNextData = {
+      props: {
+        pageProps: {
+          advertDetails: {
+            attributes: {
+              attribute: [
+                { name: 'CONSTRUCTION_YEAR', values: ['1971'] },
+                { name: 'HEATING', values: ['Elektroheizung'] },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const html = `<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(detailNextData)}</script></body></html>`;
+    const aufrufe: string[] = [];
+    const detailFetch = (async (eingabe: string | URL | Request) => {
+      aufrufe.push(String(eingabe));
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
+    }) as typeof fetch;
+
+    const detail = await new WillhabenAdapter(detailFetch, 0).ladeDetail(
+      'https://www.willhaben.at/iad/immobilien/d/eigentumswohnung/kaernten/test-1/',
+    );
+    expect(aufrufe).toEqual(['https://www.willhaben.at/iad/immobilien/d/eigentumswohnung/kaernten/test-1/']);
+    expect(detail).toEqual({ baujahr: 1971, heizung: 'Elektroheizung' });
+  });
+
+  it('ladeDetail wirft WillhabenFehler bei HTTP-Fehlern', async () => {
+    const instant = { maxVersuche: 1, basisPauseMs: 0, maxPauseMs: 0, warte: async () => {} };
+    const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;
+    await expect(
+      new WillhabenAdapter(blockiert, 0, instant).ladeDetail('https://www.willhaben.at/iad/x'),
+    ).rejects.toThrow(WillhabenFehler);
+  });
+
   it('wirft WillhabenFehler bei HTTP-Fehlern und Netzwerkproblemen', async () => {
     const instant = { maxVersuche: 1, basisPauseMs: 0, maxPauseMs: 0, warte: async () => {} };
     const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;

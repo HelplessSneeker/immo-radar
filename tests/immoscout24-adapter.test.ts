@@ -111,6 +111,35 @@ describe('ImmoScout24Adapter', () => {
     ).rejects.toThrow(ImmoScout24Fehler);
   });
 
+  it('ladeDetail holt das Expose (immobilienscout24.at) und mappt die Kategorie-Felder', async () => {
+    const apollo = JSON.stringify({
+      'Expose:abc': {
+        condition: { yearOfConstruction: '1990', heatingTypes: ['Fernwärme'] },
+        characteristics: [{ key: 'condition', items: [{ key: 'condition_type', text: 'Erstbezug' }] }],
+      },
+    });
+    const html = `<html><body><script>window.__APOLLO_STATE__ = ${apollo};\nwindow.E2E_MODE = false;</script></body></html>`;
+    const aufrufe: string[] = [];
+    const detailFetch = (async (eingabe: string | URL | Request) => {
+      aufrufe.push(String(eingabe));
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html' } });
+    }) as typeof fetch;
+
+    const detail = await new ImmoScout24Adapter(detailFetch, 0).ladeDetail(
+      'https://www.immobilienscout24.at/expose/abc',
+    );
+    expect(aufrufe).toEqual(['https://www.immobilienscout24.at/expose/abc']);
+    expect(detail).toEqual({ baujahr: 1990, zustand: 'Erstbezug', heizung: 'Fernwärme' });
+  });
+
+  it('ladeDetail wirft ImmoScout24Fehler bei HTTP-Fehlern', async () => {
+    const instant = { maxVersuche: 1, basisPauseMs: 0, maxPauseMs: 0, warte: async () => {} };
+    const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;
+    await expect(
+      new ImmoScout24Adapter(blockiert, 0, instant).ladeDetail('https://www.immobilienscout24.at/expose/abc'),
+    ).rejects.toThrow(ImmoScout24Fehler);
+  });
+
   it('wirft ImmoScout24Fehler bei HTTP-Fehlern und Netzwerkproblemen', async () => {
     const instant = { maxVersuche: 1, basisPauseMs: 0, maxPauseMs: 0, warte: async () => {} };
     const blockiert = (async () => new Response('blocked', { status: 403 })) as typeof fetch;

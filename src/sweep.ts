@@ -13,6 +13,7 @@ import {
   sweepFehlgeschlagen,
   type SweepSegmentKey,
 } from './db/sweep-repo.js';
+import { detailsFehlen, detailUpsert } from './db/inserat-details-repo.js';
 import { objekteZuordnungsLauf } from './db/objekte-repo.js';
 import { heutigesDatum } from './datum.js';
 import { mitCrawlSperre } from './crawl.js';
@@ -35,6 +36,10 @@ const SWEEP_MAX_SEITEN = 15;
 const SEGMENT_PAUSE_MS_DEFAULT = 15_000;
 /** Tiefe 0 = Bezirk ganz, 1 = feste Preisbänder, 2–3 = halbierte Bänder. */
 const MAX_SPLIT_TIEFE = 3;
+/** Pause zwischen Detailseiten-Fetches — eine Seite statt 15, daher kürzer als die Segment-Pause. */
+const DETAIL_PAUSE_MS_DEFAULT = 1_000;
+/** So viele PortalFehler in Folge ⇒ Bot-Block/Layout-Bruch: Portal für den Rest der Phase auslassen. */
+const DETAIL_MAX_FEHLER_IN_FOLGE = 3;
 
 // Feste erste Preisbänder je Typ — so gewählt, dass auch Klagenfurt-große
 // Teilmärkte deutlich unter den ~450/~225 Inseraten pro Band bleiben.
@@ -57,11 +62,14 @@ export interface SweepDeps {
   fertigeSegmente: typeof fertigeSegmente;
   bestandUpsert: typeof bestandUpsert;
   mitCrawlSperre: typeof mitCrawlSperre;
+  detailsFehlen: typeof detailsFehlen;
+  detailUpsert: typeof detailUpsert;
   /** Objekt-Matching (Dedup) nach dem letzten Segment. */
   objekteZuordnen: () => Promise<{ neueObjekte: number; zugeordnet: number }>;
   heute: () => string;
   warte: (ms: number) => Promise<void>;
   segmentPauseMs: number;
+  detailPauseMs: number;
 }
 
 const ECHTE_DEPS: SweepDeps = {
@@ -74,10 +82,13 @@ const ECHTE_DEPS: SweepDeps = {
   fertigeSegmente,
   bestandUpsert,
   mitCrawlSperre,
+  detailsFehlen,
+  detailUpsert,
   objekteZuordnen: () => objekteZuordnungsLauf(KAERNTEN),
   heute: heutigesDatum,
   warte: (ms) => warte(ms),
   segmentPauseMs: Number(process.env.SWEEP_SEGMENT_PAUSE_MS ?? SEGMENT_PAUSE_MS_DEFAULT),
+  detailPauseMs: Number(process.env.SWEEP_DETAIL_PAUSE_MS ?? DETAIL_PAUSE_MS_DEFAULT),
 };
 
 /** Ein Basis-Segment des Sweeps (ohne Preisband). */
@@ -228,6 +239,62 @@ async function crawleSegment(
 }
 
 /**
+ * Detail-Phase nach den Segmenten: holt für jedes heute gesehene Inserat
+ * ohne inserat_details-Zeile (Cache-Miss) einmalig die Detailseite und
+ * persistiert die Kategorie-Felder. Sequentiell mit Pause; ein einzelner
+ * Fehler kostet nur dieses Inserat (der Cache-Miss bleibt und heilt sich
+ * beim nächsten Sweep), mehrere PortalFehler in Folge setzen das Portal
+ * für den Rest der Phase aus (Bot-Block nicht weiter füttern).
+ */
+async function holeDetails(
+  portale: PortalAdapter[],
+  zustand: SweepZustand,
+  deps: SweepDeps,
+): Promise<void> {
+  const adapterJePortal = new Map(portale.map((p) => [p.portal, p]));
+  const kandidaten = await deps.detailsFehlen(KAERNTEN, zustand.datum);
+  if (kandidaten.length === 0) return;
+
+  let geholt = 0;
+  let fehlgeschlagen = 0;
+  const fehlerInFolge = new Map<string, number>();
+  for (const kandidat of kandidaten) {
+    const adapter = adapterJePortal.get(kandidat.portal);
+    if (!adapter) continue; // Bestand fremder Portale (z. B. nach Abschaltung) still auslassen
+    if ((fehlerInFolge.get(kandidat.portal) ?? 0) >= DETAIL_MAX_FEHLER_IN_FOLGE) continue;
+
+    if (zustand.gecrawlt) await deps.warte(deps.detailPauseMs);
+    zustand.gecrawlt = true;
+    try {
+      const detail = await deps.mitCrawlSperre(() => adapter.ladeDetail(kandidat.url));
+      await deps.detailUpsert(kandidat.portal, kandidat.inseratId, detail);
+      geholt += 1;
+      fehlerInFolge.set(kandidat.portal, 0);
+    } catch (err) {
+      fehlgeschlagen += 1;
+      const meldung = err instanceof Error ? err.message : String(err);
+      if (err instanceof PortalFehler) {
+        const n = (fehlerInFolge.get(kandidat.portal) ?? 0) + 1;
+        fehlerInFolge.set(kandidat.portal, n);
+        if (n >= DETAIL_MAX_FEHLER_IN_FOLGE) {
+          console.warn(
+            `Sweep ${zustand.datum}: Detailseiten von ${kandidat.portal} nach ` +
+              `${n} Fehlern in Folge ausgesetzt (${meldung}).`,
+          );
+          continue;
+        }
+      }
+      console.warn(`Sweep ${zustand.datum}: Detailseite ${kandidat.url} fehlgeschlagen: ${meldung}`);
+    }
+  }
+  console.log(
+    `Sweep ${zustand.datum}: Details für ${geholt} von ${kandidaten.length} Inseraten geholt` +
+      (fehlgeschlagen > 0 ? ` (${fehlgeschlagen} fehlgeschlagen)` : '') +
+      '.',
+  );
+}
+
+/**
  * Führt den heutigen Sweep aus, falls er noch aussteht (Claim in
  * sweep_laeufe). Liefert false, wenn heute schon gesweept wurde oder ein
  * Lauf gerade läuft. Ein fehlgeschlagenes Segment stoppt die anderen nicht;
@@ -262,6 +329,15 @@ export async function fuehreSweepAus(
         `Kein Segment abfragbar: ${zustand.ersterFehler ?? 'unbekannter Fehler'}`,
       );
     } else {
+      // Detailseiten VOR dem Matching: der Kanon eines neuen Objekts wird
+      // beim Anlegen eingefroren und soll das Baujahr schon sehen. Ein
+      // Fehler kostet nie den Sweep — offene Cache-Misses holt der nächste
+      // Lauf nach.
+      try {
+        await holeDetails(portale, zustand, deps);
+      } catch (detailErr) {
+        console.error(`Sweep ${datum}: Detail-Crawl fehlgeschlagen:`, detailErr);
+      }
       // Dedup nach dem Crawlen; ein Fehler hier kostet nie den Sweep — der
       // nächste Lauf ordnet die offenen Inserate nach.
       try {
