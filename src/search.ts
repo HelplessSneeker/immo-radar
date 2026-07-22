@@ -88,6 +88,61 @@ export function parseInserateAnfrage(params: URLSearchParams): InserateAnfrage {
 
   if (params.get('nur')?.trim().toLowerCase() === 'ausreisser') filter.nurAusreisser = true;
 
+  // Baujahr-Bereich wie flaeche_min/max im Dashboard-Filter: verdrehte
+  // Grenzen umdrehen; Plausibilitätsfenster wie parsePortfolioForm (1800–2100),
+  // nur eben still verwerfend statt werfend.
+  const jahr = (name: string): number | undefined => {
+    const roh = params.get(name)?.trim();
+    if (!roh) return undefined;
+    const n = Number(roh);
+    return Number.isInteger(n) && n >= 1800 && n <= 2100 ? n : undefined;
+  };
+  let baujahrMin = jahr('baujahr_min');
+  let baujahrMax = jahr('baujahr_max');
+  if (baujahrMin !== undefined && baujahrMax !== undefined && baujahrMin > baujahrMax) {
+    [baujahrMin, baujahrMax] = [baujahrMax, baujahrMin];
+  }
+  if (baujahrMin !== undefined) filter.baujahrMin = baujahrMin;
+  if (baujahrMax !== undefined) filter.baujahrMax = baujahrMax;
+
+  // Zimmer-Bereich: Kommawerte erlaubt — die Portale liefern halbe Zimmer
+  // (2,5 Zi.), ein reiner Ganzzahl-Filter würde sie zwischen den Grenzen
+  // verlieren. Sonst wie der Baujahr-Bereich (verdreht → umdrehen).
+  const zimmer = (name: string): number | undefined => {
+    const roh = params.get(name)?.trim();
+    if (!roh) return undefined;
+    const n = Number(roh.replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  let zimmerMin = zimmer('zimmer_min');
+  let zimmerMax = zimmer('zimmer_max');
+  if (zimmerMin !== undefined && zimmerMax !== undefined && zimmerMin > zimmerMax) {
+    [zimmerMin, zimmerMax] = [zimmerMax, zimmerMin];
+  }
+  if (zimmerMin !== undefined) filter.zimmerMin = zimmerMin;
+  if (zimmerMax !== undefined) filter.zimmerMax = zimmerMax;
+
+  // Detail-Facetten sind rohe Portal-Strings ("Fernwärme") — exakter Match in
+  // der Query, daher nur trimmen, kein toLowerCase. Unbekannte Werte liefern
+  // schlicht 0 Treffer (wie der Ort-Filter), das ist die nachsichtige Absicherung.
+  const facette = (name: 'heizung' | 'zustand' | 'baustil'): void => {
+    const wert = params.get(name)?.trim();
+    if (wert) filter[name] = wert;
+  };
+  facette('heizung');
+  facette('zustand');
+  facette('baustil');
+
+  const ausstattung = [
+    ...new Set(
+      params
+        .getAll('ausstattung')
+        .map((w) => w.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (ausstattung.length > 0) filter.ausstattung = ausstattung;
+
   const sortierungRoh = params.get('sortierung')?.trim().toLowerCase() as InserateSortierung;
   const sortierung = INSERATE_SORTIERUNGEN.has(sortierungRoh) ? sortierungRoh : 'zuletzt_gesehen';
 

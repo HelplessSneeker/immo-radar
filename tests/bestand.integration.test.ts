@@ -9,6 +9,7 @@ import {
   preisHistorieLaden,
 } from '../src/db/bestand-repo.js';
 import { holePool, schliessePool } from '../src/db/client.js';
+import { detailUpsert } from '../src/db/inserat-details-repo.js';
 import { wendeMigrationenAn } from '../src/db/migrieren.js';
 import type { InseratMitPortal } from '../src/types.js';
 
@@ -201,6 +202,161 @@ describe.runIf(!!process.env.DATABASE_URL)('bestand (Integration)', () => {
       const seite = await bestandSeiteLaden({}, 'zuletzt_gesehen', 50, 100);
       expect(seite.inserate).toEqual([]);
       expect(seite.gesamt).toBe(1);
+    });
+  });
+
+  describe('bestandSeiteLaden mit Detail-Facetten', () => {
+    /** Drei Bestand-Zeilen, zwei davon mit Detail-Zeile — die Basis aller Facetten-Tests. */
+    async function seedeMitDetails(): Promise<void> {
+      await bestandUpsert(
+        [inserat('wh-fernwaerme'), inserat('wh-gas'), inserat('wh-ohne-details')],
+        'kaernten',
+        '2026-07-01',
+      );
+      await detailUpsert('willhaben.at', 'wh-fernwaerme', {
+        baujahr: 1980,
+        heizung: 'Fernwärme',
+        zustand: 'Erstbezug',
+        ausstattung: ['Balkon', 'Lift'],
+      });
+      await detailUpsert('willhaben.at', 'wh-gas', {
+        baujahr: 2000,
+        heizung: 'Gasheizung',
+        zustand: 'sehr gut',
+      });
+    }
+
+    it('zeigt Inserate ohne Detail-Zeile, solange keine Facette aktiv ist', async () => {
+      await seedeMitDetails();
+      const alle = await bestandSeiteLaden({}, 'zuletzt_gesehen', 10, 0);
+      expect(alle.gesamt).toBe(3);
+      expect(alle.inserate.map((i) => i.id)).toContain('wh-ohne-details');
+    });
+
+    it('lässt Detail-lose Inserate bei aktiver Facette rausfallen', async () => {
+      await seedeMitDetails();
+      const seite = await bestandSeiteLaden({ heizung: 'Fernwärme' }, 'zuletzt_gesehen', 10, 0);
+      expect(seite.gesamt).toBe(1);
+      expect(seite.inserate.map((i) => i.id)).toEqual(['wh-fernwaerme']);
+    });
+
+    it('filtert den Baujahr-Bereich mit inklusiven Grenzen; NULL-Baujahr fällt raus', async () => {
+      await bestandUpsert(
+        [inserat('wh-1980'), inserat('wh-1990'), inserat('wh-2000'), inserat('wh-null')],
+        'kaernten',
+        '2026-07-01',
+      );
+      await detailUpsert('willhaben.at', 'wh-1980', { baujahr: 1980 });
+      await detailUpsert('willhaben.at', 'wh-1990', { baujahr: 1990 });
+      await detailUpsert('willhaben.at', 'wh-2000', { baujahr: 2000 });
+      await detailUpsert('willhaben.at', 'wh-null', { zustand: 'gut' });
+
+      const seite = await bestandSeiteLaden(
+        { baujahrMin: 1980, baujahrMax: 1990 },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(seite.inserate.map((i) => i.id).sort()).toEqual(['wh-1980', 'wh-1990']);
+      expect(seite.gesamt).toBe(2);
+    });
+
+    it('matcht zustand gegen d.zustand, nicht gegen das Listen-Feld b.zustand', async () => {
+      await bestandUpsert(
+        // Der Listen-Crawl liefert einen ANDEREN Zustand als die Detailseite.
+        [{ ...inserat('wh-1'), zustand: 'Listen-Zustand' }],
+        'kaernten',
+        '2026-07-01',
+      );
+      await detailUpsert('willhaben.at', 'wh-1', { zustand: 'Detail-Zustand' });
+
+      const detail = await bestandSeiteLaden({ zustand: 'Detail-Zustand' }, 'zuletzt_gesehen', 10, 0);
+      expect(detail.inserate.map((i) => i.id)).toEqual(['wh-1']);
+      const liste = await bestandSeiteLaden({ zustand: 'Listen-Zustand' }, 'zuletzt_gesehen', 10, 0);
+      expect(liste.gesamt).toBe(0);
+    });
+
+    it('prüft Ausstattung per jsonb-Containment: alle gewählten Werte müssen enthalten sein', async () => {
+      await seedeMitDetails();
+      const balkon = await bestandSeiteLaden({ ausstattung: ['Balkon'] }, 'zuletzt_gesehen', 10, 0);
+      expect(balkon.inserate.map((i) => i.id)).toEqual(['wh-fernwaerme']);
+
+      const balkonLift = await bestandSeiteLaden(
+        { ausstattung: ['Balkon', 'Lift'] },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(balkonLift.inserate.map((i) => i.id)).toEqual(['wh-fernwaerme']);
+
+      // UND-Semantik: Garten fehlt in ['Balkon','Lift'] ⇒ kein Treffer;
+      // NULL-Ausstattung (wh-gas) und Detail-los (wh-ohne-details) sowieso nicht.
+      const balkonGarten = await bestandSeiteLaden(
+        { ausstattung: ['Balkon', 'Garten'] },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(balkonGarten.gesamt).toBe(0);
+    });
+
+    it('verknüpft kombinierte Facetten als UND', async () => {
+      await seedeMitDetails();
+      // heizung allein: 1 Treffer; baujahrMin=1990 allein: 1 Treffer (wh-gas) —
+      // zusammen widersprechen sie sich und liefern nichts.
+      const kombi = await bestandSeiteLaden(
+        { heizung: 'Fernwärme', baujahrMin: 1990 },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(kombi.gesamt).toBe(0);
+
+      const passend = await bestandSeiteLaden(
+        { heizung: 'Fernwärme', baujahrMax: 1990, ausstattung: ['Lift'] },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(passend.inserate.map((i) => i.id)).toEqual(['wh-fernwaerme']);
+    });
+
+    it('filtert den Zimmer-Bereich auf b.zimmer inklusive halber Zimmer, kombinierbar mit Detail-Facetten', async () => {
+      await bestandUpsert(
+        [
+          { ...inserat('wh-2zi'), zimmer: 2 },
+          { ...inserat('wh-2.5zi'), zimmer: 2.5 },
+          { ...inserat('wh-4zi'), zimmer: 4 },
+        ],
+        'kaernten',
+        '2026-07-01',
+      );
+      await detailUpsert('willhaben.at', 'wh-2.5zi', { heizung: 'Fernwärme' });
+
+      // 2,5 liegt zwischen den ganzzahligen Grenzen — inklusiv, kein Detail-Join nötig.
+      const bereich = await bestandSeiteLaden(
+        { zimmerMin: 2, zimmerMax: 3 },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(bereich.inserate.map((i) => i.id).sort()).toEqual(['wh-2.5zi', 'wh-2zi']);
+
+      // Kombination b.zimmer + d.heizung: das Detail-lose 2-Zimmer-Inserat fällt raus.
+      const kombi = await bestandSeiteLaden(
+        { zimmerMin: 2, zimmerMax: 3, heizung: 'Fernwärme' },
+        'zuletzt_gesehen',
+        10,
+        0,
+      );
+      expect(kombi.inserate.map((i) => i.id)).toEqual(['wh-2.5zi']);
+    });
+
+    it('liefert für unbekannte Facetten-Werte 0 Treffer statt eines Fehlers', async () => {
+      await seedeMitDetails();
+      const seite = await bestandSeiteLaden({ heizung: 'Gibtsnicht' }, 'zuletzt_gesehen', 10, 0);
+      expect(seite.gesamt).toBe(0);
+      expect(seite.inserate).toEqual([]);
     });
   });
 

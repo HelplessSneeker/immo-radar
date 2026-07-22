@@ -3,6 +3,7 @@ import { bestandUpsert } from '../src/db/bestand-repo.js';
 import { holePool, schliessePool } from '../src/db/client.js';
 import { wendeMigrationenAn } from '../src/db/migrieren.js';
 import {
+  detailFacettenLaden,
   detailsFehlen,
   detailsLaden,
   detailUpsert,
@@ -112,6 +113,43 @@ describe.runIf(!!process.env.DATABASE_URL)('inserat-details-repo (Integration)',
 
     await detailUpsert('willhaben.at', 'wh-1', {});
     expect(await detailsFehlen('kaernten', '2026-07-02')).toHaveLength(0);
+  });
+
+  it('detailFacettenLaden liefert Distinct-Werte alphabetisch; Ausstattung geflattet und auf die Allowlist geschnitten', async () => {
+    await bestandUpsert(
+      [inserat('wh-1', 'willhaben.at'), inserat('wh-2', 'willhaben.at'), inserat('wh-3', 'willhaben.at')],
+      'kaernten',
+      '2026-07-01',
+    );
+    await detailUpsert('willhaben.at', 'wh-1', {
+      heizung: 'Fernwärme',
+      zustand: 'sehr gut',
+      ausstattung: ['Lift', 'Balkon'],
+    });
+    await detailUpsert('willhaben.at', 'wh-2', {
+      heizung: 'Elektroheizung',
+      zustand: 'sehr gut', // Duplikat → nur einmal
+      // Portal-Rauschen: Zähl-Werte und Bausubstanz stehen nicht in der Allowlist.
+      ausstattung: ['Balkon', 'Garten', '1 Badezimmer', 'Massivbauweise'],
+    });
+    // NULL-Spalten und fehlende Ausstattung werden übersprungen, kein Baustil im Bestand.
+    await detailUpsert('willhaben.at', 'wh-3', { baujahr: 1990 });
+
+    expect(await detailFacettenLaden()).toEqual({
+      heizung: ['Elektroheizung', 'Fernwärme'],
+      zustand: ['sehr gut'],
+      baustil: [],
+      ausstattung: ['Balkon', 'Garten', 'Lift'],
+    });
+  });
+
+  it('detailFacettenLaden liefert bei leerer Tabelle vier leere Listen', async () => {
+    expect(await detailFacettenLaden()).toEqual({
+      heizung: [],
+      zustand: [],
+      baustil: [],
+      ausstattung: [],
+    });
   });
 
   it('kaskadiert beim Löschen des Bestands und verweigert Details ohne Bestand', async () => {
