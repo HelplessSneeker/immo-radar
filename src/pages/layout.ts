@@ -339,6 +339,8 @@ export const BASIS_CSS = `
   .filterleiste .feld-plz input { width: 150px; }
   .filterleiste .von-bis input[type="text"] { width: 76px; }
   .filterleiste .von-bis input[type="date"] { width: 145px; }
+  .filterleiste .feld-zimmer .von-bis input { width: 56px; }
+  .filterleiste .feld-baujahr .von-bis input { width: 72px; }
   .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
     padding: 6px 10px; font: inherit; font-size: 13px;
     color: var(--text-primary); background: var(--page);
