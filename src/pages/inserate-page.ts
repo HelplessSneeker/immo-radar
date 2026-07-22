@@ -187,14 +187,14 @@ function filterleiste(daten: InserateSeitenDaten): string {
         <label for="f-ort">Ort / PLZ / Bezirk</label>
         <input type="text" id="f-ort" name="ort" value="${escapeHtml(daten.filter.ort ?? '')}" placeholder="z. B. Villach">
       </div>
-      <fieldset class="feld">
+      <fieldset class="feld feld-zimmer">
         <legend>Zimmer</legend>
         <div class="von-bis">
           <input type="text" id="f-zimmer-min" name="zimmer_min" inputmode="decimal" value="${daten.filter.zimmerMin ?? ''}" placeholder="von" aria-label="Zimmer von">
           <input type="text" id="f-zimmer-max" name="zimmer_max" inputmode="decimal" value="${daten.filter.zimmerMax ?? ''}" placeholder="bis" aria-label="Zimmer bis">
         </div>
       </fieldset>
-      <fieldset class="feld">
+      <fieldset class="feld feld-baujahr">
         <legend>Baujahr</legend>
         <div class="von-bis">
           <input type="text" id="f-baujahr-min" name="baujahr_min" inputmode="numeric" value="${daten.filter.baujahrMin ?? ''}" placeholder="von" aria-label="Baujahr von">
