@@ -44,16 +44,23 @@ typography:
     fontSize: "30px"
     fontWeight: 600
     lineHeight: 1.15
+  footnote:
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.4
 rounded:
   control: "6px"
   tile: "8px"
   section: "10px"
+  pill: "999px"
 spacing:
   xs: "6px"
   sm: "8px"
   md: "16px"
   lg: "20px"
   page: "24px"
+  xl: "32px"
 components:
   navbar:
     backgroundColor: "{colors.surface}"
@@ -96,7 +103,7 @@ components:
 
 immo-radar sieht aus wie der Schreibtisch eines nüchternen Analysten: papierwarme Neutrale, präzise Tabellen, und Farbe ausschließlich dort, wo sie Bedeutung trägt. Das System ist dicht — Vergleich ist der Kern des Produkts — aber nie laut. Jede Kennzahl kommt mit ihrem Urteil (hervorgehoben ab Schwelle, Ausreißer markiert), damit der Leser entscheidet statt rechnet. Die Oberfläche verschwindet hinter der Aufgabe.
 
-Das System lehnt explizit ab: Excel-Ästhetik (rohe Zahlengitter ohne Hierarchie), Immobilienportal-Optik (Foto-Kacheln, Badges, Dringlichkeitsdruck) und das generische SaaS-Dashboard (KPI-Kachel-Wände, Gradients, Icon-Karten). Es gibt zwei gleichwertige Themes — hell und dunkel via `prefers-color-scheme`, mit identischem Token-Vokabular; alle Werte hier sind die Light-Werte. Die eine Code-Quelle für alle Tokens ist `TOKEN_CSS` in `src/pages/layout.ts` (Report und Gebiets-Seiten importieren sie von dort).
+Das System lehnt explizit ab: Excel-Ästhetik (rohe Zahlengitter ohne Hierarchie), Immobilienportal-Optik (Foto-Kacheln, Badges, Dringlichkeitsdruck) und das generische SaaS-Dashboard (KPI-Kachel-Wände, Gradients, Icon-Karten). Es gibt zwei gleichwertige Themes — hell und dunkel via `prefers-color-scheme`, mit identischem Token-Vokabular; alle Werte hier sind die Light-Werte. Die eine Code-Quelle für alle Tokens ist `TOKEN_CSS` in `src/pages/layout.ts` (Report und Gebiets-Seiten importieren sie von dort) — neben den Farben auch Raum (`--raum-xs`…`--raum-xl`), Radien (`--radius-control/-tile/-section/-pill`), Schriftgrößen (`--fs-fuss`…`--fs-display`), Gewichte (`--gewicht-normal/-stark`), `--fokus-ring` und `--outlier-flaeche`. Das wiederkehrende Markup (Filterleiste, Formularfelder, Blätter-Navigation, Tabellen, Badges) hat seine eine Quelle im Primitive-Layer `src/pages/ui/` (`html\`\``-Vertrag: Strings werden escaped, `Html` wird roh inlined; Regeln siehe `src/pages/ui/html.ts`), dessen geteiltes CSS in `KOMPONENTEN_CSS` (`src/pages/ui/css.ts`) lebt.
 
 **Key Characteristics:**
 - Papierwarme Neutrale (warmes Grau, kein reines Weiß/Schwarz außer Text)
