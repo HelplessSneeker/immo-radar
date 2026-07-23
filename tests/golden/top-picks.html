@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>immo-radar · Top Picks</title>
+<style entfernt="golden-diff"></style>
+</head>
+<body>
+<nav class="hauptnav" aria-label="Hauptnavigation">
+  <a class="marke" href="/">immo-radar</a>
+  <a href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Dashboard</span></a>
+  <a href="/top-picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg><span>Top Picks</span></a>
+  <a href="/inserate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg><span>Inserate</span></a>
+  <a href="/portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg><span>Portfolio</span></a>
+  <a href="/crawl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Crawl-Läufe</span></a>
+  <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
+    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
+      <span class="aktivitaet-punkt" aria-hidden="true"></span>
+      <span class="aktivitaet-text">läuft</span>
+    </button>
+    <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
+  </div>
+</nav>
+<main class="breit">
+  <header>
+    <h1>Top Picks</h1>
+    <p class="intro">Die Kauf-Objekte, bei denen sich die Investition am ehesten rechnet: das beste Verhältnis aus Kaufpreis und der Miete, die im gleichen Gebiet üblich ist.</p>
+    <p class="meta">Kauf-Objekte am Stichtag 07.07.2026, sortiert
+    nach geschätzter Bruttorendite. Die Miete kommt aus dem Median der Kaltmiete im
+    Objekt-Gebiet (PLZ, sonst Bezirk oder Kärnten-Gesamt) — die Basis steht jeweils dabei.
+    <a href="/methodik#top-picks">Details</a></p>
+    <p class="meta">Gefiltert: PLZ 9…</p>
+  </header>
+
+  <section>
+    <form class="filterleiste" method="get" action="/top-picks">
+      <div class="feld feld-plz">
+        <label for="f-plz">PLZ (Anfang genügt)</label>
+        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="9" placeholder="z. B. 9020 oder 95">
+      </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="ausreisser" value="an" checked> Ausreißer einbeziehen</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
+      <button class="klein" type="submit">Filtern</button>
+      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>
+    </form>
+    <p class="meta">Der Fläche-Filter wirkt nur im Dashboard und wird hier ignoriert.</p>
+  </section>
+
+  <section>
+    <h2>Top 3 nach Bruttorendite</h2>
+    <p class="meta">Keines der 3 Objekte erreicht das Renditeziel (≥ 4 %).</p>
+    <p class="meta">Kauf-Objekte, die an den Plausibilitätsregeln scheitern oder in ihrer PLZ als
+    1,5×IQR-Ausreißer gelten, sind einbezogen und mit „▲ Ausreißer" markiert; die
+    Miet-Mediane rechnen unbereinigt. <a href="/methodik#top-picks">Details</a></p>
+    <div class="tabelle-scroll">
+    <table class="tabelle-karten">
+      <thead><tr><th scope="col">Objekt</th><th scope="col">PLZ</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">Kaufpreis</th><th scope="col" class="num">Kauf (€/m²)</th><th scope="col" class="num">Miete (€/m²)</th><th scope="col" class="num">Rendite</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="rang">1.</span><a href="https://willhaben.at/wh-1">Klagenfurt · 3 Zi.</a><span class="sub">willhaben.at</span></td>
+          <td data-label="PLZ">9020<span class="sub">Klagenfurt Stadt</span></td>
+          <td class="num" data-label="Fläche">50 m²</td>
+          <td class="num" data-label="Kaufpreis">200 000 €</td>
+          <td class="num" data-label="Kauf (€/m²)">4 000</td>
+          <td class="num" data-label="Miete (€/m²)">10,00<span class="sub badge">Miete aus PLZ</span></td>
+          <td class="num" data-label="Rendite">3,00 %</td>
+        </tr>
+        <tr>
+          <td><span class="rang">2.</span><a href="https://willhaben.at/wh-7">Wölfnitz · 2 Zi.</a><span class="sub">willhaben.at</span></td>
+          <td data-label="PLZ">9061<span class="sub">Klagenfurt Stadt</span></td>
+          <td class="num" data-label="Fläche">45 m²</td>
+          <td class="num" data-label="Kaufpreis">140 000 €</td>
+          <td class="num" data-label="Kauf (€/m²)">3 111</td>
+          <td class="num" data-label="Miete (€/m²)">9,50<span class="sub badge">Miete aus Bezirk</span></td>
+          <td class="num" data-label="Rendite">3,66 %</td>
+        </tr>
+        <tr class="row-outlier">
+          <td><span class="rang">3.</span><a href="https://immowelt.at/iw-9">Villach · 3 Zi.</a> <span class="badge badge-critical">▲ Ausreißer</span><span class="sub">immowelt.at</span></td>
+          <td data-label="PLZ">9500<span class="sub">Villach Stadt</span></td>
+          <td class="num" data-label="Fläche">38 m²</td>
+          <td class="num" data-label="Kaufpreis">99 000 €</td>
+          <td class="num" data-label="Kauf (€/m²)">2 605</td>
+          <td class="num" data-label="Miete (€/m²)">10,40<span class="sub badge">Miete aus Kärnten</span></td>
+          <td class="num" data-label="Rendite">4,79 %</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const slot = document.getElementById('aktivitaet-slot');
+  if (!slot) return;
+  const chip = slot.querySelector('.aktivitaet-chip');
+  const text = slot.querySelector('.aktivitaet-text');
+  const liste = slot.querySelector('.aktivitaet-liste');
+  let offen = false;
+  let letzterHash = '';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function schliesseListe() {
+    if (!offen) return;
+    offen = false;
+    liste.hidden = true;
+    chip.setAttribute('aria-expanded', 'false');
+  }
+
+  chip.addEventListener('click', function () {
+    offen = !offen;
+    liste.hidden = !offen;
+    chip.setAttribute('aria-expanded', String(offen));
+  });
+  document.addEventListener('click', function (e) {
+    if (offen && !slot.contains(e.target)) schliesseListe();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && offen) { schliesseListe(); chip.focus(); }
+  });
+
+  function baueListe(data) {
+    let html = '';
+    if (data.sweep) {
+      html += '<p class="aktivitaet-titel">Crawl</p><ul>';
+      html += '<li><a href="/crawl"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>Kärnten-Sweep (' + esc(data.sweep.laufDatum) + ')</span></a></li>';
+      html += '</ul>';
+    }
+    liste.innerHTML = html;
+  }
+
+  async function tick() {
+    try {
+      const res = await fetch('/api/laufend', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const hash = data.sweep ? data.sweep.laufDatum : '';
+      const geaendert = hash !== letzterHash;
+      letzterHash = hash;
+
+      if (!data.sweep) {
+        if (!slot.hidden) { slot.hidden = true; schliesseListe(); }
+      } else {
+        if (slot.hidden) slot.hidden = false;
+        text.textContent = 'Sweep läuft';
+        baueListe(data);
+      }
+      if (geaendert) {
+        document.dispatchEvent(new CustomEvent('aktivitaet-aenderung', { detail: data }));
+      }
+    } catch (_) { /* Server offline – nächster Tick versucht es wieder */ }
+  }
+
+  tick();
+  setInterval(tick, 3000);
+})();
+</script>
+</body>
+</html>

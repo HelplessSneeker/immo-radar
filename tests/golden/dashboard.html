@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>immo-radar · Dashboard</title>
+<style entfernt="golden-diff"></style>
+</head>
+<body>
+<nav class="hauptnav" aria-label="Hauptnavigation">
+  <a class="marke" href="/">immo-radar</a>
+  <a href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Dashboard</span></a>
+  <a href="/top-picks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg><span>Top Picks</span></a>
+  <a href="/inserate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg><span>Inserate</span></a>
+  <a href="/portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg><span>Portfolio</span></a>
+  <a href="/crawl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Crawl-Läufe</span></a>
+  <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
+    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
+      <span class="aktivitaet-punkt" aria-hidden="true"></span>
+      <span class="aktivitaet-text">läuft</span>
+    </button>
+    <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
+  </div>
+</nav>
+<main class="breit">
+  <header>
+    <h1>Wohnungsmarkt Kärnten</h1>
+    <p class="meta">willhaben.at &amp; immoscout24.at · täglich gecrawlt · Stand 07.07.2026</p>
+  </header>
+
+  <section class="filter-sektion">
+    <details class="filter" open>
+      <summary>Gefiltert: PLZ 9020 · 40–90 m²</summary>
+    <form class="filterleiste" method="get" action="/">
+      <input type="hidden" name="stichtag" value="2026-07-07">
+      <div class="feld feld-plz">
+        <label for="f-plz">PLZ (Anfang genügt)</label>
+        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="9020" placeholder="z. B. 9020 oder 95">
+      </div>
+      <fieldset class="feld">
+        <legend>Fläche (m²)</legend>
+        <div class="von-bis">
+          <input type="text" id="f-flaeche-min" name="flaeche_min" inputmode="numeric" value="40" placeholder="von" aria-label="Fläche von (m²)">
+          <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="90" placeholder="bis" aria-label="Fläche bis (m²)">
+        </div>
+      </fieldset>
+      <fieldset class="feld feld-zeitraum">
+        <legend>Zeitraum</legend>
+        <div class="presets">
+          <label><input type="radio" name="zeitraum" value="7d"> 7 Tage</label>
+          <label><input type="radio" name="zeitraum" value="30d" checked> 30 Tage</label>
+          <label><input type="radio" name="zeitraum" value="90d"> 90 Tage</label>
+          <label><input type="radio" name="zeitraum" value="alle"> Alle</label>
+        </div>
+      </fieldset>
+      <fieldset class="feld">
+        <legend>Eigener Zeitraum</legend>
+        <div class="von-bis">
+          <input type="date" id="f-von" name="von" value="" aria-label="Von (Datum)">
+          <input type="date" id="f-bis" name="bis" value="" aria-label="Bis (Datum)">
+        </div>
+      </fieldset>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="ausreisser" value="an"> Ausreißer einbeziehen</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
+      <button class="klein" type="submit">Filtern</button>
+      <p class="meta"><a href="/">Filter zurücksetzen</a></p>
+    </form>
+    </details>
+  </section>
+
+    <div class="kpi-block">
+    <div class="tiles">
+      <div class="tile">
+        <div class="tile-label">Bruttorendite</div>
+        <div class="tile-value">3,00<span class="tile-einheit">%</span></div>
+        <div class="tile-trend"><span class="trend-pfeil trend-pfeil-schlecht" aria-label="fallend">↓</span> <span class="trend-delta">−0,1 %-Pkt.</span> <span class="trend-ref">vs. 23.06.2026</span></div>
+        <div class="tile-badge">unter Ziel (≥ 4 %)</div>
+      </div>      <div class="tile">
+        <div class="tile-label">Kaufpreis (Median)</div>
+        <div class="tile-value">4 000<span class="tile-einheit">€/m²</span></div>
+        <div class="tile-trend"><span class="trend-pfeil" aria-label="steigend">↑</span> <span class="trend-delta">+5,3 %</span> <span class="trend-ref">vs. 23.06.2026</span></div>
+        <div class="tile-sub">42 Objekte</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Kaltmiete (Median)</div>
+        <div class="tile-value">10,00<span class="tile-einheit">€/m²</span></div>
+        <div class="tile-trend"><span class="trend-pfeil" aria-label="steigend">↑</span> <span class="trend-delta">+5,3 %</span> <span class="trend-ref">vs. 23.06.2026</span></div>
+        <div class="tile-sub">31 Objekte</div>
+      </div>
+    </div>
+    <p class="warnung">Beim letzten Sweep waren 1 Segment(e) nicht abfragbar – die aktuellen Zahlen sind unvollständig. <a href="/crawl">Details</a></p>
+    <p class="meta">Ohne Ausreißer gerechnet · Alle Kennzahlen erklärt → <a href="/methodik">Methodik</a></p>
+    </div>
+
+  <section class="verlauf">
+    <h2>Preisentwicklung über die Zeit</h2>
+    <p class="meta">Ein Punkt je Crawl-Lauf: Median der aktiven Objekte (ohne Ausreißer). <a href="/methodik#objekte">Details</a></p>
+    <div class="charts-3">
+      <div class="chart-box">
+        <div class="chart-title">Bruttorendite (%)</div>
+        <div class="chart-wrap"><canvas id="trend-rendite" role="img" aria-label="Liniendiagramm: Brutto-Mietrendite in Prozent über die Zeit."></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Kauf (€/m²)</div>
+        <div class="chart-wrap"><canvas id="trend-kauf" role="img" aria-label="Liniendiagramm: Median-Kaufpreis in Euro pro Quadratmeter über die Zeit."></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">Miete kalt (€/m²)</div>
+        <div class="chart-wrap"><canvas id="trend-miete" role="img" aria-label="Liniendiagramm: Median-Kaltmiete in Euro pro Quadratmeter über die Zeit."></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="datenpunkte">
+    <details class="datenpunkte" open>
+      <summary><h2>Die Objekte hinter den Zahlen (Stichtag 07.07.2026)</h2></summary>
+      <p class="meta">Jeder Punkt ein Objekt: die einzelnen €/m²-Werte hinter den
+      Stichtag-Medianen, dazu die Median-Linie. Wolke, Tabelle und Median-Linie
+      folgen alle dem Ausreißer-Schalter dieser Sektion: aus (Default) blendet
+      die Ausreißer aus, an zeigt sie wieder — in der Tabelle markiert.
+      <a href="/methodik#objekte">Details</a></p>
+      <div class="charts-2">
+        <div class="chart-box">
+          <div class="chart-title">Kauf (€/m²) · Punktwolke &amp; Median · log. Skala</div>
+          <div class="chart-wrap"><canvas id="streu-kauf" role="img" aria-label="Streudiagramm: Kaufpreis in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Miete kalt (€/m²) · Punktwolke &amp; Median · log. Skala</div>
+          <div class="chart-wrap"><canvas id="streu-miete" role="img" aria-label="Streudiagramm: Kaltmiete in Euro pro Quadratmeter je Objekt und Stichtag, mit Median-Linie, logarithmische Skala."></canvas></div>
+        </div>
+      </div>
+      <p class="meta">Die Tabellen zeigen die Objekte des gewählten Stichtags.
+      Ausreißer (Plausibilitätsregeln und 1,5×IQR) sind standardmäßig ausgeblendet;
+      der Schalter unten blendet sie markiert wieder ein und rechnet sie in den
+      Serien-Median. <a href="/methodik#ausreisser">Details</a></p>
+      <form class="drawer-toggle feld-toggle" method="get" action="/#datenpunkte">
+        <input type="hidden" name="plz" value="9020">
+        <input type="hidden" name="flaeche_min" value="40">
+        <input type="hidden" name="flaeche_max" value="90">
+        <input type="hidden" name="zeitraum" value="30d">
+        <input type="hidden" name="stichtag" value="2026-07-07">
+        <input type="hidden" name="kauf_seite" value="2">
+        <label><input type="checkbox" name="objekte_ausreisser" value="an"> Ausreißer einbeziehen</label>
+        <button class="klein" type="submit">Anwenden</button>
+        <p class="meta">Gilt nur für diese Ansicht: blendet die Ausreißer in
+        Tabelle und Punktwolke ein bzw. aus und rechnet sie entsprechend in den
+        Serien-Median — die Kennzahlen oben steuert der Schalter in der
+        Filterleiste.</p>
+      </form>
+      <nav class="seiten-nav" aria-label="Stichtag wählen">
+        <a href="/?plz=9020&flaeche_min=40&flaeche_max=90&zeitraum=30d&stichtag=2026-06-30#datenpunkte">← älterer Stichtag</a>
+        <span class="meta zaehler">Stichtag 3 von 3</span>
+        <span></span>
+      </nav>
+      <h3 id="dp-kauf">Kauf · 23 Objekte · 2 Ausreißer ausgeblendet · Median 3 306 €/m² (ohne Ausreißer)</h3>
+      <div class="tabelle-scroll">
+      <table class="tabelle-karten">
+        <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
+        <tbody>
+        <tr>
+          <td><a href="https://willhaben.at/wh-k21">Klagenfurt · 1 Zi.</a><span class="sub">9020 · willhaben.at</span></td>
+          <td class="num" data-label="Preis">250 000 €</td>
+          <td class="num" data-label="Fläche">80 m²</td>
+          <td class="num" data-label="€/m²">3 125</td>
+          <td class="num" data-label="Δ Median">−5,5 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-k22">Klagenfurt · 2 Zi.</a><span class="sub">9061 · willhaben.at</span></td>
+          <td class="num" data-label="Preis">255 000 €</td>
+          <td class="num" data-label="Fläche">82 m²</td>
+          <td class="num" data-label="€/m²">3 110</td>
+          <td class="num" data-label="Δ Median">−5,9 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-k23">Klagenfurt · 3 Zi.</a><span class="sub">9020 · willhaben.at</span></td>
+          <td class="num" data-label="Preis">260 000 €</td>
+          <td class="num" data-label="Fläche">84 m²</td>
+          <td class="num" data-label="€/m²">3 095</td>
+          <td class="num" data-label="Δ Median">−6,4 %</td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+      <nav class="seiten-nav" aria-label="Kauf-Datenpunkte: Seiten">
+        <a href="/?plz=9020&flaeche_min=40&flaeche_max=90&zeitraum=30d&stichtag=2026-07-07#dp-kauf">← Zurück</a>
+        <span class="meta zaehler">Seite 2 von 2</span>
+        <span></span>
+      </nav>
+      <h3 id="dp-miete">Miete · 5 Objekte · Median 10,91 €/m² (ohne Ausreißer)</h3>
+      <div class="tabelle-scroll">
+      <table class="tabelle-karten">
+        <thead><tr><th scope="col">Objekt</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">Δ Median</th></tr></thead>
+        <tbody>
+        <tr>
+          <td><a href="https://willhaben.at/wh-m1">Klagenfurt · 3 Zi.</a><span class="sub">9020 · immowelt.at</span></td>
+          <td class="num" data-label="Preis">500 €</td>
+          <td class="num" data-label="Fläche">45 m²</td>
+          <td class="num" data-label="€/m²">11,11</td>
+          <td class="num" data-label="Δ Median">+1,8 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-m2">Klagenfurt · 3 Zi.</a><span class="sub">9020 · immowelt.at</span></td>
+          <td class="num" data-label="Preis">550 €</td>
+          <td class="num" data-label="Fläche">50 m²</td>
+          <td class="num" data-label="€/m²">11,00</td>
+          <td class="num" data-label="Δ Median">+0,8 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-m3">Klagenfurt · 3 Zi.</a><span class="sub">9020 · immowelt.at</span></td>
+          <td class="num" data-label="Preis">600 €</td>
+          <td class="num" data-label="Fläche">55 m²</td>
+          <td class="num" data-label="€/m²">10,91</td>
+          <td class="num" data-label="Δ Median">+0 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-m4">Klagenfurt · 3 Zi.</a><span class="sub">9020 · immowelt.at</span></td>
+          <td class="num" data-label="Preis">650 €</td>
+          <td class="num" data-label="Fläche">60 m²</td>
+          <td class="num" data-label="€/m²">10,83</td>
+          <td class="num" data-label="Δ Median">−0,7 %</td>
+        </tr>
+        <tr>
+          <td><a href="https://willhaben.at/wh-m5">Klagenfurt · 3 Zi.</a><span class="sub">9020 · immowelt.at</span></td>
+          <td class="num" data-label="Preis">700 €</td>
+          <td class="num" data-label="Fläche">65 m²</td>
+          <td class="num" data-label="€/m²">10,77</td>
+          <td class="num" data-label="Δ Median">−1,3 %</td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <p>Objekte über beide Portale dedupliziert (<a href="/methodik#objekte">Matching-Regeln</a>);
+      Delisting bleibt ein Näherungswert für verkauft/vermietet ·
+      Rohdaten: <a href="/inserate">alle Inserate</a></p>
+  </footer>
+
+  <script>const TREND = [{"datum":"2026-06-23","medianKaufEurM2":3800,"medianMieteEurM2":9.5,"anzahlKauf":38,"anzahlMiete":28,"label":"23.06.2026"},{"datum":"2026-06-30","medianKaufEurM2":3900,"medianMieteEurM2":9.8,"anzahlKauf":40,"anzahlMiete":30,"label":"30.06.2026"},{"datum":"2026-07-07","medianKaufEurM2":4000,"medianMieteEurM2":10,"anzahlKauf":42,"anzahlMiete":31,"label":"07.07.2026"}]; const RENDITE = [{"datum":"2026-06-23","bruttoRendite":0.0305},{"datum":"2026-06-30","bruttoRendite":0.0302},{"datum":"2026-07-07","bruttoRendite":0.03}]; const STREUUNG = [{"datum":"2026-06-23","kauf":[3600,4200,3900],"miete":[9.5,9.8]},{"datum":"2026-06-30","kauf":[3700,4100],"miete":[9.82]},{"datum":"2026-07-07","kauf":[4000,4050],"miete":[10]}]; const DP_TREND = [{"medianKaufEurM2":3800,"medianMieteEurM2":9.5},{"medianKaufEurM2":3900,"medianMieteEurM2":9.8},{"medianKaufEurM2":4000,"medianMieteEurM2":10}];</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  if (TREND.length === 0) return; // Empty-State steht im Markup, keine Charts nötig
+  if (typeof Chart === 'undefined') {
+    document.querySelectorAll('.chart-wrap').forEach((el) => {
+      el.innerHTML = '<p style="color:var(--text-secondary);font-size:13px">Diagramm nicht verfügbar '
+        + '(Chart.js-CDN nicht erreichbar – Internetverbindung nötig).</p>';
+    });
+    return;
+  }
+  const nfEur = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 });
+  const nfEur2 = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nfPct = new Intl.NumberFormat('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  const reduziert = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let charts = [];
+  let ersterZeichnung = true;
+
+  function linie(canvasId, werte, farbeVar, format, tooltip) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'line',
+      data: {
+        labels: TREND.map((t) => t.label),
+        datasets: [{
+          data: werte,
+          borderColor: cssVar(farbeVar),
+          backgroundColor: cssVar(farbeVar),
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          tension: 0.15,
+          spanGaps: false, // Lücken (keine Daten) sichtbar lassen
+        }],
+      },
+      options: {
+        animation: reduziert || !ersterZeichnung ? false : { duration: 300, easing: 'easeOutQuart' },
+        maintainAspectRatio: false,
+        // Spalten-Hover statt Punkt-Treffer: der Tooltip erscheint schon beim
+        // Überfahren des Stichtags – auf dünnen Linien deutlich gutmütiger.
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false }, // eine Serie: Panel-Titel benennt sie
+          tooltip: { callbacks: { label: tooltip } },
+        },
+        scales: {
+          x: { grid: { display: false }, border: { color: cssVar('--baseline') },
+               ticks: { color: cssVar('--text-secondary'), font: { family: FONT },
+                        maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+          y: { grid: { color: cssVar('--grid') }, border: { display: false },
+               ticks: { color: cssVar('--text-muted'), font: { family: FONT },
+                        callback: (v) => format(v) } },
+        },
+      },
+    });
+  }
+
+  function renderAll() {
+    charts.forEach((c) => c.destroy());
+    charts = [
+      linie('trend-rendite', RENDITE.map((r) => r.bruttoRendite === null ? null : r.bruttoRendite * 100),
+        '--series-3', (v) => nfPct.format(v) + ' %',
+        (c) => nfPct.format(c.parsed.y) + ' % (' + TREND[c.dataIndex].anzahlKauf + ' Kauf / '
+          + TREND[c.dataIndex].anzahlMiete + ' Miete)'),
+      linie('trend-kauf', TREND.map((t) => t.medianKaufEurM2),
+        '--series-kauf', (v) => nfEur.format(Math.round(v)),
+        (c) => nfEur.format(Math.round(c.parsed.y)) + ' €/m² (' + TREND[c.dataIndex].anzahlKauf + ' Objekte)'),
+      linie('trend-miete', TREND.map((t) => t.medianMieteEurM2),
+        '--series-miete', (v) => nfEur2.format(v),
+        (c) => nfEur2.format(c.parsed.y) + ' €/m² (' + TREND[c.dataIndex].anzahlMiete + ' Objekte)'),
+    ];
+    ersterZeichnung = false;
+  }
+
+  renderAll();
+
+  // --- Punktwolke der Datenpunkte-Sektion ---
+  // Erst beim Aufklappen zeichnen: ein Canvas in zugeklapptem <details> hat
+  // keine Größe, und zugeklappt kostet die Wolke sonst nur Ladezeit.
+  const details = document.querySelector('#datenpunkte details');
+  let streuCharts = [];
+  let streuGezeichnet = false;
+
+  function streuChart(canvasId, serie, medianVon, format) {
+    const wolke = [];
+    STREUUNG.forEach((s, i) => {
+      s[serie].forEach((wert, j) => {
+        // Deterministischer Jitter entzerrt die Stichtag-Spalten, ohne bei
+        // jedem Re-Render (Theme-Wechsel) zu springen.
+        const versatz = (((i * 7919 + j * 104729) % 1000) / 1000 - 0.5) * 0.5;
+        wolke.push({ x: i + versatz, y: wert });
+      });
+    });
+    const farbe = cssVar(serie === 'kauf' ? '--series-kauf' : '--series-miete');
+    return new Chart(document.getElementById(canvasId), {
+      data: {
+        datasets: [
+          {
+            type: 'scatter',
+            data: wolke,
+            backgroundColor: farbe + '4d', // ~30 % Alpha gegen Overplotting
+            borderColor: 'transparent',
+            pointRadius: 2,
+            pointHoverRadius: 5,
+            order: 2, // höhere Order = weiter hinten – die Wolke liegt unter dem Median
+          },
+          {
+            type: 'line',
+            // Median-Serie aus DP_TREND: folgt dem Drawer-Schalter der
+            // Sektion, nicht dem globalen Kennzahlen-Toggle.
+            data: DP_TREND.map((t, i) => ({ x: i, y: medianVon(t) })),
+            borderColor: farbe,
+            backgroundColor: farbe,
+            borderWidth: 2,
+            // Surface-Ring hebt die Median-Punkte aus der Wolke heraus.
+            pointBorderColor: cssVar('--surface-1'),
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.15,
+            spanGaps: false,
+            order: 1,
+          },
+        ],
+      },
+      options: {
+        animation: false, // tausende Punkte – Einblendung ruckelt nur
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }, // Panel-Titel benennt Wolke & Median
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const punkt = TREND[Math.round(c.parsed.x)];
+                const datum = punkt ? punkt.label : '';
+                return (c.datasetIndex === 1 ? 'Median ' : '')
+                  + format(c.parsed.y) + ' €/m² (' + datum + ')';
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            min: -0.5,
+            max: TREND.length - 0.5,
+            grid: { display: false },
+            border: { color: cssVar('--baseline') },
+            // Ticks exakt auf die Stichtag-Spalten legen – die automatische
+            // Einteilung trifft sonst halbe Positionen und lässt die Achse leer.
+            afterBuildTicks: (achse) => {
+              achse.ticks = TREND.map((_, i) => ({ value: i }));
+            },
+            ticks: {
+              color: cssVar('--text-secondary'),
+              font: { family: FONT },
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 8,
+              callback: (v) => (TREND[v] ? TREND[v].label : ''),
+            },
+          },
+          y: {
+            // Logarithmisch: €/m² ist stark rechtsschief – einzelne Ausreißer
+            // würden den dichten Marktbereich sonst an die Nulllinie stauchen.
+            type: 'logarithmic',
+            grid: { color: cssVar('--grid') },
+            border: { display: false },
+            ticks: { color: cssVar('--text-muted'), font: { family: FONT },
+                     maxTicksLimit: 9, callback: (v) => format(v) },
+          },
+        },
+      },
+    });
+  }
+
+  function zeichneStreuung() {
+    streuCharts.forEach((c) => c.destroy());
+    streuCharts = [
+      streuChart('streu-kauf', 'kauf', (t) => t.medianKaufEurM2, (v) => nfEur.format(Math.round(v))),
+      streuChart('streu-miete', 'miete', (t) => t.medianMieteEurM2, (v) => nfEur2.format(v)),
+    ];
+    streuGezeichnet = true;
+  }
+
+  if (details) {
+    if (details.open) zeichneStreuung();
+    details.addEventListener('toggle', () => {
+      if (details.open && !streuGezeichnet) zeichneStreuung();
+    });
+  }
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    renderAll();
+    if (streuGezeichnet) zeichneStreuung();
+  });
+})();
+</script>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const slot = document.getElementById('aktivitaet-slot');
+  if (!slot) return;
+  const chip = slot.querySelector('.aktivitaet-chip');
+  const text = slot.querySelector('.aktivitaet-text');
+  const liste = slot.querySelector('.aktivitaet-liste');
+  let offen = false;
+  let letzterHash = '';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function schliesseListe() {
+    if (!offen) return;
+    offen = false;
+    liste.hidden = true;
+    chip.setAttribute('aria-expanded', 'false');
+  }
+
+  chip.addEventListener('click', function () {
+    offen = !offen;
+    liste.hidden = !offen;
+    chip.setAttribute('aria-expanded', String(offen));
+  });
+  document.addEventListener('click', function (e) {
+    if (offen && !slot.contains(e.target)) schliesseListe();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && offen) { schliesseListe(); chip.focus(); }
+  });
+
+  function baueListe(data) {
+    let html = '';
+    if (data.sweep) {
+      html += '<p class="aktivitaet-titel">Crawl</p><ul>';
+      html += '<li><a href="/crawl"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>Kärnten-Sweep (' + esc(data.sweep.laufDatum) + ')</span></a></li>';
+      html += '</ul>';
+    }
+    liste.innerHTML = html;
+  }
+
+  async function tick() {
+    try {
+      const res = await fetch('/api/laufend', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const hash = data.sweep ? data.sweep.laufDatum : '';
+      const geaendert = hash !== letzterHash;
+      letzterHash = hash;
+
+      if (!data.sweep) {
+        if (!slot.hidden) { slot.hidden = true; schliesseListe(); }
+      } else {
+        if (slot.hidden) slot.hidden = false;
+        text.textContent = 'Sweep läuft';
+        baueListe(data);
+      }
+      if (geaendert) {
+        document.dispatchEvent(new CustomEvent('aktivitaet-aenderung', { detail: data }));
+      }
+    } catch (_) { /* Server offline – nächster Tick versucht es wieder */ }
+  }
+
+  tick();
+  setInterval(tick, 3000);
+})();
+</script>
+</body>
+</html>
