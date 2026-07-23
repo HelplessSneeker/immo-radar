@@ -34,8 +34,6 @@ const TOP_PICKS_CSS = `
   /* Rendite ≥ Ziel: gleiche Gut-Töne wie die Dashboard-Kachel (tile-good). */
   .zelle-gut { background: var(--good-bg); }
   .gut { color: var(--good-text); font-weight: 600; }
-  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Rang-Nummer des Rankings: leise (gedämpft, kein Urteil), rechtsbündig auf
      fester Breite, damit die Objekt-Titel auch bei zweistelligen Rängen fluchten. */
   .rang {

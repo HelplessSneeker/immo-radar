@@ -143,8 +143,6 @@ const DASHBOARD_CSS = `
      Anwenden-Button und Erklär-Meta — kein zweites Filterleisten-Gewicht. */
   .drawer-toggle { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
   .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
-  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
      Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
   .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }

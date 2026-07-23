@@ -13,6 +13,8 @@
  * Änderungen an den Tokens mit DESIGN.md synchron halten.
  */
 
+import { KOMPONENTEN_CSS } from './ui/css.js';
+
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -56,6 +58,28 @@ export const TOKEN_CSS = `
     --dauer-fein: 120ms;
     --dauer-schnell: 180ms;
     --dauer-mittel: 240ms;
+    /* Raum-, Radius-, Schrift- und Zustands-Tokens (theme-unabhängig) –
+       Werte und Namen mit DESIGN.md synchron halten. */
+    --raum-xs: 6px;
+    --raum-sm: 8px;
+    --raum-md: 16px;
+    --raum-lg: 20px;
+    --raum-page: 24px;
+    --raum-xl: 32px;
+    --radius-control: 6px;
+    --radius-tile: 8px;
+    --radius-section: 10px;
+    --radius-pill: 999px;
+    --fs-fuss: 12px;
+    --fs-label: 13px;
+    --fs-body: 14px;
+    --fs-titel: 15px;
+    --fs-headline: 20px;
+    --fs-display: 30px;
+    --gewicht-normal: 400;
+    --gewicht-stark: 600;
+    --fokus-ring: 2px solid var(--akzent);
+    --outlier-flaeche: color-mix(in srgb, var(--status-critical) 6%, transparent);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -127,13 +151,13 @@ export const BASIS_CSS = `
   }
   a { color: var(--akzent); transition: color var(--dauer-fein) var(--ease-out); }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
-    outline: 2px solid var(--akzent); outline-offset: 2px;
+    outline: var(--fokus-ring); outline-offset: 2px;
     transition: outline-offset var(--dauer-fein) var(--ease-out);
   }
   button {
-    padding: 10px 16px; font: inherit; font-weight: 600;
+    padding: 10px 16px; font: inherit; font-weight: var(--gewicht-stark);
     color: #fff; background: var(--akzent-flaeche);
-    border: 0; border-radius: 6px; cursor: pointer;
+    border: 0; border-radius: var(--radius-control); cursor: pointer;
     transition: background-color var(--dauer-schnell) var(--ease-out),
                 opacity var(--dauer-schnell) var(--ease-out);
   }
@@ -141,7 +165,7 @@ export const BASIS_CSS = `
   button:active:not(:disabled) { background: var(--akzent-flaeche-hover); opacity: 0.9; }
   button:disabled { opacity: 0.6; cursor: wait; }
   button.klein {
-    padding: 4px 10px; font-size: 12px; font-weight: 400;
+    padding: 4px 10px; font-size: var(--fs-fuss); font-weight: var(--gewicht-normal);
     color: var(--akzent); background: transparent;
     border: 1px solid var(--grid);
     transition: background-color var(--dauer-schnell) var(--ease-out),
@@ -158,19 +182,19 @@ export const BASIS_CSS = `
     clip-path: inset(50%); white-space: nowrap;
   }
   .tabelle-scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--fs-label); }
   th, td {
     text-align: left; padding: 6px 10px; vertical-align: top;
     border-bottom: 1px solid var(--grid);
   }
-  thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
-  tbody th { font-weight: 600; }
+  thead th { color: var(--text-muted); font-weight: var(--gewicht-stark); border-bottom: 1px solid var(--baseline); }
+  tbody th { font-weight: var(--gewicht-stark); }
   tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
   tbody tr { transition: background-color var(--dauer-fein) var(--ease-out); }
   tbody tr:hover { background: var(--surface-hover); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td .sub, tbody th .sub {
-    display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary);
+    display: block; font-weight: var(--gewicht-normal); font-size: var(--fs-fuss); color: var(--text-secondary);
   }
   /* Mobile-Karten: dichte Tabellen (Top Picks, Datenpunkte, Portfolio) brechen
      auf schmalen Viewports in gestapelte Karten um – je Zeile eine Karte, die
@@ -199,7 +223,7 @@ export const BASIS_CSS = `
     .tabelle-karten td .sub { text-align: right; }
     .tabelle-karten td:first-child .sub { text-align: left; }
     /* Ausreißer-Tönung wandert auf die Karte statt auf jede Teil-Zelle. */
-    .tabelle-karten tr.row-outlier { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+    .tabelle-karten tr.row-outlier { background: var(--outlier-flaeche); }
     .tabelle-karten tr.row-outlier td { background: none; }
   }
   .status-badge {
@@ -221,9 +245,9 @@ export const BASIS_CSS = `
   /* Site-weite Badges und Ausreißer-Zeilen (Dashboard-Datenpunkte, Top Picks,
      Report): .badge ist neutrale Herkunft/Fakt, .badge-critical das Urteil
      „auffällig", .row-outlier hinterlegt die ganze Zeile leise kritisch. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+  .badge { font-size: var(--fs-fuss); color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: var(--gewicht-stark); font-size: var(--fs-fuss); }
+  .row-outlier td { background: var(--outlier-flaeche); }
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }
@@ -320,7 +344,7 @@ export const BASIS_CSS = `
      der Zähler. Am Rand (erste/letzte Seite) entfällt der jeweilige Link
      ersatzlos – ein leerer Span hält die Ausrichtung, kein Disabled-Fake. */
   .seiten-nav {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--raum-md);
   }
   .seiten-nav .zaehler { font-variant-numeric: tabular-nums; }
 
@@ -329,22 +353,22 @@ export const BASIS_CSS = `
   .filterleiste {
     display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
   }
-  .filterleiste .feld { display: grid; gap: 6px; }
-  .filterleiste label, .filterleiste legend { font-weight: 600; font-size: 13px; }
+  .filterleiste .feld { display: grid; gap: var(--raum-xs); }
+  .filterleiste label, .filterleiste legend { font-weight: var(--gewicht-stark); font-size: var(--fs-label); }
   .filterleiste fieldset { border: 0; padding: 0; margin: 0; }
   /* Bereichs-Felder (von–bis) in der Filterleiste: ein Label, zwei kompakte
      Eingaben – die Feldbreite folgt dem Inhalt (PLZ, m², Datum), nicht dem
      Browser-Default; sonst wirken kurze Werte in 200px-Boxen verloren. */
-  .filterleiste .von-bis { display: flex; gap: 8px; }
+  .filterleiste .von-bis { display: flex; gap: var(--raum-sm); }
   .filterleiste .feld-plz input { width: 150px; }
   .filterleiste .von-bis input[type="text"] { width: 76px; }
   .filterleiste .von-bis input[type="date"] { width: 145px; }
   .filterleiste .feld-zimmer .von-bis input { width: 56px; }
   .filterleiste .feld-baujahr .von-bis input { width: 72px; }
   .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
-    padding: 6px 10px; font: inherit; font-size: 13px;
+    padding: 6px 10px; font: inherit; font-size: var(--fs-label);
     color: var(--text-primary); background: var(--page);
-    border: 1px solid var(--grid); border-radius: 6px;
+    border: 1px solid var(--grid); border-radius: var(--radius-control);
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
   .filterleiste select:hover:not(:focus), .filterleiste input[type="text"]:hover:not(:focus),
@@ -360,7 +384,7 @@ export const BASIS_CSS = `
      Leiste — Summary wie die Dashboard-Filter-Summary (13px/600 in Akzent);
      aufgeklappt nimmt das Checkbox-Grid eine eigene volle Formularzeile ein. */
   .filterleiste .feld-ausstattung summary {
-    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent);
+    cursor: pointer; font-size: var(--fs-label); font-weight: var(--gewicht-stark); color: var(--akzent);
     padding-bottom: 6px;
   }
   .filterleiste .feld-ausstattung summary:hover { text-decoration: underline; }
@@ -370,7 +394,7 @@ export const BASIS_CSS = `
     display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 4px 16px;
   }
-  .filterleiste .facetten-panel label { font-weight: 400; }
+  .filterleiste .facetten-panel label { font-weight: var(--gewicht-normal); }
 
   /* Sanftes Ausblenden vor einem Reload – der harte Cut wirkt sonst als „Ruckler",
      besonders wenn eine Suche/ein Crawl gerade fertig geworden ist und die Seite
@@ -396,32 +420,32 @@ export const BASIS_CSS = `
 
 /** Zusätzliches CSS der Formularseiten (Suchformular, Gebiet anlegen). */
 export const FORMULAR_CSS = `
-  form { display: grid; gap: 16px; }
-  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
-  legend, label.feld { font-weight: 600; font-size: 13px; padding: 0; }
-  .hinweis { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
-  .feld-fehler { color: var(--status-critical); font-size: 12px; font-weight: 600; }
+  form { display: grid; gap: var(--raum-md); }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: var(--raum-xs); }
+  legend, label.feld { font-weight: var(--gewicht-stark); font-size: var(--fs-label); padding: 0; }
+  .hinweis { color: var(--text-secondary); font-size: var(--fs-fuss); font-weight: var(--gewicht-normal); }
+  .feld-fehler { color: var(--status-critical); font-size: var(--fs-fuss); font-weight: var(--gewicht-stark); }
   select, input[type="number"], input[type="text"], input[type="password"], input[type="date"] {
     width: 100%; padding: 8px 10px; font: inherit;
     color: var(--text-primary); background: var(--page);
-    border: 1px solid var(--grid); border-radius: 6px;
+    border: 1px solid var(--grid); border-radius: var(--radius-control);
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
   select:hover:not(:focus), input[type="number"]:hover:not(:focus), input[type="date"]:hover:not(:focus),
   input[type="text"]:hover:not(:focus), input[type="password"]:hover:not(:focus) { border-color: var(--baseline); }
   select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus,
   input[type="date"]:focus { border-color: var(--akzent); }
-  .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: var(--raum-sm); }
   /* Nachbar-Fieldsets in .bereich haben oft eine Hint-Zeile nur auf einer Seite
      (z. B. "leer lassen = leerstehend" bei der Kaltmiete, nicht bei Baujahr).
      Ohne diesen Ausgleich sitzt der eine Input höher als der andere. Flex mit
      margin-top: auto drückt den Input zuverlässig an den unteren Rand des
      (grid-stretched) Fieldsets, unabhängig davon, ob ein Hint dazwischen liegt. */
-  .bereich > fieldset { display: flex; flex-direction: column; gap: 6px; }
+  .bereich > fieldset { display: flex; flex-direction: column; gap: var(--raum-xs); }
   .bereich > fieldset > input,
   .bereich > fieldset > select { margin-top: auto; }
-  .radios { display: flex; gap: 16px; }
-  .radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .radios { display: flex; gap: var(--raum-md); }
+  .radios label { display: flex; align-items: center; gap: var(--raum-xs); font-weight: var(--gewicht-normal); }
   /* Absende-Button mit „läuft"-Zustand: der Text wird ausgetauscht, das
      Puls-Punkt-Element vom Aktivitäts-Chip taucht auf. Kein separater Status-
      Absatz mehr – die Aktion und ihre Rückmeldung leben in derselben Zeile. */
@@ -626,7 +650,7 @@ export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>immo-radar · ${escapeHtml(titel)}</title>
-<style>${TOKEN_CSS}${BASIS_CSS}${opts.extraCss ?? ''}</style>
+<style>${TOKEN_CSS}${BASIS_CSS}${KOMPONENTEN_CSS}${opts.extraCss ?? ''}</style>
 ${opts.kopfExtra ?? ''}</head>
 <body>
 ${nav}<main${opts.breite === 'breit' ? ' class="breit"' : ''}>
