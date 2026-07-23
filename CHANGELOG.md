@@ -7,6 +7,24 @@ die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Geändert
+
+- App-Shell: Die Hauptnavigation zieht von der oberen Leiste in eine feste
+  linke Seitenleiste (240px, ab 900px Viewport-Breite; Body-Grid, sticky mit
+  eigenem Scroll). Darunter wird sie ein Off-Canvas-Drawer — rein per
+  CSS-Checkbox mit Hamburger und papierfarbenem Scrim, ein kleines Script
+  ergänzt nur `aria-expanded` und Schließen per Escape. Der Aktivitäts-Chip
+  wandert ans untere Ende der Seitenleiste, sein Dropdown öffnet nach oben
+  (Markup, IDs und Poll-Script unverändert). Login und statisch exportierte
+  Reports bleiben einspaltig ohne Seitenleiste.
+
+### Hinzugefügt
+
+- Konto-Slot am Fuß der Seitenleiste: Initialen-Quadrat und Benutzername aus
+  `BASIC_AUTH_USER`, verlinkt auf die neue Stub-Seite `/konto` („In Arbeit —
+  Konto-Verwaltung kommt mit dem Anmelde-Zyklus"). Kein Formular, kein
+  Backend — Vorarbeit für den Anmelde-Zyklus.
+
 ## [1.4.0] - 2026-07-22
 
 Sechste Runde (Release 1.4): Inserats-Kategorien werden jetzt deterministisch

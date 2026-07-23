@@ -62,10 +62,11 @@ spacing:
   lg: "20px"
   page: "24px"
 components:
-  navbar:
+  sidebar:
     backgroundColor: "{colors.surface}"
-    borderBottom: "1px solid {colors.baseline}"
-    padding: "10px 24px"
+    borderRight: "1px solid {colors.baseline}"
+    width: "240px"
+    padding: "16px 12px"
   button-primary:
     backgroundColor: "{colors.akzent}"
     textColor: "#ffffff"
@@ -167,13 +168,15 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 
 ## 5. Components
 
-### Navbar (Hauptnavigation)
-- **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 10px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
-- **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die fünf Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Top Picks** (`/top-picks`, die Rendite-Rangliste je Objekt — Auswertung vor Roh-Sicht), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Fünf Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
+### Seitenleiste (Hauptnavigation)
+- **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: ab 900px eine **feste linke Seitenleiste** (240px, `--sidebar-breite`), Fläche auf Papier, 1px Basislinien-**Rechtskante** zur Inhaltsspalte — kein Schatten (Flach-Regel). Der Inhalt behält seine zentrierte Spalte (560px bzw. 1080px) innerhalb der rechten Grid-Spalte. Die Leiste ist sticky mit eigenem Scroll, auf den langen Auswertungsseiten bleibt die Navigation erreichbar.
+- **Unter 900px** wird die Leiste ein Off-Canvas-Drawer (translateX), rein per CSS-Checkbox: ein fixer Hamburger-Knopf (36px, 1px Raster-Kontur, oben links) öffnet, ein halbtransparenter **papierfarbener Scrim** (kein Schatten, kein Grau-Verlauf) und Escape schließen. Ein kleines Script ergänzt nur `aria-expanded` — der Drawer funktioniert ohne JS.
+- **Vertikale Ordnung:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) oben, darunter die fünf Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Top Picks** (`/top-picks`, die Rendite-Rangliste je Objekt — Auswertung vor Roh-Sicht), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau (Hover: leise Flächen-Tönung statt Unterstreichung). Dann ein Flex-Spacer; am Fuß der **Aktivitäts-Chip** (per Poll sichtbar, sein Dropdown öffnet nach **oben**) und darunter der **Konto-Slot**. Fünf Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
+- **Konto-Slot:** ein einziger Link auf `/konto` — Initialen-Quadrat (28px, 1px Basislinien-Kontur, erste 1–2 Zeichen des Benutzernamens, kein Bild, kein Emoji), Benutzername (aus `BASIC_AUTH_USER`, escaped), 16px-Chevron. Gleiche Hover-Tönung wie die Nav-Einträge.
 - **Icons:** Jeder Eintrag trägt ein 16px-Lucide-Icon (monochrome Inline-SVG, `currentColor`) vor dem Label — chart-line, award, list, building-2, refresh-cw. Die Icons stehen in Tinte-gedämpft (`--text-secondary`), nie in Akzent-Blau: die Ikonografie ist Orientierungshilfe, das Farbbudget bleibt den Labels und Zahlen vorbehalten (Urteils-Regel). Aktiver Eintrag und Hover heben das Icon auf Tinte. Keine Emojis. Die Wortmarke bleibt icon-los.
-- **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 (Label und Icon) — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`) dürfen ohne Markierung bleiben.
-- **Ausnahme:** Statisch exportierte CLI-Reports rendern ohne Navbar — ihre Links liefen ohne laufenden Server ins Leere.
-- Quelle: `renderNavbar`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Navbar.
+- **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 (Label und Icon) — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`, `/konto`) dürfen ohne Markierung bleiben.
+- **Ausnahme:** Statisch exportierte CLI-Reports und die Anmeldeseite rendern ohne Seitenleiste (einspaltig) — Report-Links liefen ohne laufenden Server ins Leere.
+- Quelle: `renderSeitenleiste`/`seite()` in `src/pages/layout.ts`; kontextuelle Rücksprünge (z. B. „← Zurück zum Gebiet") bleiben Sache der Seite, nicht der Seitenleiste.
 
 ### Buttons
 - **Shape:** Sanft gerundet (6px), keine Kontur bei der Primäraktion.
@@ -186,7 +189,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 - **Tile (Kennzahl):** Fläche auf Papier, 1px Kontur, 8px Radius, 18px/20px Padding. Aufbau mit klarer vertikaler Rhythmik: Label (13px gedämpft) → Wert (30px/600 in Tabellenziffern; die Einheit „%"/„€/m²" steht abgesetzt daneben als `.tile-einheit`, 16px/400 in Tinte-gedämpft — die Zahl trägt das Urteil, die Einheit ist nur ihre Beschriftung) → optionale Trend-Zeile → Badge (12px) → Sub-Zeile am Kachelboden. Der großzügige Innenabstand gibt der Leitzahl Luft, ohne die ruhige Anmutung zu brechen. `tile-good` bekommt die Gut-Tönung als Fläche.
 - **Tile-Trend (`.tile-trend`):** optionale 12px-Zeile unter dem Wert: Pfeil `↑/↓/→` (600) + textliches Delta (600) + Referenz-Datum („vs. 30.06.2026") in Tinte-gedämpft — das Delta steht immer auch als Text, nie Farbe allein, und der Vergleichspunkt bleibt transparent. Urteils-Grenze: Der **Rendite-Pfeil urteilt** (`trend-pfeil-gut` grün / `trend-pfeil-schlecht` rot — die Rendite-Kachel urteilt ja schon via `tile-good`); **Preis-Pfeile (Kauf/Miete) bleiben Tintenfarbe** — ein teurerer Markt ist ein Fakt, kein Verdikt (siehe Don't „Markt-Tendenz"). Bei `|Δ|` unter der Stabil-Schwelle: `→` neutral. Ohne zweiten Datenpunkt im Zeitraum ersetzt „zu wenig Daten für Trend" (Meta-Text) die Zeile.
 - **Die Kachel-Wand-Schwelle:** Kennzahl-Tiles sind nach Urteil sortiert (beste Rendite zuerst) und auf 8 begrenzt — ab dem 9. Gebiet wird die Sektion zur kompakten Urteils-Tabelle, sonst entsteht genau die KPI-Kachel-Wand, die das System ablehnt.
-- **Provenienz ist keine Kachel — und wiederholt nichts:** Eine Kachel bekommt nur, was ein Urteil trägt (Rendite, Kauf, Miete). Unter dem Kachel-Grid steht genau **eine** leise Meta-Zeile: die Rechenweise („Ohne Ausreißer gerechnet" bzw. „Ausreißer einbezogen") plus „Alle Kennzahlen erklärt → Methodik". Roh-Inserate-Zählungen und Sweep-Status leben auf `/crawl` (der Navbar-Chip zeigt Laufendes live) — die Seite wiederholt sie nicht.
+- **Provenienz ist keine Kachel — und wiederholt nichts:** Eine Kachel bekommt nur, was ein Urteil trägt (Rendite, Kauf, Miete). Unter dem Kachel-Grid steht genau **eine** leise Meta-Zeile: die Rechenweise („Ohne Ausreißer gerechnet" bzw. „Ausreißer einbezogen") plus „Alle Kennzahlen erklärt → Methodik". Roh-Inserate-Zählungen und Sweep-Status leben auf `/crawl` (der Aktivitäts-Chip in der Seitenleiste zeigt Laufendes live) — die Seite wiederholt sie nicht.
 - **Verschachtelte Karten sind verboten.** Tiles liegen im Grid nebeneinander, nie ineinander — und nie in einer umschließenden Section: Die KPI-Zeile des Dashboards liegt als chromloser Block (`.kpi-block` mit Kachel-Grid, optionaler Warnung und Provenienz-Meta) direkt auf dem Papier; die Kachel-Fläche hebt sie ab.
 - **Urteil zuerst, voll breit (responsive Grids):** Drei-Element-Grids (KPI-Kacheln, die drei Verlaufs-Charts) brechen strukturell um, nicht per `auto-fit`: bei 2 Spalten spannt das Urteils-Element (Rendite) über die volle Breite, darunter das Kauf/Miete-Paar — kein drittes Element dangelt allein auf halber Breite. Schmal dann 1 Spalte.
 - **Hinweis-Streifen (`.warnung`):** Datenqualitäts-Warnungen außerhalb einer Section (z. B. Portal-Ausfälle unter dem Kachel-Grid) bekommen einen eigenen leisen Streifen: Fläche auf Papier, 1px Kontur, 8px Radius, ~10px/12px Padding, 13px Kritisch-Rot als Text. Grund: 13px-Rot verfehlt auf dem Papier AA (4,33:1), auf der Fläche ist es geprüft. Voller Rahmen, kein Seitenstreifen (Flach-Regel).
