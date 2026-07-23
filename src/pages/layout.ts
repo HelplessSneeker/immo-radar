@@ -166,7 +166,11 @@ export const BASIS_CSS = `
        keine Grid-Items – die explizite Zuweisung hält das Layout trotzdem
        unabhängig von deren Styling. */
     body.mit-seitenleiste > .seitenleiste { grid-column: 1; grid-row: 1; }
-    body.mit-seitenleiste > main { grid-column: 2; grid-row: 1; }
+    /* Als Grid-Item würde main sonst (a) mit Auto-Margins auf fit-content
+       schrumpfen statt die 560/1080px-Spalte zu füllen und (b) per
+       align-stretch seine inneren Grid-Reihen über die volle Viewport-Höhe
+       verteilen – width + align-self stellen das Block-Verhalten wieder her. */
+    body.mit-seitenleiste > main { grid-column: 2; grid-row: 1; width: 100%; align-self: start; }
     .seitenleiste {
       position: sticky; top: 0; align-self: start;
       height: 100vh; height: 100dvh;
