@@ -1,6 +1,9 @@
 import { MIETE_BASIS_LABEL, type TopPickKandidat } from '../top-picks.js';
 import { ausreisserBadge, datumMedium, fmtRendite, nfEur0, nfEur2 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
+import { filterLeiste } from './ui/filter.js';
+import { checkboxFeld, textFeld } from './ui/formular.js';
+import { html } from './ui/html.js';
 
 /**
  * Top Picks: die aktiven Kauf-Objekte mit der höchsten geschätzten
@@ -34,8 +37,6 @@ const TOP_PICKS_CSS = `
   /* Rendite ≥ Ziel: gleiche Gut-Töne wie die Dashboard-Kachel (tile-good). */
   .zelle-gut { background: var(--good-bg); }
   .gut { color: var(--good-text); font-weight: 600; }
-  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  .feld-toggle .meta { margin: 0; font-size: 12px; }
   /* Rang-Nummer des Rankings: leise (gedämpft, kein Urteil), rechtsbündig auf
      fester Breite, damit die Objekt-Titel auch bei zweistelligen Rängen fluchten. */
   .rang {
@@ -52,31 +53,43 @@ function filterleiste(daten: TopPicksDaten): string {
     ...(daten.flaecheIgnoriert === true ? ['Fläche'] : []),
     ...(daten.zeitraumIgnoriert === true ? ['Zeitraum'] : []),
   ];
-  // Auch für nur-ignorierte Parameter: der Reset-Link ist der Weg zur
-  // sauberen, teilbaren URL.
-  const zuruecksetzen =
-    daten.filterPlz !== undefined || daten.ausreisserEinbeziehen || ignoriert.length > 0
-      ? '\n      <p class="meta"><a href="/top-picks">Filter zurücksetzen</a></p>'
-      : '';
   const flaecheHinweis =
     ignoriert.length > 0
-      ? `\n    <p class="meta">${
-          ignoriert.length === 2
-            ? 'Fläche- und Zeitraum-Filter wirken nur im Dashboard und werden'
-            : `Der ${ignoriert[0]}-Filter wirkt nur im Dashboard und wird`
-        } hier ignoriert.</p>`
-      : '';
-  return `    <form class="filterleiste" method="get" action="/top-picks">
-      <div class="feld feld-plz">
-        <label for="f-plz">PLZ (Anfang genügt)</label>
-        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(daten.filterPlz ?? '')}" placeholder="z. B. 9020 oder 95">
-      </div>
-      <div class="feld feld-toggle">
-        <label><input type="checkbox" name="ausreisser" value="an"${daten.ausreisserEinbeziehen ? ' checked' : ''}> Ausreißer einbeziehen</label>
-        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
-      </div>
-      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
-    </form>${flaecheHinweis}`;
+      ? html`
+    <p class="meta">${
+      ignoriert.length === 2
+        ? 'Fläche- und Zeitraum-Filter wirken nur im Dashboard und werden'
+        : `Der ${ignoriert[0]}-Filter wirkt nur im Dashboard und wird`
+    } hier ignoriert.</p>`
+      : undefined;
+  return filterLeiste({
+    aktion: '/top-picks',
+    felder: [
+      textFeld({
+        id: 'f-plz',
+        name: 'plz',
+        label: 'PLZ (Anfang genügt)',
+        klasse: 'feld-plz',
+        inputmode: 'numeric',
+        wert: daten.filterPlz ?? '',
+        platzhalter: 'z. B. 9020 oder 95',
+      }),
+      checkboxFeld({
+        name: 'ausreisser',
+        wert: 'an',
+        label: 'Ausreißer einbeziehen',
+        checked: daten.ausreisserEinbeziehen,
+        hinweis: html`<a href="/methodik#ausreisser">Was zählt als Ausreißer?</a>`,
+      }),
+    ],
+    // Auch für nur-ignorierte Parameter: der Reset-Link ist der Weg zur
+    // sauberen, teilbaren URL.
+    zuruecksetzenHref:
+      daten.filterPlz !== undefined || daten.ausreisserEinbeziehen || ignoriert.length > 0
+        ? '/top-picks'
+        : undefined,
+    extra: flaecheHinweis,
+  });
 }
 
 function pickZeile(

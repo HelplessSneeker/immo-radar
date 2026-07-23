@@ -162,14 +162,14 @@ function inserateTabelle(inserate: InseratAnalyse[]): string {
 
 /** Seitenspezifisches CSS des Marktreports (Tiles, Badges, Charts, Ausreißer-Zeilen). */
 const REPORT_CSS = `
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--raum-kompakt); }
+  .tile { border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 14px 16px; }
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; }
-  .tile-value { font-size: 30px; font-weight: 600; margin: 2px 0 6px; }
+  .tile-value { font-size: var(--fs-display); font-weight: 600; margin: 2px 0 6px; }
   .badge-good { color: var(--good-text); font-weight: 600; }
   .good { color: var(--good-text); }
-  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--raum-page); }
   .chart-box { min-width: 0; }
   .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
   .chart-wrap { position: relative; height: 260px; }

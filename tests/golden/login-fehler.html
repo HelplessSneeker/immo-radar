@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>immo-radar · Anmeldung</title>
+<style entfernt="golden-diff"></style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="anmeldung-marke">immo-radar</p>
+    <h1>Anmeldung</h1>
+  </header>
+  <section>
+    <form method="post" action="/login">
+      <p class="anmeldung-fehler" role="alert">Benutzername oder Passwort falsch.</p>
+      <fieldset>
+        <label class="feld" for="l-benutzer">Benutzer</label>
+        <input type="text" id="l-benutzer" name="benutzer" value="ben &amp; co &lt;test&gt;" autocomplete="username" required autofocus>
+      </fieldset>
+      <fieldset>
+        <label class="feld" for="l-passwort">Passwort</label>
+        <input type="password" id="l-passwort" name="passwort" autocomplete="current-password" required>
+      </fieldset>
+      <input type="hidden" name="return" value="/portfolio">
+      <button type="submit">Anmelden</button>
+    </form>
+  </section>
+</main>
+
+</body>
+</html>
