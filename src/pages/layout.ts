@@ -1,8 +1,9 @@
 /**
  * Gemeinsames Seitengerüst und Design-Tokens aller Server-Seiten und des
  * Reports. TOKEN_CSS und BASIS_CSS sind die eine Quelle für Farben,
- * Typografie, Navbar, Tabellen, Badges und Fokus-Zustände – Seiten ergänzen
- * nur seitenspezifisches CSS (Formulare, Tiles, Charts) über `extraCss`.
+ * Typografie, Seitenleiste, Tabellen, Badges und Fokus-Zustände – Seiten
+ * ergänzen nur seitenspezifisches CSS (Formulare, Tiles, Charts) über
+ * `extraCss`.
  *
  * Alle normalgroßen Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes)
  * auf ihrem tatsächlichen Grund (Statustexte sitzen in Sections/Tabellen auf
@@ -66,6 +67,7 @@ export const TOKEN_CSS = `
     --raum-md: 16px;
     --raum-lg: 20px;
     --raum-page: 24px;
+    --sidebar-breite: 240px;
     --radius-control: 6px;
     --radius-tile: 8px;
     --radius-section: 10px;
@@ -106,7 +108,7 @@ export const TOKEN_CSS = `
   }
 `;
 
-/** Grundgerüst: Typografie, Navbar, Sections, Links, Fokus, Buttons, Tabellen, Badges. */
+/** Grundgerüst: Typografie, Seitenleiste, Sections, Links, Fokus, Buttons, Tabellen, Badges. */
 export const BASIS_CSS = `
   * { box-sizing: border-box; }
   body {
@@ -114,20 +116,100 @@ export const BASIS_CSS = `
     background: var(--page); color: var(--text-primary);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .hauptnav {
-    position: sticky; top: 0; z-index: 5;
-    display: flex; align-items: center; gap: var(--raum-lg); flex-wrap: wrap;
-    padding: 10px var(--raum-page);
+  /* Seitenleiste: die eine Konstante Bildschirm zu Bildschirm. Ab 900px feste
+     linke Spalte im Body-Grid, darunter Off-Canvas-Drawer – rein per Checkbox
+     (#nav-schalter) und Labels; SEITENLEISTE_JS ergänzt nur aria-expanded und
+     Escape. Tiefe über die 1px-Basislinien-Rechtskante, kein Schatten. */
+  .seitenleiste {
+    display: flex; flex-direction: column;
     background: var(--surface-1);
-    border-bottom: 1px solid var(--baseline);
+    border-right: 1px solid var(--baseline);
+    padding: var(--raum-md) var(--raum-kompakt);
   }
-  .hauptnav a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
-  .hauptnav a:hover { text-decoration: underline; }
-  .hauptnav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
-  .hauptnav a:hover svg { color: var(--text-primary); }
-  .hauptnav .marke { color: var(--text-primary); font-weight: 600; margin-right: 8px; }
-  .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
-  .hauptnav a[aria-current="page"] svg { color: var(--text-primary); }
+  .seitenleiste nav { display: flex; flex-direction: column; gap: 2px; }
+  .seitenleiste nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: var(--radius-control);
+    text-decoration: none;
+    transition: background-color var(--dauer-fein) var(--ease-out),
+                color var(--dauer-fein) var(--ease-out);
+  }
+  .seitenleiste nav a:hover { background: var(--surface-hover); }
+  .seitenleiste nav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
+  .seitenleiste nav a:hover svg { color: var(--text-primary); }
+  .seitenleiste nav a.marke { color: var(--text-primary); font-weight: 600; margin-bottom: var(--raum-md); }
+  .seitenleiste nav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
+  .seitenleiste nav a[aria-current="page"] svg { color: var(--text-primary); }
+  .leiste-spacer { flex: 1; }
+  /* Benutzer-Slot am Fuß: ein einziger Link auf /konto – Initialen-Quadrat
+     (1px-Kontur, kein Bild), Name, Chevron. */
+  .konto-slot {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; margin-top: var(--raum-sm);
+    border-radius: var(--radius-control);
+    color: var(--text-primary); font-size: var(--fs-label); text-decoration: none;
+    transition: background-color var(--dauer-fein) var(--ease-out);
+  }
+  .konto-slot:hover { background: var(--surface-hover); }
+  .konto-initialen {
+    width: 28px; height: 28px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--baseline); border-radius: var(--radius-control);
+    font-size: var(--fs-fuss); font-weight: var(--gewicht-stark);
+    color: var(--text-secondary); text-transform: uppercase;
+  }
+  .konto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .konto-slot svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); }
+  @media (min-width: 900px) {
+    body.mit-seitenleiste { display: grid; grid-template-columns: var(--sidebar-breite) 1fr; }
+    /* Die Drawer-Geschwister (Checkbox absolut, Labels display:none) erzeugen
+       keine Grid-Items – die explizite Zuweisung hält das Layout trotzdem
+       unabhängig von deren Styling. */
+    body.mit-seitenleiste > .seitenleiste { grid-column: 1; grid-row: 1; }
+    /* Als Grid-Item würde main sonst (a) mit Auto-Margins auf fit-content
+       schrumpfen statt die 560/1080px-Spalte zu füllen und (b) per
+       align-stretch seine inneren Grid-Reihen über die volle Viewport-Höhe
+       verteilen – width + align-self stellen das Block-Verhalten wieder her. */
+    body.mit-seitenleiste > main { grid-column: 2; grid-row: 1; width: 100%; align-self: start; }
+    .seitenleiste {
+      position: sticky; top: 0; align-self: start;
+      height: 100vh; height: 100dvh;
+      overflow-y: auto;
+    }
+    #nav-schalter, .nav-oeffner, .nav-scrim { display: none; }
+  }
+  @media (max-width: 899px) {
+    .seitenleiste {
+      position: fixed; inset: 0 auto 0 0;
+      width: var(--sidebar-breite); max-width: 85vw;
+      overflow-y: auto; z-index: 30;
+      transform: translateX(-100%);
+      transition: transform var(--dauer-mittel) var(--ease-out);
+    }
+    #nav-schalter:checked ~ .seitenleiste { transform: none; }
+    /* Flacher Schleier statt Schatten: Papierfarbe halbtransparent, trägt in
+       beiden Themes (Muster wie --outlier-flaeche). */
+    .nav-scrim {
+      position: fixed; inset: 0; z-index: 25;
+      background: color-mix(in srgb, var(--page) 65%, transparent);
+      opacity: 0; pointer-events: none; cursor: pointer;
+      transition: opacity var(--dauer-mittel) var(--ease-out);
+    }
+    #nav-schalter:checked ~ .nav-scrim { opacity: 1; pointer-events: auto; }
+    .nav-oeffner {
+      position: fixed; top: var(--raum-kompakt); left: var(--raum-kompakt); z-index: 20;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; cursor: pointer;
+      color: var(--text-primary); background: var(--surface-1);
+      border: 1px solid var(--grid); border-radius: var(--radius-control);
+    }
+    .nav-oeffner svg { width: 16px; height: 16px; }
+    /* Der fixe Öffner läge sonst über der h1 der Seite. */
+    body.mit-seitenleiste main { padding-top: calc(var(--raum-page) + 36px); }
+    /* Die sr-nur-Checkbox bleibt fokussierbar; der Ring erscheint auf dem
+       sichtbaren Öffner. */
+    #nav-schalter:focus-visible ~ .nav-oeffner { outline: var(--fokus-ring); outline-offset: 2px; }
+  }
   main {
     max-width: calc(560px + 2 * var(--raum-page)); margin: 0 auto; padding: var(--raum-page);
     display: grid; gap: var(--raum-lg);
@@ -288,10 +370,9 @@ export const BASIS_CSS = `
     100% { left: 100%; }
   }
 
-  /* Aktivitäts-Chip in der Kopfzeile: schrumpft alles Laufende auf ein
-     einzelnes, jederzeit anklickbares Element im Kopf. Rechts angeschlagen
-     per margin-left: auto (wandert bei flex-wrap sauber mit). */
-  .aktivitaet-slot { position: relative; margin-left: auto; }
+  /* Aktivitäts-Chip unten in der Seitenleiste: schrumpft alles Laufende auf
+     ein einzelnes, jederzeit anklickbares Element über dem Benutzer-Slot. */
+  .aktivitaet-slot { position: relative; margin-top: var(--raum-sm); }
   .aktivitaet-slot[hidden] { display: none; }
   /* button.aktivitaet-chip statt .aktivitaet-chip: die generischen
      button-Regeln oben (background, hover) haben höhere Spezifität als eine
@@ -301,6 +382,7 @@ export const BASIS_CSS = `
     color: var(--akzent); background: transparent;
     border: 1px solid var(--grid); border-radius: var(--radius-pill);
     display: inline-flex; align-items: center; gap: 8px;
+    width: 100%; justify-content: flex-start;
     cursor: pointer;
     transition: background-color var(--dauer-schnell) var(--ease-out),
                 border-color var(--dauer-schnell) var(--ease-out);
@@ -311,12 +393,14 @@ export const BASIS_CSS = `
   button.aktivitaet-chip[aria-expanded="true"] {
     background: var(--surface-hover); border-color: var(--baseline);
   }
+  /* Öffnet nach OBEN (der Chip sitzt am Fuß der Seitenleiste) und bleibt in
+     der Leistenbreite – breiter würde die scrollende Leiste ihn abschneiden. */
   .aktivitaet-liste {
-    position: absolute; right: 0; top: calc(100% + 6px);
+    position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
     background: var(--surface-1); border: 1px solid var(--border);
     border-radius: var(--radius-tile); padding: 8px 0;
-    min-width: 260px; max-width: 360px; z-index: 10;
-    transform-origin: top right;
+    z-index: 10;
+    transform-origin: bottom left;
     animation: aktivitaet-oeffnen var(--dauer-schnell) var(--ease-out);
   }
   .aktivitaet-liste[hidden] { display: none; }
@@ -336,7 +420,7 @@ export const BASIS_CSS = `
     flex-shrink: 0;
   }
   @keyframes aktivitaet-oeffnen {
-    from { opacity: 0; transform: translateY(-4px); }
+    from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
@@ -415,6 +499,8 @@ export const BASIS_CSS = `
     .status-badge.status-laufend::before,
     .aktivitaet-punkt,
     .aktivitaet-liste .aktivitaet-punkt-mini { animation: none; opacity: 0.8; }
+    /* Drawer/Scrim nutzen Transitions, keine Animationen – separat abschalten. */
+    .seitenleiste, .nav-scrim { transition: none; }
   }
 `;
 
@@ -490,17 +576,34 @@ function navIcon(key: NavAktiv): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ICON_PFADE[key]}</svg>`;
 }
 
-function renderNavbar(aktiv: NavAktiv | undefined): string {
+// Lucide chevron-right bzw. menu, gleiche Hülle wie navIcon().
+const CHEVRON_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>';
+const MENUE_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>';
+
+function renderSeitenleiste(aktiv: NavAktiv | undefined): string {
   const links = NAV_EINTRAEGE.map(
     ([key, href, label]) =>
       `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${navIcon(key)}<span>${label}</span></a>`,
-  ).join('\n  ');
-  // Der Aktivitäts-Slot ist per default versteckt und wird vom Poll-Script
-  // sichtbar, sobald `/api/laufend` etwas Laufendes meldet. Bewusst als kompaktes
-  // Chip im Kopf statt als schwerer Overlay – Werkzeug, nicht Dashboard.
-  return `<nav class="hauptnav" aria-label="Hauptnavigation">
-  <a class="marke" href="/">immo-radar</a>
-  ${links}
+  ).join('\n    ');
+  // Env nie vertrauen: Name und Initialen werden escaped. Uppercase der
+  // Initialen ist Darstellung und lebt im CSS (text-transform).
+  const benutzer = (process.env.BASIC_AUTH_USER ?? '').trim();
+  // Der Cluster Checkbox → Öffner → Scrim → Leiste muss als direkte
+  // body-Geschwister in genau dieser Reihenfolge stehen: die :checked ~
+  // Selektoren des Drawers hängen daran. Der Aktivitäts-Slot ist per default
+  // versteckt und wird vom Poll-Script sichtbar, sobald `/api/laufend` etwas
+  // Laufendes meldet.
+  return `<input type="checkbox" id="nav-schalter" class="sr-nur">
+<label class="nav-oeffner" for="nav-schalter" aria-label="Navigation umschalten" aria-expanded="false" aria-controls="seitenleiste">${MENUE_ICON}</label>
+<label class="nav-scrim" for="nav-schalter" aria-hidden="true"></label>
+<div class="seitenleiste" id="seitenleiste">
+  <nav aria-label="Hauptnavigation">
+    <a class="marke" href="/">immo-radar</a>
+    ${links}
+  </nav>
+  <div class="leiste-spacer" aria-hidden="true"></div>
   <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
     <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
       <span class="aktivitaet-punkt" aria-hidden="true"></span>
@@ -508,12 +611,17 @@ function renderNavbar(aktiv: NavAktiv | undefined): string {
     </button>
     <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
   </div>
-</nav>`;
+  <a class="konto-slot" href="/konto">
+    <span class="konto-initialen" aria-hidden="true">${escapeHtml(benutzer.slice(0, 2))}</span>
+    <span class="konto-name">${escapeHtml(benutzer)}</span>
+    ${CHEVRON_ICON}
+  </a>
+</div>`;
 }
 
 /**
- * Client-Script für den Aktivitäts-Chip in der Kopfzeile. Wird auf jeder Seite
- * eingebettet (nur wenn die Seite mit Navbar rendert). Pollt `/api/laufend` alle
+ * Client-Script für den Aktivitäts-Chip in der Seitenleiste. Wird auf jeder
+ * Seite eingebettet (nur wenn die Seite mit Seitenleiste rendert). Pollt `/api/laufend` alle
  * 3 Sekunden und aktualisiert Chip + Dropdown. Feuert bei jeder Änderung ein
  * `aktivitaet-aenderung`-CustomEvent auf `document`, damit seitenspezifische
  * Skripte (z. B. Badge-Refresh in der Gebiete-Liste) darauf reagieren können,
@@ -593,6 +701,30 @@ export const AKTIVITAET_JS = `
 })();
 </script>`;
 
+/**
+ * Progressive Enhancement für den Seitenleisten-Drawer (< 900px): der Drawer
+ * selbst funktioniert rein über Checkbox + Labels; dieses Script ergänzt nur
+ * aria-expanded am Öffner und Schließen per Escape.
+ */
+export const SEITENLEISTE_JS = `
+<script>
+(function () {
+  'use strict';
+  const schalter = document.getElementById('nav-schalter');
+  if (!schalter) return;
+  const oeffner = document.querySelector('.nav-oeffner');
+  function sync() {
+    if (oeffner) oeffner.setAttribute('aria-expanded', String(schalter.checked));
+  }
+  schalter.addEventListener('change', sync);
+  document.addEventListener('keydown', function (e) {
+    // Programmatisches Setzen feuert kein change-Event – sync von Hand.
+    if (e.key === 'Escape' && schalter.checked) { schalter.checked = false; sync(); }
+  });
+  sync();
+})();
+</script>`;
+
 export interface SeitenOptionen {
   /** Zusätzliche Head-Zeilen (z. B. meta refresh, noscript). */
   kopfExtra?: string;
@@ -600,9 +732,9 @@ export interface SeitenOptionen {
   extraCss?: string;
   /** Inhaltsbreite: 560px für Formulare/Listen (Default), 1080px für Auswertungen. */
   breite?: 'schmal' | 'breit';
-  /** Aktiver Navbar-Eintrag; weglassen = Navbar ohne Markierung (Fehler-/Sonderseiten). */
+  /** Aktiver Seitenleisten-Eintrag; weglassen = Leiste ohne Markierung (Fehler-/Sonderseiten). */
   aktiv?: NavAktiv;
-  /** false = ganz ohne Navbar (statisch exportierte Reports ohne laufenden Server). */
+  /** false = ganz ohne Seitenleiste (Login, statisch exportierte Reports ohne laufenden Server). */
   navbar?: boolean;
 }
 
@@ -640,10 +772,12 @@ export function renderOhneDatenSeite(optionen: {
 
 export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}): string {
   const mitNavbar = opts.navbar !== false;
-  const nav = mitNavbar ? `${renderNavbar(opts.aktiv)}\n` : '';
-  // Aktivitäts-Chip nur auf Seiten mit Navbar – statisch exportierte Reports
-  // haben keinen laufenden Server, dort wäre der Poll ins Leere.
-  const aktivitaetsSkript = mitNavbar ? AKTIVITAET_JS : '';
+  const nav = mitNavbar ? `${renderSeitenleiste(opts.aktiv)}\n` : '';
+  // Aktivitäts-Chip und Drawer-Script nur auf Seiten mit Seitenleiste –
+  // statisch exportierte Reports haben keinen laufenden Server, dort wäre
+  // der Poll ins Leere. Die body-Klasse schaltet das Grid-Layout: ohne sie
+  // (Login, Report) bleibt die Seite einspaltig.
+  const skripte = mitNavbar ? `${AKTIVITAET_JS}${SEITENLEISTE_JS}` : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -652,11 +786,11 @@ export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}):
 <title>immo-radar · ${escapeHtml(titel)}</title>
 <style>${TOKEN_CSS}${BASIS_CSS}${KOMPONENTEN_CSS}${opts.extraCss ?? ''}</style>
 ${opts.kopfExtra ?? ''}</head>
-<body>
+<body${mitNavbar ? ' class="mit-seitenleiste"' : ''}>
 ${nav}<main${opts.breite === 'breit' ? ' class="breit"' : ''}>
 ${inhalt}
 </main>
-${aktivitaetsSkript}
+${skripte}
 </body>
 </html>`;
 }

@@ -29,6 +29,7 @@ import { behandleHealth, paketVersion } from './health.js';
 import { renderDashboardOhneDatenSeite, renderDashboardSeite } from './pages/dashboard-page.js';
 import { renderFehlerSeite } from './pages/fehler-page.js';
 import { renderInserateSeite } from './pages/inserate-page.js';
+import { renderKontoSeite } from './pages/konto-page.js';
 import { renderLoginSeite } from './pages/login-page.js';
 import { renderMethodikSeite } from './pages/methodik-page.js';
 import {
@@ -398,6 +399,10 @@ const server = createServer((req, res) => {
     }
     if (url.pathname === '/portfolio') {
       sende(res, 200, await portfolioSeite());
+      return;
+    }
+    if (url.pathname === '/konto') {
+      sende(res, 200, renderKontoSeite());
       return;
     }
     {
