@@ -15,6 +15,17 @@
  *   2. In Tests vor `toBe`/`toContain` mit `String(x)` zum Primitive machen.
  *   3. Innerhalb von `html\`\``-Interpolationen nie zusätzlich `escapeHtml()`
  *      aufrufen – das Tag escapet selbst (sonst Doppel-Escaping).
+ *
+ * SICHERHEITS-INVARIANTE (Attribut-Quoting): `escapeHtml` escapet `&<>"`,
+ * aber bewusst NICHT den Apostroph `'` – Apostrophe kommen in Fließtext
+ * ständig vor, und `&#39;`-Entities würden die byte-stabile Migration wie
+ * die Lesbarkeit der Goldens brechen. Daraus folgt: Interpolierte untrusted
+ * Werte dürfen ausschließlich (a) im Elementinhalt oder (b) in DOPPELT
+ * gequoteten Attributen stehen (`name="${wert}"` bzw. `attr()`). Ein
+ * einfach gequotetes Attribut mit Interpolation (`name='${wert}'`) wäre
+ * ausbrechbar, weil `'` unescaped durchläuft. `raw()` bleibt der einzige
+ * Escape-Bypass. Der Guard-Test tests/attribut-quoting.test.ts scannt die
+ * UI-Primitives und migrierten Seiten auf Verstöße gegen diese Konvention.
  */
 import { escapeHtml } from '../layout.js';
 
