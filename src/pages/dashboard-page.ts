@@ -21,6 +21,9 @@ import {
   nfTage,
 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
+import { filterLeiste } from './ui/filter.js';
+import { checkboxFeld, textFeld, versteckt, vonBisFeld } from './ui/formular.js';
+import { html, LEER, raw, type Html } from './ui/html.js';
 import { seitenNav as seitenNavigation } from './ui/navigation.js';
 
 /**
@@ -176,46 +179,16 @@ function filterBeschreibung(filter: DashboardFilter): string {
   return teile.join(' · ');
 }
 
-function filterleiste(daten: DashboardDaten): string {
-  const filter = daten.filter;
-  const zuruecksetzen =
-    filterBeschreibung(filter) !== '' ||
-    filter.ausreisserEinbeziehen === true ||
-    filter.zeitraum !== undefined
-      ? '\n      <p class="meta"><a href="/">Filter zurücksetzen</a></p>'
-      : '';
-  const zahlWert = (n: number | undefined): string => (n === undefined ? '' : String(n));
-  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
-  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
-  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
-  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
-  const preset = (wert: string, label: string): string =>
-    `<label><input type="radio" name="zeitraum" value="${wert}"${aktivesPreset === wert ? ' checked' : ''}> ${label}</label>`;
-  // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
-  // aus dem neuen Trend, greift der stille Fallback im Handler.
-  const stichtagFeld =
-    daten.datenpunkteOffen && daten.datenpunkteStichtag !== undefined
-      ? `\n      <input type="hidden" name="stichtag" value="${escapeHtml(daten.datenpunkteStichtag)}">`
-      : '';
-  // Der Drawer-Schalter überlebt den Filterwechsel — er gehört zur
-  // Datenpunkte-Sektion, nicht zu dieser Leiste.
-  const drawerFeld =
-    filter.objekteAusreisserEinbeziehen === true
-      ? `\n      <input type="hidden" name="objekte_ausreisser" value="an">`
-      : '';
-  return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}${drawerFeld}
-      <div class="feld feld-plz">
-        <label for="f-plz">PLZ (Anfang genügt)</label>
-        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filter.plz ?? '')}" placeholder="z. B. 9020 oder 95">
-      </div>
-      <fieldset class="feld">
-        <legend>Fläche (m²)</legend>
-        <div class="von-bis">
-          <input type="text" id="f-flaeche-min" name="flaeche_min" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMin))}" placeholder="von" aria-label="Fläche von (m²)">
-          <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="bis" aria-label="Fläche bis (m²)">
-        </div>
-      </fieldset>
-      <fieldset class="feld feld-zeitraum">
+/**
+ * Zeitraum-Presets als native Radios (Segmented Control light) — einziger
+ * Nutzer dieses Feldtyps, deshalb seitenlokal statt ui/-Primitive.
+ */
+function zeitraumFeld(aktivesPreset: string | undefined): Html {
+  const preset = (wert: string, label: string): Html =>
+    html`<label><input type="radio" name="zeitraum" value="${wert}"${
+      aktivesPreset === wert ? raw(' checked') : LEER
+    }> ${label}</label>`;
+  return html`<fieldset class="feld feld-zeitraum">
         <legend>Zeitraum</legend>
         <div class="presets">
           ${preset('7d', '7 Tage')}
@@ -223,20 +196,76 @@ function filterleiste(daten: DashboardDaten): string {
           ${preset('90d', '90 Tage')}
           ${preset('alle', 'Alle')}
         </div>
-      </fieldset>
-      <fieldset class="feld">
-        <legend>Eigener Zeitraum</legend>
-        <div class="von-bis">
-          <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}" aria-label="Von (Datum)">
-          <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}" aria-label="Bis (Datum)">
-        </div>
-      </fieldset>
-      <div class="feld feld-toggle">
-        <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
-        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
-      </div>
-      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
-    </form>`;
+      </fieldset>`;
+}
+
+function filterleiste(daten: DashboardDaten): string {
+  const filter = daten.filter;
+  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
+  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
+  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
+  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
+  return filterLeiste({
+    aktion: '/',
+    felder: [
+      // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
+      // aus dem neuen Trend, greift der stille Fallback im Handler.
+      daten.datenpunkteOffen &&
+        daten.datenpunkteStichtag !== undefined &&
+        versteckt('stichtag', daten.datenpunkteStichtag),
+      // Der Drawer-Schalter überlebt den Filterwechsel — er gehört zur
+      // Datenpunkte-Sektion, nicht zu dieser Leiste.
+      filter.objekteAusreisserEinbeziehen === true && versteckt('objekte_ausreisser', 'an'),
+      textFeld({
+        id: 'f-plz',
+        name: 'plz',
+        label: 'PLZ (Anfang genügt)',
+        klasse: 'feld-plz',
+        inputmode: 'numeric',
+        wert: filter.plz ?? '',
+        platzhalter: 'z. B. 9020 oder 95',
+      }),
+      vonBisFeld({
+        legend: 'Fläche (m²)',
+        von: {
+          id: 'f-flaeche-min',
+          name: 'flaeche_min',
+          inputmode: 'numeric',
+          wert: filter.flaecheMin,
+          platzhalter: 'von',
+          ariaLabel: 'Fläche von (m²)',
+        },
+        bis: {
+          id: 'f-flaeche-max',
+          name: 'flaeche_max',
+          inputmode: 'numeric',
+          wert: filter.flaecheMax,
+          platzhalter: 'bis',
+          ariaLabel: 'Fläche bis (m²)',
+        },
+      }),
+      zeitraumFeld(aktivesPreset),
+      vonBisFeld({
+        legend: 'Eigener Zeitraum',
+        typ: 'date',
+        von: { id: 'f-von', name: 'von', wert: filter.zeitraum?.von ?? '', ariaLabel: 'Von (Datum)' },
+        bis: { id: 'f-bis', name: 'bis', wert: filter.zeitraum?.bis ?? '', ariaLabel: 'Bis (Datum)' },
+      }),
+      checkboxFeld({
+        name: 'ausreisser',
+        wert: 'an',
+        label: 'Ausreißer einbeziehen',
+        checked: filter.ausreisserEinbeziehen === true,
+        hinweis: html`<a href="/methodik#ausreisser">Was zählt als Ausreißer?</a>`,
+      }),
+    ],
+    zuruecksetzenHref:
+      filterBeschreibung(filter) !== '' ||
+      filter.ausreisserEinbeziehen === true ||
+      filter.zeitraum !== undefined
+        ? '/'
+        : undefined,
+  });
 }
 
 /**
