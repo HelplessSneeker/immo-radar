@@ -27,6 +27,7 @@ const MIGRIERTE_SEITEN = [
   'src/pages/inserate-page.ts',
   'src/pages/dashboard-page.ts',
   'src/pages/top-picks-page.ts',
+  'src/pages/konto-page.ts',
 ];
 
 /**

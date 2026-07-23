@@ -17,6 +17,12 @@ import type { TopPicksDaten } from '../../src/pages/top-picks-page.js';
 import type { TopPickKandidat } from '../../src/top-picks.js';
 import { inseratSchluessel, type StichtagDatenpunkt } from '../../src/trend.js';
 
+// Die Seitenleiste rendert den Benutzer-Slot aus BASIC_AUTH_USER – für
+// deterministische Goldens hier fixieren (die Renderer lesen die Env zur
+// Renderzeit, also nach dem Modul-Load; die Zuweisung im Modul-Scope reicht
+// für Testlauf UND Regenerierung).
+process.env.BASIC_AUTH_USER = 'radar';
+
 /**
  * Der <style>-Block im <head> darf zwischen dev und Branch legitim abweichen
  * (Token-Verdrahtung, Primitives-CSS) — alles außerhalb muss byte-identisch

@@ -6,14 +6,20 @@
 <title>immo-radar · Top Picks</title>
 <style entfernt="golden-diff"></style>
 </head>
-<body>
-<nav class="hauptnav" aria-label="Hauptnavigation">
-  <a class="marke" href="/">immo-radar</a>
-  <a href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Dashboard</span></a>
-  <a href="/top-picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg><span>Top Picks</span></a>
-  <a href="/inserate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg><span>Inserate</span></a>
-  <a href="/portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg><span>Portfolio</span></a>
-  <a href="/crawl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Crawl-Läufe</span></a>
+<body class="mit-seitenleiste">
+<input type="checkbox" id="nav-schalter" class="sr-nur">
+<label class="nav-oeffner" for="nav-schalter" aria-label="Navigation umschalten" aria-expanded="false" aria-controls="seitenleiste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg></label>
+<label class="nav-scrim" for="nav-schalter" aria-hidden="true"></label>
+<div class="seitenleiste" id="seitenleiste">
+  <nav aria-label="Hauptnavigation">
+    <a class="marke" href="/">immo-radar</a>
+    <a href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Dashboard</span></a>
+    <a href="/top-picks" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg><span>Top Picks</span></a>
+    <a href="/inserate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg><span>Inserate</span></a>
+    <a href="/portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg><span>Portfolio</span></a>
+    <a href="/crawl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Crawl-Läufe</span></a>
+  </nav>
+  <div class="leiste-spacer" aria-hidden="true"></div>
   <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
     <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
       <span class="aktivitaet-punkt" aria-hidden="true"></span>
@@ -21,7 +27,12 @@
     </button>
     <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
   </div>
-</nav>
+  <a class="konto-slot" href="/konto">
+    <span class="konto-initialen" aria-hidden="true">ra</span>
+    <span class="konto-name">radar</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>
+  </a>
+</div>
 <main class="breit">
   <header>
     <h1>Top Picks</h1>
@@ -162,6 +173,23 @@
 
   tick();
   setInterval(tick, 3000);
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  const schalter = document.getElementById('nav-schalter');
+  if (!schalter) return;
+  const oeffner = document.querySelector('.nav-oeffner');
+  function sync() {
+    if (oeffner) oeffner.setAttribute('aria-expanded', String(schalter.checked));
+  }
+  schalter.addEventListener('change', sync);
+  document.addEventListener('keydown', function (e) {
+    // Programmatisches Setzen feuert kein change-Event – sync von Hand.
+    if (e.key === 'Escape' && schalter.checked) { schalter.checked = false; sync(); }
+  });
+  sync();
 })();
 </script>
 </body>
