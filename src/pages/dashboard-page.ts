@@ -21,6 +21,7 @@ import {
   nfTage,
 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
+import { seitenNav as seitenNavigation } from './ui/navigation.js';
 
 /**
  * Die Startseite: der Kärntner Wohnungsmarkt als Zeitreihe — Bruttorendite,
@@ -390,19 +391,19 @@ function dashboardUrl(
 function stichtagNav(daten: DashboardDaten, stichtag: string): string {
   const stichtage = daten.trend.map((t) => t.datum);
   const idx = stichtage.indexOf(stichtag);
-  const aeltere =
-    idx > 0
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx - 1] as string)}">← älterer Stichtag</a>`
-      : '<span></span>';
-  const neuere =
-    idx >= 0 && idx < stichtage.length - 1
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx + 1] as string)}">neuerer Stichtag →</a>`
-      : '<span></span>';
-  return `      <nav class="seiten-nav" aria-label="Stichtag wählen">
-        ${aeltere}
-        <span class="meta zaehler">Stichtag ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}</span>
-        ${neuere}
-      </nav>`;
+  return seitenNavigation({
+    label: 'Stichtag wählen',
+    einzug: 6,
+    zaehler: `Stichtag ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}`,
+    zurueck:
+      idx > 0
+        ? { href: dashboardUrl(daten.filter, stichtage[idx - 1] as string), text: '← älterer Stichtag' }
+        : undefined,
+    weiter:
+      idx >= 0 && idx < stichtage.length - 1
+        ? { href: dashboardUrl(daten.filter, stichtage[idx + 1] as string), text: 'neuerer Stichtag →' }
+        : undefined,
+  });
 }
 
 function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: boolean): string {
@@ -474,11 +475,13 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
   const nav =
     gesamtSeiten > 1
       ? `
-      <nav class="seiten-nav" aria-label="${label}-Datenpunkte: Seiten">
-        ${seite > 1 ? `<a href="${url(seite - 1)}">← Zurück</a>` : '<span></span>'}
-        <span class="meta zaehler">Seite ${nfEur0.format(seite)} von ${nfEur0.format(gesamtSeiten)}</span>
-        ${seite < gesamtSeiten ? `<a href="${url(seite + 1)}">Weiter →</a>` : '<span></span>'}
-      </nav>`
+${seitenNavigation({
+  label: `${label}-Datenpunkte: Seiten`,
+  einzug: 6,
+  zaehler: `Seite ${nfEur0.format(seite)} von ${nfEur0.format(gesamtSeiten)}`,
+  zurueck: seite > 1 ? { href: url(seite - 1), text: '← Zurück' } : undefined,
+  weiter: seite < gesamtSeiten ? { href: url(seite + 1), text: 'Weiter →' } : undefined,
+})}`
       : '';
   const ausreisserText =
     anzahlAusreisser > 0

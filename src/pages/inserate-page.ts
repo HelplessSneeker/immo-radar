@@ -10,6 +10,7 @@ import { BUNDESLAENDER } from '../search.js';
 import { inseratSchluessel, type PreisAenderung } from '../trend.js';
 import { aenderungsZelle, datumMedium, eurM2Wert, nfEur0, nfTage } from './format.js';
 import { escapeHtml, seite } from './layout.js';
+import { seitenNav as seitenNavigation } from './ui/navigation.js';
 
 /**
  * Der globale Inseratsbestand als paginierte, filterbare Tabelle – die
@@ -259,19 +260,13 @@ ${zeilen}
 function seitenNav(daten: InserateSeitenDaten): string {
   const gesamtSeiten = Math.max(1, Math.ceil(daten.gesamt / daten.proSeite));
   if (gesamtSeiten <= 1) return '';
-  const zurueck =
-    daten.seite > 1
-      ? `<a href="${inserateUrl(daten.filter, daten.sortierung, daten.seite - 1)}">← Zurück</a>`
-      : '<span></span>';
-  const weiter =
-    daten.seite < gesamtSeiten
-      ? `<a href="${inserateUrl(daten.filter, daten.sortierung, daten.seite + 1)}">Weiter →</a>`
-      : '<span></span>';
-  return `    <nav class="seiten-nav" aria-label="Seiten">
-      ${zurueck}
-      <span class="meta zaehler">Seite ${nfEur0.format(daten.seite)} von ${nfEur0.format(gesamtSeiten)} · ${nfEur0.format(daten.gesamt)} Inserate</span>
-      ${weiter}
-    </nav>`;
+  const url = (zielSeite: number): string => inserateUrl(daten.filter, daten.sortierung, zielSeite);
+  return seitenNavigation({
+    label: 'Seiten',
+    zaehler: `Seite ${nfEur0.format(daten.seite)} von ${nfEur0.format(gesamtSeiten)} · ${nfEur0.format(daten.gesamt)} Inserate`,
+    zurueck: daten.seite > 1 ? { href: url(daten.seite - 1), text: '← Zurück' } : undefined,
+    weiter: daten.seite < gesamtSeiten ? { href: url(daten.seite + 1), text: 'Weiter →' } : undefined,
+  });
 }
 
 function inhaltOderLeer(daten: InserateSeitenDaten): string {
