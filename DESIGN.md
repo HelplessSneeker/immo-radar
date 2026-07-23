@@ -57,15 +57,15 @@ rounded:
 spacing:
   xs: "6px"
   sm: "8px"
+  kompakt: "12px"
   md: "16px"
   lg: "20px"
   page: "24px"
-  xl: "32px"
 components:
   navbar:
     backgroundColor: "{colors.surface}"
     borderBottom: "1px solid {colors.baseline}"
-    padding: "12px 24px"
+    padding: "10px 24px"
   button-primary:
     backgroundColor: "{colors.akzent}"
     textColor: "#ffffff"
@@ -103,7 +103,7 @@ components:
 
 immo-radar sieht aus wie der Schreibtisch eines nüchternen Analysten: papierwarme Neutrale, präzise Tabellen, und Farbe ausschließlich dort, wo sie Bedeutung trägt. Das System ist dicht — Vergleich ist der Kern des Produkts — aber nie laut. Jede Kennzahl kommt mit ihrem Urteil (hervorgehoben ab Schwelle, Ausreißer markiert), damit der Leser entscheidet statt rechnet. Die Oberfläche verschwindet hinter der Aufgabe.
 
-Das System lehnt explizit ab: Excel-Ästhetik (rohe Zahlengitter ohne Hierarchie), Immobilienportal-Optik (Foto-Kacheln, Badges, Dringlichkeitsdruck) und das generische SaaS-Dashboard (KPI-Kachel-Wände, Gradients, Icon-Karten). Es gibt zwei gleichwertige Themes — hell und dunkel via `prefers-color-scheme`, mit identischem Token-Vokabular; alle Werte hier sind die Light-Werte. Die eine Code-Quelle für alle Tokens ist `TOKEN_CSS` in `src/pages/layout.ts` (Report und Gebiets-Seiten importieren sie von dort) — neben den Farben auch Raum (`--raum-xs`…`--raum-xl`), Radien (`--radius-control/-tile/-section/-pill`), Schriftgrößen (`--fs-fuss`…`--fs-display`), Gewichte (`--gewicht-normal/-stark`), `--fokus-ring` und `--outlier-flaeche`. Das wiederkehrende Markup (Filterleiste, Formularfelder, Blätter-Navigation, Tabellen, Badges) hat seine eine Quelle im Primitive-Layer `src/pages/ui/` (`html\`\``-Vertrag: Strings werden escaped, `Html` wird roh inlined; Regeln siehe `src/pages/ui/html.ts`), dessen geteiltes CSS in `KOMPONENTEN_CSS` (`src/pages/ui/css.ts`) lebt.
+Das System lehnt explizit ab: Excel-Ästhetik (rohe Zahlengitter ohne Hierarchie), Immobilienportal-Optik (Foto-Kacheln, Badges, Dringlichkeitsdruck) und das generische SaaS-Dashboard (KPI-Kachel-Wände, Gradients, Icon-Karten). Es gibt zwei gleichwertige Themes — hell und dunkel via `prefers-color-scheme`, mit identischem Token-Vokabular; alle Werte hier sind die Light-Werte. Die eine Code-Quelle für alle Tokens ist `TOKEN_CSS` in `src/pages/layout.ts` (Report und Gebiets-Seiten importieren sie von dort) — neben den Farben auch Raum (`--raum-xs`…`--raum-page`), Radien (`--radius-control/-tile/-section/-pill`), Schriftgrößen (`--fs-fuss`…`--fs-display`), Gewichte (`--gewicht-normal/-stark`), `--fokus-ring` und `--outlier-flaeche`. Das wiederkehrende Markup (Filterleiste, Formularfelder, Blätter-Navigation, Tabellen, Badges) hat seine eine Quelle im Primitive-Layer `src/pages/ui/` (`html\`\``-Vertrag: Strings werden escaped, `Html` wird roh inlined; Regeln siehe `src/pages/ui/html.ts`), dessen geteiltes CSS in `KOMPONENTEN_CSS` (`src/pages/ui/css.ts`) lebt.
 
 **Key Characteristics:**
 - Papierwarme Neutrale (warmes Grau, kein reines Weiß/Schwarz außer Text)
@@ -168,7 +168,7 @@ Vollständig flach. Es gibt keinen einzigen `box-shadow` im System — Tiefe ent
 ## 5. Components
 
 ### Navbar (Hauptnavigation)
-- **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 12px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
+- **Auf jeder Server-Seite** die eine Konstante Bildschirm zu Bildschirm: schlanke Leiste über volle Seitenbreite, Fläche auf Papier, 1px Basislinien-Unterkante, 10px/24px Padding. **Sticky** (`top: 0`) — auf den langen Auswertungsseiten bleibt die Navigation erreichbar; die Abgrenzung zum durchscrollenden Inhalt leistet die Basislinie, kein Schatten (Flach-Regel).
 - **Aufbau:** Wortmarke „immo-radar" (Tinte, 600, Link auf `/`) links, daneben die fünf Einträge **Dashboard** (`/`, die Startseite — der Markt als Zeitreihe steht vorn), **Top Picks** (`/top-picks`, die Rendite-Rangliste je Objekt — Auswertung vor Roh-Sicht), **Inserate** (`/inserate`, die Roh-Sicht hinter dem Dashboard), **Portfolio** (`/portfolio`, die eigenen Objekte), **Crawl-Läufe** (`/crawl`, die Datenherkunft) in Akzent-Blau, ohne Unterstreichung (Hover: unterstrichen). Bricht auf schmalen Viewports per `flex-wrap` um. Fünf Einträge sind die Obergrenze der ruhigen Leiste — `/methodik` ist Referenz, kein Arbeitsfluss, und wird nur kontextuell von den Kennzahlen aus verlinkt.
 - **Icons:** Jeder Eintrag trägt ein 16px-Lucide-Icon (monochrome Inline-SVG, `currentColor`) vor dem Label — chart-line, award, list, building-2, refresh-cw. Die Icons stehen in Tinte-gedämpft (`--text-secondary`), nie in Akzent-Blau: die Ikonografie ist Orientierungshilfe, das Farbbudget bleibt den Labels und Zahlen vorbehalten (Urteils-Regel). Aktiver Eintrag und Hover heben das Icon auf Tinte. Keine Emojis. Die Wortmarke bleibt icon-los.
 - **Aktiver Eintrag:** `aria-current="page"` + Tinte/600 (Label und Icon) — Zustand trägt Markup und Optik gemeinsam, nie Farbe allein. Fehler- und Sonderseiten (auch `/methodik`) dürfen ohne Markierung bleiben.

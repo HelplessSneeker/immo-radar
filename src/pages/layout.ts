@@ -62,10 +62,10 @@ export const TOKEN_CSS = `
        Werte und Namen mit DESIGN.md synchron halten. */
     --raum-xs: 6px;
     --raum-sm: 8px;
+    --raum-kompakt: 12px;
     --raum-md: 16px;
     --raum-lg: 20px;
     --raum-page: 24px;
-    --raum-xl: 32px;
     --radius-control: 6px;
     --radius-tile: 8px;
     --radius-section: 10px;
@@ -116,8 +116,8 @@ export const BASIS_CSS = `
   }
   .hauptnav {
     position: sticky; top: 0; z-index: 5;
-    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-    padding: 10px 24px;
+    display: flex; align-items: center; gap: var(--raum-lg); flex-wrap: wrap;
+    padding: 10px var(--raum-page);
     background: var(--surface-1);
     border-bottom: 1px solid var(--baseline);
   }
@@ -129,21 +129,21 @@ export const BASIS_CSS = `
   .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
   .hauptnav a[aria-current="page"] svg { color: var(--text-primary); }
   main {
-    max-width: calc(560px + 2 * 24px); margin: 0 auto; padding: 24px;
-    display: grid; gap: 20px;
+    max-width: calc(560px + 2 * var(--raum-page)); margin: 0 auto; padding: var(--raum-page);
+    display: grid; gap: var(--raum-lg);
   }
-  main.breit { max-width: calc(1080px + 2 * 24px); }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
+  main.breit { max-width: calc(1080px + 2 * var(--raum-page)); }
+  h1 { font-size: var(--fs-headline); margin: 0; }
+  h2 { font-size: var(--fs-titel); margin: 0 0 12px; }
   .meta { color: var(--text-secondary); font-size: 13px; }
   /* Begrüßungs-/Orientierungszeile im Seitenkopf: sitzt in der Hierarchie
      zwischen h1 (20px, Tinte) und der grauen Herkunfts-Meta – plain language
      für Nicht-Techniker, ohne die stille Anmutung zu brechen. */
-  .intro { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
+  .intro { font-size: var(--fs-body); line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
   .intro + .meta { margin-top: 6px; }
   section {
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px;
+    border-radius: var(--radius-section); padding: var(--raum-lg);
     /* Grid-Kind: ohne min-width 0 kann die Section nicht unter die
        Tabellen-Eigenbreite schrumpfen und die ganze Seite scrollt seitlich –
        scrollen soll nur .tabelle-scroll. */
@@ -207,7 +207,7 @@ export const BASIS_CSS = `
     }
     .tabelle-karten, .tabelle-karten tbody, .tabelle-karten tr, .tabelle-karten td { display: block; width: auto; }
     .tabelle-karten tr {
-      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px;
+      border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 10px 12px; margin: 0 0 10px;
     }
     .tabelle-karten tr:last-child { margin-bottom: 0; }
     .tabelle-karten tr:hover { background: none; }
@@ -299,7 +299,7 @@ export const BASIS_CSS = `
   button.aktivitaet-chip {
     padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600;
     color: var(--akzent); background: transparent;
-    border: 1px solid var(--grid); border-radius: 999px;
+    border: 1px solid var(--grid); border-radius: var(--radius-pill);
     display: inline-flex; align-items: center; gap: 8px;
     cursor: pointer;
     transition: background-color var(--dauer-schnell) var(--ease-out),
@@ -314,7 +314,7 @@ export const BASIS_CSS = `
   .aktivitaet-liste {
     position: absolute; right: 0; top: calc(100% + 6px);
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 0;
+    border-radius: var(--radius-tile); padding: 8px 0;
     min-width: 260px; max-width: 360px; z-index: 10;
     transform-origin: top right;
     animation: aktivitaet-oeffnen var(--dauer-schnell) var(--ease-out);
@@ -351,7 +351,7 @@ export const BASIS_CSS = `
   /* Filterleiste: inline GET-Formular über Auswertungstabellen. Filter sind
      Query-Parameter und funktionieren ohne JS. */
   .filterleiste {
-    display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
+    display: flex; flex-wrap: wrap; gap: var(--raum-kompakt) var(--raum-md); align-items: flex-end;
   }
   .filterleiste .feld { display: grid; gap: var(--raum-xs); }
   .filterleiste label, .filterleiste legend { font-weight: var(--gewicht-stark); font-size: var(--fs-label); }

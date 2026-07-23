@@ -72,7 +72,7 @@ const DASHBOARD_CSS = `
   main.breit { gap: 16px; }
   /* Zusammenklappbarer Filter: geschlossen eine schlanke Zeile, offen die
      Filterleiste darunter. Die Summary trägt Akzent als Interaktions-Signal. */
-  .filter-sektion { padding: 12px 20px; }
+  .filter-sektion { padding: var(--raum-kompakt) var(--raum-lg); }
   .filter summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent); }
   .filter summary:hover { text-decoration: underline; }
   .filter[open] summary { margin-bottom: 14px; }
@@ -105,19 +105,19 @@ const DASHBOARD_CSS = `
      damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
   .tile {
     background: var(--surface-1);
-    border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px;
+    border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 18px 20px;
     display: flex; flex-direction: column;
   }
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; margin-bottom: 4px; }
-  .tile-value { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+  .tile-value { font-size: var(--fs-display); font-weight: 600; line-height: 1.1; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
   /* Einheit vom Wert abgesetzt: die Zahl trägt das Urteil, "%"/"€/m²" ist
      nur ihre Beschriftung – kleiner und gedämpft statt 30px-laut. */
   .tile-einheit { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 3px; }
   .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
   .tile-sub { font-size: 12px; line-height: 1.45; color: var(--text-secondary); margin-top: auto; padding-top: 4px; }
-  .charts-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .charts-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--raum-page); }
   /* Mittlere Breiten: 2 Spalten, das Rendite-Panel (das Urteils-Chart) voll
      breit oben — statt eines allein danglenden dritten Charts. */
   @media (max-width: 1100px) {
@@ -136,7 +136,7 @@ const DASHBOARD_CSS = `
   .warnung {
     color: var(--status-critical); font-size: 13px;
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px;
+    border-radius: var(--radius-tile); padding: 10px 12px;
   }
   .datenpunkte summary { cursor: pointer; }
   .datenpunkte summary h2 { display: inline; margin: 0; transition: color var(--dauer-fein) var(--ease-out); }
@@ -146,7 +146,7 @@ const DASHBOARD_CSS = `
   /* Drawer-eigener Ausreißer-Schalter: eine schlanke Zeile aus Checkbox,
      Anwenden-Button und Erklär-Meta — kein zweites Filterleisten-Gewicht. */
   .drawer-toggle { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
-  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
+  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--raum-page); margin: 16px 0; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
      Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
   .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }
