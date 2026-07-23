@@ -1,7 +1,8 @@
 import type { BestandInserat } from '../db/bestand-repo.js';
 import { datenqualitaetLabels } from '../plausibilitaet.js';
 import type { PreisAenderung } from '../trend.js';
-import { escapeHtml } from './layout.js';
+import { badge } from './ui/badge.js';
+import { html, LEER, raw, type Html } from './ui/html.js';
 
 /**
  * Gemeinsame Formatter und Zell-Bausteine der Bestand-Seiten (Gebiet-Detail,
@@ -40,13 +41,11 @@ export function fmtRendite(anteil: number): string {
 export function ausreisserBadge(zeile: {
   istAusreisser: boolean;
   datenqualitaet?: string;
-}): string {
-  if (!zeile.istAusreisser) return '';
+}): Html {
+  if (!zeile.istAusreisser) return LEER;
   const grund =
-    zeile.datenqualitaet !== undefined
-      ? ` · ${escapeHtml(datenqualitaetLabels(zeile.datenqualitaet))}`
-      : '';
-  return ` <span class="badge badge-critical">▲ Ausreißer${grund}</span>`;
+    zeile.datenqualitaet !== undefined ? ` · ${datenqualitaetLabels(zeile.datenqualitaet)}` : '';
+  return html` ${badge(`▲ Ausreißer${grund}`, true)}`;
 }
 
 const nfProzent1 = new Intl.NumberFormat('de-AT', {
@@ -82,10 +81,10 @@ export function datumMedium(datum: string): string {
 }
 
 /** Titel-Zelle eines Bestand-Inserats: Ort + Zimmer als Portal-Link, Typ + ID als Sub. */
-export function inseratZelle(i: BestandInserat): string {
+export function inseratZelle(i: BestandInserat): Html {
   const titel = `${i.ort} · ${nfEur0.format(i.zimmer)} Zi.`;
-  const link = i.url ? `<a href="${escapeHtml(i.url)}">${escapeHtml(titel)}</a>` : escapeHtml(titel);
-  return `<td>${link}<span class="sub">${i.typ === 'kauf' ? 'Kauf' : 'Miete'} · ${escapeHtml(i.id)}</span></td>`;
+  const link = i.url ? html`<a href="${i.url}">${titel}</a>` : html`${titel}`;
+  return html`<td>${link}<span class="sub">${i.typ === 'kauf' ? 'Kauf' : 'Miete'} · ${i.id}</span></td>`;
 }
 
 /** €/m² – Kauf ganzzahlig, Miete mit 2 Nachkommastellen (wie die Chart-Achsen). */
@@ -95,15 +94,15 @@ export function eurM2Wert(i: BestandInserat): string {
   return i.typ === 'kauf' ? nfEur0.format(wert) : nfEur2.format(wert);
 }
 
-export function aenderungsZelle(a: PreisAenderung | undefined): string {
-  if (!a || a.neuerPreis === a.alterPreis) return '<td class="num meta">–</td>';
+export function aenderungsZelle(a: PreisAenderung | undefined): Html {
+  if (!a || a.neuerPreis === a.alterPreis) return raw('<td class="num meta">–</td>');
   const delta = a.neuerPreis - a.alterPreis;
   const prozent = (Math.abs(delta) / a.alterPreis) * 100;
   // Käufer-Perspektive: Senkung = Chance (grün), Erhöhung = kritisch. Das
   // Vorzeichen trägt das Urteil auch ohne Farbe.
   const klasse = delta < 0 ? 'gesenkt' : 'gestiegen';
   const zeichen = delta < 0 ? '−' : '+';
-  return `<td class="num"><span class="${klasse}">${zeichen}${nfPct.format(prozent)} % (${zeichen}${nfEur0.format(Math.abs(delta))} €)</span><span class="sub">${escapeHtml(datumMedium(a.geaendertAm))}</span></td>`;
+  return html`<td class="num"><span class="${raw(klasse)}">${zeichen}${nfPct.format(prozent)} % (${zeichen}${nfEur0.format(Math.abs(delta))} €)</span><span class="sub">${datumMedium(a.geaendertAm)}</span></td>`;
 }
 
 /** Aufsteigend nach €/m² – günstigster Quadratmeterpreis zuerst; ohne Fläche ans Ende. */

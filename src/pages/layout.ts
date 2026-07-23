@@ -1,8 +1,9 @@
 /**
  * Gemeinsames Seitengerüst und Design-Tokens aller Server-Seiten und des
  * Reports. TOKEN_CSS und BASIS_CSS sind die eine Quelle für Farben,
- * Typografie, Navbar, Tabellen, Badges und Fokus-Zustände – Seiten ergänzen
- * nur seitenspezifisches CSS (Formulare, Tiles, Charts) über `extraCss`.
+ * Typografie, Seitenleiste, Tabellen, Badges und Fokus-Zustände – Seiten
+ * ergänzen nur seitenspezifisches CSS (Formulare, Tiles, Charts) über
+ * `extraCss`.
  *
  * Alle normalgroßen Text-Farbpaare sind AA-geprüft (≥ 4,5:1 in beiden Themes)
  * auf ihrem tatsächlichen Grund (Statustexte sitzen in Sections/Tabellen auf
@@ -12,6 +13,8 @@
  * --text-muted bleibt wie dokumentiert auf Bold-Labels/Fußnoten beschränkt.
  * Änderungen an den Tokens mit DESIGN.md synchron halten.
  */
+
+import { KOMPONENTEN_CSS } from './ui/css.js';
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -56,6 +59,29 @@ export const TOKEN_CSS = `
     --dauer-fein: 120ms;
     --dauer-schnell: 180ms;
     --dauer-mittel: 240ms;
+    /* Raum-, Radius-, Schrift- und Zustands-Tokens (theme-unabhängig) –
+       Werte und Namen mit DESIGN.md synchron halten. */
+    --raum-xs: 6px;
+    --raum-sm: 8px;
+    --raum-kompakt: 12px;
+    --raum-md: 16px;
+    --raum-lg: 20px;
+    --raum-page: 24px;
+    --sidebar-breite: 240px;
+    --radius-control: 6px;
+    --radius-tile: 8px;
+    --radius-section: 10px;
+    --radius-pill: 999px;
+    --fs-fuss: 12px;
+    --fs-label: 13px;
+    --fs-body: 14px;
+    --fs-titel: 15px;
+    --fs-headline: 20px;
+    --fs-display: 30px;
+    --gewicht-normal: 400;
+    --gewicht-stark: 600;
+    --fokus-ring: 2px solid var(--akzent);
+    --outlier-flaeche: color-mix(in srgb, var(--status-critical) 6%, transparent);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -82,7 +108,7 @@ export const TOKEN_CSS = `
   }
 `;
 
-/** Grundgerüst: Typografie, Navbar, Sections, Links, Fokus, Buttons, Tabellen, Badges. */
+/** Grundgerüst: Typografie, Seitenleiste, Sections, Links, Fokus, Buttons, Tabellen, Badges. */
 export const BASIS_CSS = `
   * { box-sizing: border-box; }
   body {
@@ -90,36 +116,116 @@ export const BASIS_CSS = `
     background: var(--page); color: var(--text-primary);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .hauptnav {
-    position: sticky; top: 0; z-index: 5;
-    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-    padding: 10px 24px;
+  /* Seitenleiste: die eine Konstante Bildschirm zu Bildschirm. Ab 900px feste
+     linke Spalte im Body-Grid, darunter Off-Canvas-Drawer – rein per Checkbox
+     (#nav-schalter) und Labels; SEITENLEISTE_JS ergänzt nur aria-expanded und
+     Escape. Tiefe über die 1px-Basislinien-Rechtskante, kein Schatten. */
+  .seitenleiste {
+    display: flex; flex-direction: column;
     background: var(--surface-1);
-    border-bottom: 1px solid var(--baseline);
+    border-right: 1px solid var(--baseline);
+    padding: var(--raum-md) var(--raum-kompakt);
   }
-  .hauptnav a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; transition: color var(--dauer-fein) var(--ease-out); }
-  .hauptnav a:hover { text-decoration: underline; }
-  .hauptnav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
-  .hauptnav a:hover svg { color: var(--text-primary); }
-  .hauptnav .marke { color: var(--text-primary); font-weight: 600; margin-right: 8px; }
-  .hauptnav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
-  .hauptnav a[aria-current="page"] svg { color: var(--text-primary); }
+  .seitenleiste nav { display: flex; flex-direction: column; gap: 2px; }
+  .seitenleiste nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: var(--radius-control);
+    text-decoration: none;
+    transition: background-color var(--dauer-fein) var(--ease-out),
+                color var(--dauer-fein) var(--ease-out);
+  }
+  .seitenleiste nav a:hover { background: var(--surface-hover); }
+  .seitenleiste nav a svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); transition: color var(--dauer-fein) var(--ease-out); }
+  .seitenleiste nav a:hover svg { color: var(--text-primary); }
+  .seitenleiste nav a.marke { color: var(--text-primary); font-weight: 600; margin-bottom: var(--raum-md); }
+  .seitenleiste nav a[aria-current="page"] { color: var(--text-primary); font-weight: 600; }
+  .seitenleiste nav a[aria-current="page"] svg { color: var(--text-primary); }
+  .leiste-spacer { flex: 1; }
+  /* Benutzer-Slot am Fuß: ein einziger Link auf /konto – Initialen-Quadrat
+     (1px-Kontur, kein Bild), Name, Chevron. */
+  .konto-slot {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; margin-top: var(--raum-sm);
+    border-radius: var(--radius-control);
+    color: var(--text-primary); font-size: var(--fs-label); text-decoration: none;
+    transition: background-color var(--dauer-fein) var(--ease-out);
+  }
+  .konto-slot:hover { background: var(--surface-hover); }
+  .konto-initialen {
+    width: 28px; height: 28px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--baseline); border-radius: var(--radius-control);
+    font-size: var(--fs-fuss); font-weight: var(--gewicht-stark);
+    color: var(--text-secondary); text-transform: uppercase;
+  }
+  .konto-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .konto-slot svg { width: 16px; height: 16px; flex: none; color: var(--text-secondary); }
+  @media (min-width: 900px) {
+    body.mit-seitenleiste { display: grid; grid-template-columns: var(--sidebar-breite) 1fr; }
+    /* Die Drawer-Geschwister (Checkbox absolut, Labels display:none) erzeugen
+       keine Grid-Items – die explizite Zuweisung hält das Layout trotzdem
+       unabhängig von deren Styling. */
+    body.mit-seitenleiste > .seitenleiste { grid-column: 1; grid-row: 1; }
+    /* Als Grid-Item würde main sonst (a) mit Auto-Margins auf fit-content
+       schrumpfen statt die 560/1080px-Spalte zu füllen und (b) per
+       align-stretch seine inneren Grid-Reihen über die volle Viewport-Höhe
+       verteilen – width + align-self stellen das Block-Verhalten wieder her. */
+    body.mit-seitenleiste > main { grid-column: 2; grid-row: 1; width: 100%; align-self: start; }
+    .seitenleiste {
+      position: sticky; top: 0; align-self: start;
+      height: 100vh; height: 100dvh;
+      overflow-y: auto;
+    }
+    #nav-schalter, .nav-oeffner, .nav-scrim { display: none; }
+  }
+  @media (max-width: 899px) {
+    .seitenleiste {
+      position: fixed; inset: 0 auto 0 0;
+      width: var(--sidebar-breite); max-width: 85vw;
+      overflow-y: auto; z-index: 30;
+      transform: translateX(-100%);
+      transition: transform var(--dauer-mittel) var(--ease-out);
+    }
+    #nav-schalter:checked ~ .seitenleiste { transform: none; }
+    /* Flacher Schleier statt Schatten: Papierfarbe halbtransparent, trägt in
+       beiden Themes (Muster wie --outlier-flaeche). */
+    .nav-scrim {
+      position: fixed; inset: 0; z-index: 25;
+      background: color-mix(in srgb, var(--page) 65%, transparent);
+      opacity: 0; pointer-events: none; cursor: pointer;
+      transition: opacity var(--dauer-mittel) var(--ease-out);
+    }
+    #nav-schalter:checked ~ .nav-scrim { opacity: 1; pointer-events: auto; }
+    .nav-oeffner {
+      position: fixed; top: var(--raum-kompakt); left: var(--raum-kompakt); z-index: 20;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; cursor: pointer;
+      color: var(--text-primary); background: var(--surface-1);
+      border: 1px solid var(--grid); border-radius: var(--radius-control);
+    }
+    .nav-oeffner svg { width: 16px; height: 16px; }
+    /* Der fixe Öffner läge sonst über der h1 der Seite. */
+    body.mit-seitenleiste main { padding-top: calc(var(--raum-page) + 36px); }
+    /* Die sr-nur-Checkbox bleibt fokussierbar; der Ring erscheint auf dem
+       sichtbaren Öffner. */
+    #nav-schalter:focus-visible ~ .nav-oeffner { outline: var(--fokus-ring); outline-offset: 2px; }
+  }
   main {
-    max-width: calc(560px + 2 * 24px); margin: 0 auto; padding: 24px;
-    display: grid; gap: 20px;
+    max-width: calc(560px + 2 * var(--raum-page)); margin: 0 auto; padding: var(--raum-page);
+    display: grid; gap: var(--raum-lg);
   }
-  main.breit { max-width: calc(1080px + 2 * 24px); }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
+  main.breit { max-width: calc(1080px + 2 * var(--raum-page)); }
+  h1 { font-size: var(--fs-headline); margin: 0; }
+  h2 { font-size: var(--fs-titel); margin: 0 0 12px; }
   .meta { color: var(--text-secondary); font-size: 13px; }
   /* Begrüßungs-/Orientierungszeile im Seitenkopf: sitzt in der Hierarchie
      zwischen h1 (20px, Tinte) und der grauen Herkunfts-Meta – plain language
      für Nicht-Techniker, ohne die stille Anmutung zu brechen. */
-  .intro { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
+  .intro { font-size: var(--fs-body); line-height: 1.5; color: var(--text-primary); margin: 6px 0 0; max-width: 64ch; }
   .intro + .meta { margin-top: 6px; }
   section {
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 10px; padding: 20px;
+    border-radius: var(--radius-section); padding: var(--raum-lg);
     /* Grid-Kind: ohne min-width 0 kann die Section nicht unter die
        Tabellen-Eigenbreite schrumpfen und die ganze Seite scrollt seitlich –
        scrollen soll nur .tabelle-scroll. */
@@ -127,13 +233,13 @@ export const BASIS_CSS = `
   }
   a { color: var(--akzent); transition: color var(--dauer-fein) var(--ease-out); }
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
-    outline: 2px solid var(--akzent); outline-offset: 2px;
+    outline: var(--fokus-ring); outline-offset: 2px;
     transition: outline-offset var(--dauer-fein) var(--ease-out);
   }
   button {
-    padding: 10px 16px; font: inherit; font-weight: 600;
+    padding: 10px 16px; font: inherit; font-weight: var(--gewicht-stark);
     color: #fff; background: var(--akzent-flaeche);
-    border: 0; border-radius: 6px; cursor: pointer;
+    border: 0; border-radius: var(--radius-control); cursor: pointer;
     transition: background-color var(--dauer-schnell) var(--ease-out),
                 opacity var(--dauer-schnell) var(--ease-out);
   }
@@ -141,7 +247,7 @@ export const BASIS_CSS = `
   button:active:not(:disabled) { background: var(--akzent-flaeche-hover); opacity: 0.9; }
   button:disabled { opacity: 0.6; cursor: wait; }
   button.klein {
-    padding: 4px 10px; font-size: 12px; font-weight: 400;
+    padding: 4px 10px; font-size: var(--fs-fuss); font-weight: var(--gewicht-normal);
     color: var(--akzent); background: transparent;
     border: 1px solid var(--grid);
     transition: background-color var(--dauer-schnell) var(--ease-out),
@@ -158,19 +264,19 @@ export const BASIS_CSS = `
     clip-path: inset(50%); white-space: nowrap;
   }
   .tabelle-scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: var(--fs-label); }
   th, td {
     text-align: left; padding: 6px 10px; vertical-align: top;
     border-bottom: 1px solid var(--grid);
   }
-  thead th { color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
-  tbody th { font-weight: 600; }
+  thead th { color: var(--text-muted); font-weight: var(--gewicht-stark); border-bottom: 1px solid var(--baseline); }
+  tbody th { font-weight: var(--gewicht-stark); }
   tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
   tbody tr { transition: background-color var(--dauer-fein) var(--ease-out); }
   tbody tr:hover { background: var(--surface-hover); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td .sub, tbody th .sub {
-    display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary);
+    display: block; font-weight: var(--gewicht-normal); font-size: var(--fs-fuss); color: var(--text-secondary);
   }
   /* Mobile-Karten: dichte Tabellen (Top Picks, Datenpunkte, Portfolio) brechen
      auf schmalen Viewports in gestapelte Karten um – je Zeile eine Karte, die
@@ -183,7 +289,7 @@ export const BASIS_CSS = `
     }
     .tabelle-karten, .tabelle-karten tbody, .tabelle-karten tr, .tabelle-karten td { display: block; width: auto; }
     .tabelle-karten tr {
-      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px;
+      border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 10px 12px; margin: 0 0 10px;
     }
     .tabelle-karten tr:last-child { margin-bottom: 0; }
     .tabelle-karten tr:hover { background: none; }
@@ -199,7 +305,7 @@ export const BASIS_CSS = `
     .tabelle-karten td .sub { text-align: right; }
     .tabelle-karten td:first-child .sub { text-align: left; }
     /* Ausreißer-Tönung wandert auf die Karte statt auf jede Teil-Zelle. */
-    .tabelle-karten tr.row-outlier { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+    .tabelle-karten tr.row-outlier { background: var(--outlier-flaeche); }
     .tabelle-karten tr.row-outlier td { background: none; }
   }
   .status-badge {
@@ -221,9 +327,9 @@ export const BASIS_CSS = `
   /* Site-weite Badges und Ausreißer-Zeilen (Dashboard-Datenpunkte, Top Picks,
      Report): .badge ist neutrale Herkunft/Fakt, .badge-critical das Urteil
      „auffällig", .row-outlier hinterlegt die ganze Zeile leise kritisch. */
-  .badge { font-size: 12px; color: var(--text-secondary); }
-  .badge-critical { color: var(--status-critical); font-weight: 600; font-size: 12px; }
-  .row-outlier td { background: color-mix(in srgb, var(--status-critical) 6%, transparent); }
+  .badge { font-size: var(--fs-fuss); color: var(--text-secondary); }
+  .badge-critical { color: var(--status-critical); font-weight: var(--gewicht-stark); font-size: var(--fs-fuss); }
+  .row-outlier td { background: var(--outlier-flaeche); }
   .fehler { color: var(--status-critical); }
   footer { color: var(--text-secondary); font-size: 12px; }
   footer p { margin: 4px 0; }
@@ -264,10 +370,9 @@ export const BASIS_CSS = `
     100% { left: 100%; }
   }
 
-  /* Aktivitäts-Chip in der Kopfzeile: schrumpft alles Laufende auf ein
-     einzelnes, jederzeit anklickbares Element im Kopf. Rechts angeschlagen
-     per margin-left: auto (wandert bei flex-wrap sauber mit). */
-  .aktivitaet-slot { position: relative; margin-left: auto; }
+  /* Aktivitäts-Chip unten in der Seitenleiste: schrumpft alles Laufende auf
+     ein einzelnes, jederzeit anklickbares Element über dem Benutzer-Slot. */
+  .aktivitaet-slot { position: relative; margin-top: var(--raum-sm); }
   .aktivitaet-slot[hidden] { display: none; }
   /* button.aktivitaet-chip statt .aktivitaet-chip: die generischen
      button-Regeln oben (background, hover) haben höhere Spezifität als eine
@@ -275,8 +380,9 @@ export const BASIS_CSS = `
   button.aktivitaet-chip {
     padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600;
     color: var(--akzent); background: transparent;
-    border: 1px solid var(--grid); border-radius: 999px;
+    border: 1px solid var(--grid); border-radius: var(--radius-pill);
     display: inline-flex; align-items: center; gap: 8px;
+    width: 100%; justify-content: flex-start;
     cursor: pointer;
     transition: background-color var(--dauer-schnell) var(--ease-out),
                 border-color var(--dauer-schnell) var(--ease-out);
@@ -287,12 +393,14 @@ export const BASIS_CSS = `
   button.aktivitaet-chip[aria-expanded="true"] {
     background: var(--surface-hover); border-color: var(--baseline);
   }
+  /* Öffnet nach OBEN (der Chip sitzt am Fuß der Seitenleiste) und bleibt in
+     der Leistenbreite – breiter würde die scrollende Leiste ihn abschneiden. */
   .aktivitaet-liste {
-    position: absolute; right: 0; top: calc(100% + 6px);
+    position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 0;
-    min-width: 260px; max-width: 360px; z-index: 10;
-    transform-origin: top right;
+    border-radius: var(--radius-tile); padding: 8px 0;
+    z-index: 10;
+    transform-origin: bottom left;
     animation: aktivitaet-oeffnen var(--dauer-schnell) var(--ease-out);
   }
   .aktivitaet-liste[hidden] { display: none; }
@@ -312,7 +420,7 @@ export const BASIS_CSS = `
     flex-shrink: 0;
   }
   @keyframes aktivitaet-oeffnen {
-    from { opacity: 0; transform: translateY(-4px); }
+    from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
@@ -320,31 +428,31 @@ export const BASIS_CSS = `
      der Zähler. Am Rand (erste/letzte Seite) entfällt der jeweilige Link
      ersatzlos – ein leerer Span hält die Ausrichtung, kein Disabled-Fake. */
   .seiten-nav {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    display: flex; justify-content: space-between; align-items: baseline; gap: var(--raum-md);
   }
   .seiten-nav .zaehler { font-variant-numeric: tabular-nums; }
 
   /* Filterleiste: inline GET-Formular über Auswertungstabellen. Filter sind
      Query-Parameter und funktionieren ohne JS. */
   .filterleiste {
-    display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
+    display: flex; flex-wrap: wrap; gap: var(--raum-kompakt) var(--raum-md); align-items: flex-end;
   }
-  .filterleiste .feld { display: grid; gap: 6px; }
-  .filterleiste label, .filterleiste legend { font-weight: 600; font-size: 13px; }
+  .filterleiste .feld { display: grid; gap: var(--raum-xs); }
+  .filterleiste label, .filterleiste legend { font-weight: var(--gewicht-stark); font-size: var(--fs-label); }
   .filterleiste fieldset { border: 0; padding: 0; margin: 0; }
   /* Bereichs-Felder (von–bis) in der Filterleiste: ein Label, zwei kompakte
      Eingaben – die Feldbreite folgt dem Inhalt (PLZ, m², Datum), nicht dem
      Browser-Default; sonst wirken kurze Werte in 200px-Boxen verloren. */
-  .filterleiste .von-bis { display: flex; gap: 8px; }
+  .filterleiste .von-bis { display: flex; gap: var(--raum-sm); }
   .filterleiste .feld-plz input { width: 150px; }
   .filterleiste .von-bis input[type="text"] { width: 76px; }
   .filterleiste .von-bis input[type="date"] { width: 145px; }
   .filterleiste .feld-zimmer .von-bis input { width: 56px; }
   .filterleiste .feld-baujahr .von-bis input { width: 72px; }
   .filterleiste select, .filterleiste input[type="text"], .filterleiste input[type="date"] {
-    padding: 6px 10px; font: inherit; font-size: 13px;
+    padding: 6px 10px; font: inherit; font-size: var(--fs-label);
     color: var(--text-primary); background: var(--page);
-    border: 1px solid var(--grid); border-radius: 6px;
+    border: 1px solid var(--grid); border-radius: var(--radius-control);
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
   .filterleiste select:hover:not(:focus), .filterleiste input[type="text"]:hover:not(:focus),
@@ -360,7 +468,7 @@ export const BASIS_CSS = `
      Leiste — Summary wie die Dashboard-Filter-Summary (13px/600 in Akzent);
      aufgeklappt nimmt das Checkbox-Grid eine eigene volle Formularzeile ein. */
   .filterleiste .feld-ausstattung summary {
-    cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent);
+    cursor: pointer; font-size: var(--fs-label); font-weight: var(--gewicht-stark); color: var(--akzent);
     padding-bottom: 6px;
   }
   .filterleiste .feld-ausstattung summary:hover { text-decoration: underline; }
@@ -370,7 +478,7 @@ export const BASIS_CSS = `
     display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 4px 16px;
   }
-  .filterleiste .facetten-panel label { font-weight: 400; }
+  .filterleiste .facetten-panel label { font-weight: var(--gewicht-normal); }
 
   /* Sanftes Ausblenden vor einem Reload – der harte Cut wirkt sonst als „Ruckler",
      besonders wenn eine Suche/ein Crawl gerade fertig geworden ist und die Seite
@@ -391,37 +499,39 @@ export const BASIS_CSS = `
     .status-badge.status-laufend::before,
     .aktivitaet-punkt,
     .aktivitaet-liste .aktivitaet-punkt-mini { animation: none; opacity: 0.8; }
+    /* Drawer/Scrim nutzen Transitions, keine Animationen – separat abschalten. */
+    .seitenleiste, .nav-scrim { transition: none; }
   }
 `;
 
 /** Zusätzliches CSS der Formularseiten (Suchformular, Gebiet anlegen). */
 export const FORMULAR_CSS = `
-  form { display: grid; gap: 16px; }
-  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
-  legend, label.feld { font-weight: 600; font-size: 13px; padding: 0; }
-  .hinweis { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
-  .feld-fehler { color: var(--status-critical); font-size: 12px; font-weight: 600; }
+  form { display: grid; gap: var(--raum-md); }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: var(--raum-xs); }
+  legend, label.feld { font-weight: var(--gewicht-stark); font-size: var(--fs-label); padding: 0; }
+  .hinweis { color: var(--text-secondary); font-size: var(--fs-fuss); font-weight: var(--gewicht-normal); }
+  .feld-fehler { color: var(--status-critical); font-size: var(--fs-fuss); font-weight: var(--gewicht-stark); }
   select, input[type="number"], input[type="text"], input[type="password"], input[type="date"] {
     width: 100%; padding: 8px 10px; font: inherit;
     color: var(--text-primary); background: var(--page);
-    border: 1px solid var(--grid); border-radius: 6px;
+    border: 1px solid var(--grid); border-radius: var(--radius-control);
     transition: border-color var(--dauer-schnell) var(--ease-out);
   }
   select:hover:not(:focus), input[type="number"]:hover:not(:focus), input[type="date"]:hover:not(:focus),
   input[type="text"]:hover:not(:focus), input[type="password"]:hover:not(:focus) { border-color: var(--baseline); }
   select:focus, input[type="number"]:focus, input[type="text"]:focus, input[type="password"]:focus,
   input[type="date"]:focus { border-color: var(--akzent); }
-  .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bereich { display: grid; grid-template-columns: 1fr 1fr; gap: var(--raum-sm); }
   /* Nachbar-Fieldsets in .bereich haben oft eine Hint-Zeile nur auf einer Seite
      (z. B. "leer lassen = leerstehend" bei der Kaltmiete, nicht bei Baujahr).
      Ohne diesen Ausgleich sitzt der eine Input höher als der andere. Flex mit
      margin-top: auto drückt den Input zuverlässig an den unteren Rand des
      (grid-stretched) Fieldsets, unabhängig davon, ob ein Hint dazwischen liegt. */
-  .bereich > fieldset { display: flex; flex-direction: column; gap: 6px; }
+  .bereich > fieldset { display: flex; flex-direction: column; gap: var(--raum-xs); }
   .bereich > fieldset > input,
   .bereich > fieldset > select { margin-top: auto; }
-  .radios { display: flex; gap: 16px; }
-  .radios label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  .radios { display: flex; gap: var(--raum-md); }
+  .radios label { display: flex; align-items: center; gap: var(--raum-xs); font-weight: var(--gewicht-normal); }
   /* Absende-Button mit „läuft"-Zustand: der Text wird ausgetauscht, das
      Puls-Punkt-Element vom Aktivitäts-Chip taucht auf. Kein separater Status-
      Absatz mehr – die Aktion und ihre Rückmeldung leben in derselben Zeile. */
@@ -466,17 +576,34 @@ function navIcon(key: NavAktiv): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${NAV_ICON_PFADE[key]}</svg>`;
 }
 
-function renderNavbar(aktiv: NavAktiv | undefined): string {
+// Lucide chevron-right bzw. menu, gleiche Hülle wie navIcon().
+const CHEVRON_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>';
+const MENUE_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>';
+
+function renderSeitenleiste(aktiv: NavAktiv | undefined): string {
   const links = NAV_EINTRAEGE.map(
     ([key, href, label]) =>
       `<a href="${href}"${key === aktiv ? ' aria-current="page"' : ''}>${navIcon(key)}<span>${label}</span></a>`,
-  ).join('\n  ');
-  // Der Aktivitäts-Slot ist per default versteckt und wird vom Poll-Script
-  // sichtbar, sobald `/api/laufend` etwas Laufendes meldet. Bewusst als kompaktes
-  // Chip im Kopf statt als schwerer Overlay – Werkzeug, nicht Dashboard.
-  return `<nav class="hauptnav" aria-label="Hauptnavigation">
-  <a class="marke" href="/">immo-radar</a>
-  ${links}
+  ).join('\n    ');
+  // Env nie vertrauen: Name und Initialen werden escaped. Uppercase der
+  // Initialen ist Darstellung und lebt im CSS (text-transform).
+  const benutzer = (process.env.BASIC_AUTH_USER ?? '').trim();
+  // Der Cluster Checkbox → Öffner → Scrim → Leiste muss als direkte
+  // body-Geschwister in genau dieser Reihenfolge stehen: die :checked ~
+  // Selektoren des Drawers hängen daran. Der Aktivitäts-Slot ist per default
+  // versteckt und wird vom Poll-Script sichtbar, sobald `/api/laufend` etwas
+  // Laufendes meldet.
+  return `<input type="checkbox" id="nav-schalter" class="sr-nur">
+<label class="nav-oeffner" for="nav-schalter" aria-label="Navigation umschalten" aria-expanded="false" aria-controls="seitenleiste">${MENUE_ICON}</label>
+<label class="nav-scrim" for="nav-schalter" aria-hidden="true"></label>
+<div class="seitenleiste" id="seitenleiste">
+  <nav aria-label="Hauptnavigation">
+    <a class="marke" href="/">immo-radar</a>
+    ${links}
+  </nav>
+  <div class="leiste-spacer" aria-hidden="true"></div>
   <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
     <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
       <span class="aktivitaet-punkt" aria-hidden="true"></span>
@@ -484,12 +611,17 @@ function renderNavbar(aktiv: NavAktiv | undefined): string {
     </button>
     <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
   </div>
-</nav>`;
+  <a class="konto-slot" href="/konto">
+    <span class="konto-initialen" aria-hidden="true">${escapeHtml(benutzer.slice(0, 2))}</span>
+    <span class="konto-name">${escapeHtml(benutzer)}</span>
+    ${CHEVRON_ICON}
+  </a>
+</div>`;
 }
 
 /**
- * Client-Script für den Aktivitäts-Chip in der Kopfzeile. Wird auf jeder Seite
- * eingebettet (nur wenn die Seite mit Navbar rendert). Pollt `/api/laufend` alle
+ * Client-Script für den Aktivitäts-Chip in der Seitenleiste. Wird auf jeder
+ * Seite eingebettet (nur wenn die Seite mit Seitenleiste rendert). Pollt `/api/laufend` alle
  * 3 Sekunden und aktualisiert Chip + Dropdown. Feuert bei jeder Änderung ein
  * `aktivitaet-aenderung`-CustomEvent auf `document`, damit seitenspezifische
  * Skripte (z. B. Badge-Refresh in der Gebiete-Liste) darauf reagieren können,
@@ -569,6 +701,30 @@ export const AKTIVITAET_JS = `
 })();
 </script>`;
 
+/**
+ * Progressive Enhancement für den Seitenleisten-Drawer (< 900px): der Drawer
+ * selbst funktioniert rein über Checkbox + Labels; dieses Script ergänzt nur
+ * aria-expanded am Öffner und Schließen per Escape.
+ */
+export const SEITENLEISTE_JS = `
+<script>
+(function () {
+  'use strict';
+  const schalter = document.getElementById('nav-schalter');
+  if (!schalter) return;
+  const oeffner = document.querySelector('.nav-oeffner');
+  function sync() {
+    if (oeffner) oeffner.setAttribute('aria-expanded', String(schalter.checked));
+  }
+  schalter.addEventListener('change', sync);
+  document.addEventListener('keydown', function (e) {
+    // Programmatisches Setzen feuert kein change-Event – sync von Hand.
+    if (e.key === 'Escape' && schalter.checked) { schalter.checked = false; sync(); }
+  });
+  sync();
+})();
+</script>`;
+
 export interface SeitenOptionen {
   /** Zusätzliche Head-Zeilen (z. B. meta refresh, noscript). */
   kopfExtra?: string;
@@ -576,9 +732,9 @@ export interface SeitenOptionen {
   extraCss?: string;
   /** Inhaltsbreite: 560px für Formulare/Listen (Default), 1080px für Auswertungen. */
   breite?: 'schmal' | 'breit';
-  /** Aktiver Navbar-Eintrag; weglassen = Navbar ohne Markierung (Fehler-/Sonderseiten). */
+  /** Aktiver Seitenleisten-Eintrag; weglassen = Leiste ohne Markierung (Fehler-/Sonderseiten). */
   aktiv?: NavAktiv;
-  /** false = ganz ohne Navbar (statisch exportierte Reports ohne laufenden Server). */
+  /** false = ganz ohne Seitenleiste (Login, statisch exportierte Reports ohne laufenden Server). */
   navbar?: boolean;
 }
 
@@ -616,23 +772,25 @@ export function renderOhneDatenSeite(optionen: {
 
 export function seite(titel: string, inhalt: string, opts: SeitenOptionen = {}): string {
   const mitNavbar = opts.navbar !== false;
-  const nav = mitNavbar ? `${renderNavbar(opts.aktiv)}\n` : '';
-  // Aktivitäts-Chip nur auf Seiten mit Navbar – statisch exportierte Reports
-  // haben keinen laufenden Server, dort wäre der Poll ins Leere.
-  const aktivitaetsSkript = mitNavbar ? AKTIVITAET_JS : '';
+  const nav = mitNavbar ? `${renderSeitenleiste(opts.aktiv)}\n` : '';
+  // Aktivitäts-Chip und Drawer-Script nur auf Seiten mit Seitenleiste –
+  // statisch exportierte Reports haben keinen laufenden Server, dort wäre
+  // der Poll ins Leere. Die body-Klasse schaltet das Grid-Layout: ohne sie
+  // (Login, Report) bleibt die Seite einspaltig.
+  const skripte = mitNavbar ? `${AKTIVITAET_JS}${SEITENLEISTE_JS}` : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>immo-radar · ${escapeHtml(titel)}</title>
-<style>${TOKEN_CSS}${BASIS_CSS}${opts.extraCss ?? ''}</style>
+<style>${TOKEN_CSS}${BASIS_CSS}${KOMPONENTEN_CSS}${opts.extraCss ?? ''}</style>
 ${opts.kopfExtra ?? ''}</head>
-<body>
+<body${mitNavbar ? ' class="mit-seitenleiste"' : ''}>
 ${nav}<main${opts.breite === 'breit' ? ' class="breit"' : ''}>
 ${inhalt}
 </main>
-${aktivitaetsSkript}
+${skripte}
 </body>
 </html>`;
 }

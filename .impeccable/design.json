@@ -1,17 +1,18 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-03T09:24:56Z",
+  "generatedAt": "2026-07-23T00:00:00Z",
   "title": "Design System: immo-radar",
   "extensions": {
     "colorMeta": {
-      "page": { "role": "neutral", "displayName": "Papier", "canonical": "#f9f9f7", "dark": "#0d0d0d", "tonalRamp": ["#191917", "#2e2e2b", "#454540", "#5e5e57", "#7a7a71", "#9b9b91", "#c2c2b8", "#f9f9f7"] },
-      "surface": { "role": "neutral", "displayName": "Fläche", "canonical": "#fcfcfb", "dark": "#1a1a19", "tonalRamp": ["#1a1a19", "#30302e", "#474744", "#60605c", "#7c7c77", "#9d9d97", "#c4c4be", "#fcfcfb"] },
+      "page": { "role": "neutral", "displayName": "Papier", "canonical": "#f5f3ec", "dark": "#0d0d0d", "tonalRamp": ["#191813", "#2e2c24", "#454237", "#5e5b4c", "#7a7663", "#9b9784", "#c2bfad", "#f5f3ec"] },
+      "surface": { "role": "neutral", "displayName": "Fläche", "canonical": "#fcfbf7", "dark": "#1a1a19", "tonalRamp": ["#1a1a17", "#30302a", "#47463e", "#605e53", "#7c7a6c", "#9d9b8a", "#c4c2b2", "#fcfbf7"] },
       "ink": { "role": "neutral", "displayName": "Tinte", "canonical": "#0b0b0b", "dark": "#ffffff", "tonalRamp": ["#0b0b0b", "#262626", "#404040", "#5b5b5b", "#787878", "#999999", "#c0c0c0", "#ececec"] },
       "ink-secondary": { "role": "neutral", "displayName": "Tinte gedämpft", "canonical": "#52514e", "dark": "#c3c2b7" },
       "ink-muted": { "role": "neutral", "displayName": "Tinte leise", "canonical": "#898781", "dark": "#898781" },
       "grid": { "role": "neutral", "displayName": "Raster", "canonical": "#e1e0d9", "dark": "#2c2c2a" },
       "baseline": { "role": "neutral", "displayName": "Basislinie", "canonical": "#c3c2b7", "dark": "#383835" },
-      "border": { "role": "neutral", "displayName": "Kontur", "canonical": "rgba(11,11,11,0.10)", "dark": "rgba(255,255,255,0.10)" },
+      "border": { "role": "neutral", "displayName": "Kontur", "canonical": "rgba(11,11,11,0.12)", "dark": "rgba(255,255,255,0.10)" },
+      "akzent": { "role": "primary", "displayName": "Akzent", "canonical": "#1a66c4", "dark": "#3987e5" },
       "serie-kauf": { "role": "primary", "displayName": "Serien-Blau (Kauf)", "canonical": "#2a78d6", "dark": "#3987e5", "tonalRamp": ["#0a1f3d", "#123661", "#1a4d89", "#2264b0", "#2a78d6", "#5a95e0", "#8fb6eb", "#c9dbf5"] },
       "serie-miete": { "role": "secondary", "displayName": "Serien-Grün (Miete)", "canonical": "#1baf7a", "dark": "#199e70", "tonalRamp": ["#05301f", "#0a4c33", "#0f6a48", "#15895e", "#1baf7a", "#4cc296", "#87d6b8", "#c5ecdd"] },
       "serie-drei": { "role": "tertiary", "displayName": "Serien-Gelb", "canonical": "#eda100", "dark": "#c98500" },
@@ -25,10 +26,16 @@
       "headline": { "displayName": "Seitentitel", "purpose": "h1, einer pro Seite (20px/600)." },
       "title": { "displayName": "Section-Titel", "purpose": "h2 über jeder Section (15px/600)." },
       "body": { "displayName": "Body", "purpose": "Fließtext, Formulare, Tabellen-Basis (14px/1.5). Zahlenspalten mit tabular-nums." },
-      "label": { "displayName": "Label", "purpose": "Formular-Labels, Legenden, Chart-Titel (13px/600)." }
+      "label": { "displayName": "Label", "purpose": "Formular-Labels, Legenden, Chart-Titel (13px/600)." },
+      "footnote": { "displayName": "Fußnote", "purpose": "Meta-Zeilen, Badges, Sub-Zeilen, Hinweise (12px/400)." }
     },
     "shadows": [],
-    "motion": [],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Einzige Easing-Kurve des Systems (exponentielles Ausklingen)." },
+      { "name": "dauer-fein", "value": "120ms", "purpose": "Mikro-Feedback: Hover-Farbwechsel, Fokus-Offset." },
+      { "name": "dauer-schnell", "value": "180ms", "purpose": "Zustandswechsel an Controls (Border, Hintergrund)." },
+      { "name": "dauer-mittel", "value": "240ms", "purpose": "Flächige Übergänge (Reload-Fade)." }
+    ],
     "breakpoints": []
   },
   "components": [
@@ -36,7 +43,7 @@
       "name": "Primärer Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Die eine Primäraktion pro Seite (z. B. „Suchen"). Serien-Blau, weißer Text.",
+      "description": "Die eine Primäraktion pro Seite (z. B. „Suchen“). Akzent-Fläche, weißer Text.",
       "html": "<button class=\"ds-btn-primary\">Suchen</button>",
       "css": ".ds-btn-primary { padding: 10px 16px; font: 600 14px/1.5 system-ui, sans-serif; color: #fff; background: var(--akzent, #2a78d6); border: 0; border-radius: 6px; cursor: pointer; } .ds-btn-primary:hover { background: #2264b0; } .ds-btn-primary:focus-visible { outline: 2px solid #2a78d6; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.6; cursor: wait; }"
     },
@@ -44,7 +51,7 @@
       "name": "Kleiner Ghost-Button",
       "kind": "button",
       "refersTo": "button-klein",
-      "description": "Zeilen-Aktion in Tabellen (z. B. „jetzt crawlen"). Kontur statt Fläche.",
+      "description": "Zeilen-Aktion in Tabellen (z. B. „jetzt crawlen“). Kontur statt Fläche.",
       "html": "<button class=\"ds-btn-klein\">jetzt crawlen</button>",
       "css": ".ds-btn-klein { padding: 4px 10px; font: 400 12px/1.5 system-ui, sans-serif; color: var(--akzent, #2a78d6); background: transparent; border: 1px solid var(--grid, #e1e0d9); border-radius: 6px; cursor: pointer; } .ds-btn-klein:hover { border-color: var(--akzent, #2a78d6); } .ds-btn-klein:focus-visible { outline: 2px solid #2a78d6; outline-offset: 2px; }"
     },

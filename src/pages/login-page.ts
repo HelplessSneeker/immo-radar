@@ -1,4 +1,7 @@
-import { escapeHtml, FORMULAR_CSS, seite } from './layout.js';
+import { FORMULAR_CSS, seite } from './layout.js';
+import { submitButton } from './ui/button.js';
+import { fehlerHinweis, formular, passwortFeld, textFeld, versteckt } from './ui/formular.js';
+import { html, LEER } from './ui/html.js';
 
 /**
  * Anmelde-Seite: löst den Browser-Basic-Auth-Dialog durch eine echte Form ab.
@@ -26,40 +29,53 @@ export interface LoginSeitenDaten {
  */
 const LOGIN_CSS = `
   .anmeldung-marke {
-    margin: 0 0 4px; font-weight: 600; font-size: 13px;
+    margin: 0 0 4px; font-weight: var(--gewicht-stark); font-size: var(--fs-label);
     color: var(--text-secondary);
   }
   .anmeldung-fehler {
-    color: var(--status-critical); font-size: 13px; font-weight: 600;
+    color: var(--status-critical); font-size: var(--fs-label); font-weight: var(--gewicht-stark);
     margin: 0;
   }
 `;
 
 export function renderLoginSeite(daten: LoginSeitenDaten = {}): string {
   const meldung = daten.fehler
-    ? `<p class="anmeldung-fehler" role="alert">${escapeHtml(daten.fehler)}</p>`
-    : '';
-  const benutzerWert = escapeHtml(daten.benutzer ?? '');
-  const returnWert = escapeHtml(daten.returnPfad ?? '');
+    ? fehlerHinweis({ text: daten.fehler, klasse: 'anmeldung-fehler' })
+    : LEER;
+
+  const form = formular({
+    methode: 'post',
+    aktion: '/login',
+    inhalt: html`
+      ${meldung}
+      ${textFeld({
+        id: 'l-benutzer',
+        name: 'benutzer',
+        label: 'Benutzer',
+        wert: daten.benutzer ?? '',
+        umschlag: 'fieldset',
+        autovervollstaendigen: 'username',
+        erforderlich: true,
+        autofokus: true,
+      })}
+      ${passwortFeld({
+        id: 'l-passwort',
+        name: 'passwort',
+        label: 'Passwort',
+        umschlag: 'fieldset',
+        autovervollstaendigen: 'current-password',
+        erforderlich: true,
+      })}
+      ${versteckt('return', daten.returnPfad ?? '')}
+      ${submitButton({ text: 'Anmelden' })}`,
+  });
 
   const inhalt = `  <header>
     <p class="anmeldung-marke">immo-radar</p>
     <h1>Anmeldung</h1>
   </header>
   <section>
-    <form method="post" action="/login">
-      ${meldung}
-      <fieldset>
-        <label class="feld" for="l-benutzer">Benutzer</label>
-        <input type="text" id="l-benutzer" name="benutzer" value="${benutzerWert}" autocomplete="username" required autofocus>
-      </fieldset>
-      <fieldset>
-        <label class="feld" for="l-passwort">Passwort</label>
-        <input type="password" id="l-passwort" name="passwort" autocomplete="current-password" required>
-      </fieldset>
-      <input type="hidden" name="return" value="${returnWert}">
-      <button type="submit">Anmelden</button>
-    </form>
+${form}
   </section>`;
 
   return seite('Anmeldung', inhalt, {

@@ -10,6 +10,10 @@ import { BUNDESLAENDER } from '../search.js';
 import { inseratSchluessel, type PreisAenderung } from '../trend.js';
 import { aenderungsZelle, datumMedium, eurM2Wert, nfEur0, nfTage } from './format.js';
 import { escapeHtml, seite } from './layout.js';
+import { filterLeiste } from './ui/filter.js';
+import { checkboxFeld, detailsFacette, selectFeld, textFeld, vonBisFeld } from './ui/formular.js';
+import { html, join, LEER, raw, type Html } from './ui/html.js';
+import { seitenNav as seitenNavigation } from './ui/navigation.js';
 
 /**
  * Der globale Inseratsbestand als paginierte, filterbare Tabelle – die
@@ -86,22 +90,11 @@ function filterGesetzt(daten: InserateSeitenDaten): boolean {
   );
 }
 
-function optionen(
-  eintraege: ReadonlyArray<readonly [string, string]>,
-  ausgewaehlt: string | undefined,
-): string {
-  return eintraege
-    .map(
-      ([wert, label]) =>
-        `<option value="${escapeHtml(wert)}"${wert === (ausgewaehlt ?? '') ? ' selected' : ''}>${escapeHtml(label)}</option>`,
-    )
-    .join('');
-}
-
 /**
  * Select einer Detail-Facette; ohne Optionen (frische DB ohne Details) fällt
- * das Feld weg. Ein aktiver Wert außerhalb der Optionen (handgebaute URL)
- * wird mit angeboten — sonst verlöre das Formular den Filter beim Neu-Absenden.
+ * das Feld weg (LEER überspringt die filterLeiste). Ein aktiver Wert außerhalb
+ * der Optionen (handgebaute URL) wird mit angeboten — sonst verlöre das
+ * Formular den Filter beim Neu-Absenden.
  */
 function facettenFeld(
   name: 'heizung' | 'zustand' | 'baustil',
@@ -109,18 +102,16 @@ function facettenFeld(
   alleLabel: string,
   werte: string[],
   aktiv: string | undefined,
-): string {
-  if (werte.length === 0 && !aktiv) return '';
+): Html {
+  if (werte.length === 0 && !aktiv) return LEER;
   const alleWerte = aktiv && !werte.includes(aktiv) ? [...werte, aktiv] : werte;
-  const eintraege: Array<readonly [string, string]> = [
-    ['', alleLabel],
-    ...alleWerte.map((w) => [w, w] as const),
-  ];
-  return `
-      <div class="feld">
-        <label for="f-${name}">${label}</label>
-        <select id="f-${name}" name="${name}">${optionen(eintraege, aktiv)}</select>
-      </div>`;
+  return selectFeld({
+    id: `f-${name}`,
+    name,
+    label,
+    optionen: [['', alleLabel], ...alleWerte.map((w) => [w, w] as const)],
+    ausgewaehlt: aktiv,
+  });
 }
 
 /**
@@ -129,91 +120,129 @@ function facettenFeld(
  * Dashboard-Filterleiste: die Summary nennt den Zustand („Ausstattung:
  * 2 gewählt"), eine aktive Auswahl öffnet das Panel.
  */
-function ausstattungFeld(werte: string[], aktiv: string[] | undefined): string {
+function ausstattungFeld(werte: string[], aktiv: string[] | undefined): Html {
   const alleWerte = [...werte, ...(aktiv ?? []).filter((w) => !werte.includes(w))];
-  if (alleWerte.length === 0) return '';
+  if (alleWerte.length === 0) return LEER;
   const gewaehlt = aktiv?.length ?? 0;
-  const boxen = alleWerte
-    .map(
+  const boxen = join(
+    alleWerte.map(
       (w) =>
-        `<label><input type="checkbox" name="ausstattung" value="${escapeHtml(w)}"${aktiv?.includes(w) ? ' checked' : ''}> ${escapeHtml(w)}</label>`,
-    )
-    .join('\n          ');
-  return `
-      <details class="feld-ausstattung"${gewaehlt > 0 ? ' open' : ''}>
-        <summary>Ausstattung${gewaehlt > 0 ? `: ${gewaehlt} gewählt` : ''}</summary>
-        <div class="facetten-panel">
+        html`<label><input type="checkbox" name="ausstattung" value="${w}"${
+          aktiv?.includes(w) ? raw(' checked') : LEER
+        }> ${w}</label>`,
+    ),
+    '\n          ',
+  );
+  return detailsFacette({
+    summary: `Ausstattung${gewaehlt > 0 ? `: ${gewaehlt} gewählt` : ''}`,
+    offen: gewaehlt > 0,
+    inhalt: html`<div class="facetten-panel">
           ${boxen}
-        </div>
-      </details>`;
+        </div>`,
+  });
 }
 
 function filterleiste(daten: InserateSeitenDaten): string {
-  const laender: Array<readonly [string, string]> = [
-    ['', 'alle Bundesländer'],
-    ...Object.entries(BUNDESLAENDER),
-  ];
-  const zuruecksetzen = filterGesetzt(daten)
-    ? '\n      <p class="meta"><a href="/inserate">Filter zurücksetzen</a></p>'
-    : '';
-  return `    <form class="filterleiste" method="get" action="/inserate">
-      <div class="feld">
-        <label for="f-bundesland">Bundesland</label>
-        <select id="f-bundesland" name="bundesland">${optionen(laender, daten.filter.bundesland)}</select>
-      </div>
-      <div class="feld">
-        <label for="f-typ">Typ</label>
-        <select id="f-typ" name="typ">${optionen(
-          [
-            ['', 'Kauf & Miete'],
-            ['kauf', 'Kauf'],
-            ['miete', 'Miete'],
-          ],
-          daten.filter.typ,
-        )}</select>
-      </div>
-      <div class="feld">
-        <label for="f-status">Status</label>
-        <select id="f-status" name="status">${optionen(
-          [
-            ['', 'aktiv & delistet'],
-            ['aktiv', 'aktiv'],
-            ['delistet', 'delistet'],
-          ],
-          daten.filter.status,
-        )}</select>
-      </div>
-      <div class="feld">
-        <label for="f-ort">Ort / PLZ / Bezirk</label>
-        <input type="text" id="f-ort" name="ort" value="${escapeHtml(daten.filter.ort ?? '')}" placeholder="z. B. Villach">
-      </div>
-      <fieldset class="feld feld-zimmer">
-        <legend>Zimmer</legend>
-        <div class="von-bis">
-          <input type="text" id="f-zimmer-min" name="zimmer_min" inputmode="decimal" value="${daten.filter.zimmerMin ?? ''}" placeholder="von" aria-label="Zimmer von">
-          <input type="text" id="f-zimmer-max" name="zimmer_max" inputmode="decimal" value="${daten.filter.zimmerMax ?? ''}" placeholder="bis" aria-label="Zimmer bis">
-        </div>
-      </fieldset>
-      <fieldset class="feld feld-baujahr">
-        <legend>Baujahr</legend>
-        <div class="von-bis">
-          <input type="text" id="f-baujahr-min" name="baujahr_min" inputmode="numeric" value="${daten.filter.baujahrMin ?? ''}" placeholder="von" aria-label="Baujahr von">
-          <input type="text" id="f-baujahr-max" name="baujahr_max" inputmode="numeric" value="${daten.filter.baujahrMax ?? ''}" placeholder="bis" aria-label="Baujahr bis">
-        </div>
-      </fieldset>${facettenFeld('heizung', 'Heizung', 'alle Heizungen', daten.facetten.heizung, daten.filter.heizung)}${facettenFeld('zustand', 'Zustand', 'alle Zustände', daten.facetten.zustand, daten.filter.zustand)}${facettenFeld('baustil', 'Baustil', 'alle Baustile', daten.facetten.baustil, daten.filter.baustil)}${ausstattungFeld(daten.facetten.ausstattung, daten.filter.ausstattung)}
-      <div class="feld">
-        <label for="f-sortierung">Sortierung</label>
-        <select id="f-sortierung" name="sortierung">${optionen(
-          Object.entries(SORTIERUNG_LABELS) as Array<[InserateSortierung, string]>,
-          daten.sortierung,
-        )}</select>
-      </div>
-      <div class="feld feld-toggle">
-        <label><input type="checkbox" name="nur" value="ausreisser"${daten.filter.nurAusreisser ? ' checked' : ''}> Nur Ausreißer</label>
-        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
-      </div>
-      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
-    </form>`;
+  return filterLeiste({
+    aktion: '/inserate',
+    felder: [
+      selectFeld({
+        id: 'f-bundesland',
+        name: 'bundesland',
+        label: 'Bundesland',
+        optionen: [['', 'alle Bundesländer'], ...Object.entries(BUNDESLAENDER)],
+        ausgewaehlt: daten.filter.bundesland,
+      }),
+      selectFeld({
+        id: 'f-typ',
+        name: 'typ',
+        label: 'Typ',
+        optionen: [
+          ['', 'Kauf & Miete'],
+          ['kauf', 'Kauf'],
+          ['miete', 'Miete'],
+        ],
+        ausgewaehlt: daten.filter.typ,
+      }),
+      selectFeld({
+        id: 'f-status',
+        name: 'status',
+        label: 'Status',
+        optionen: [
+          ['', 'aktiv & delistet'],
+          ['aktiv', 'aktiv'],
+          ['delistet', 'delistet'],
+        ],
+        ausgewaehlt: daten.filter.status,
+      }),
+      textFeld({
+        id: 'f-ort',
+        name: 'ort',
+        label: 'Ort / PLZ / Bezirk',
+        wert: daten.filter.ort ?? '',
+        platzhalter: 'z. B. Villach',
+      }),
+      vonBisFeld({
+        legend: 'Zimmer',
+        klasse: 'feld-zimmer',
+        von: {
+          id: 'f-zimmer-min',
+          name: 'zimmer_min',
+          inputmode: 'decimal',
+          wert: daten.filter.zimmerMin,
+          platzhalter: 'von',
+          ariaLabel: 'Zimmer von',
+        },
+        bis: {
+          id: 'f-zimmer-max',
+          name: 'zimmer_max',
+          inputmode: 'decimal',
+          wert: daten.filter.zimmerMax,
+          platzhalter: 'bis',
+          ariaLabel: 'Zimmer bis',
+        },
+      }),
+      vonBisFeld({
+        legend: 'Baujahr',
+        klasse: 'feld-baujahr',
+        von: {
+          id: 'f-baujahr-min',
+          name: 'baujahr_min',
+          inputmode: 'numeric',
+          wert: daten.filter.baujahrMin,
+          platzhalter: 'von',
+          ariaLabel: 'Baujahr von',
+        },
+        bis: {
+          id: 'f-baujahr-max',
+          name: 'baujahr_max',
+          inputmode: 'numeric',
+          wert: daten.filter.baujahrMax,
+          platzhalter: 'bis',
+          ariaLabel: 'Baujahr bis',
+        },
+      }),
+      facettenFeld('heizung', 'Heizung', 'alle Heizungen', daten.facetten.heizung, daten.filter.heizung),
+      facettenFeld('zustand', 'Zustand', 'alle Zustände', daten.facetten.zustand, daten.filter.zustand),
+      facettenFeld('baustil', 'Baustil', 'alle Baustile', daten.facetten.baustil, daten.filter.baustil),
+      ausstattungFeld(daten.facetten.ausstattung, daten.filter.ausstattung),
+      selectFeld({
+        id: 'f-sortierung',
+        name: 'sortierung',
+        label: 'Sortierung',
+        optionen: Object.entries(SORTIERUNG_LABELS) as Array<[InserateSortierung, string]>,
+        ausgewaehlt: daten.sortierung,
+      }),
+      checkboxFeld({
+        name: 'nur',
+        wert: 'ausreisser',
+        label: 'Nur Ausreißer',
+        checked: daten.filter.nurAusreisser === true,
+        hinweis: html`<a href="/methodik#ausreisser">Was zählt als Ausreißer?</a>`,
+      }),
+    ],
+    zuruecksetzenHref: filterGesetzt(daten) ? '/inserate' : undefined,
+  });
 }
 
 function inseratZeile(i: BestandInseratMitLand, daten: InserateSeitenDaten): string {
@@ -259,19 +288,13 @@ ${zeilen}
 function seitenNav(daten: InserateSeitenDaten): string {
   const gesamtSeiten = Math.max(1, Math.ceil(daten.gesamt / daten.proSeite));
   if (gesamtSeiten <= 1) return '';
-  const zurueck =
-    daten.seite > 1
-      ? `<a href="${inserateUrl(daten.filter, daten.sortierung, daten.seite - 1)}">← Zurück</a>`
-      : '<span></span>';
-  const weiter =
-    daten.seite < gesamtSeiten
-      ? `<a href="${inserateUrl(daten.filter, daten.sortierung, daten.seite + 1)}">Weiter →</a>`
-      : '<span></span>';
-  return `    <nav class="seiten-nav" aria-label="Seiten">
-      ${zurueck}
-      <span class="meta zaehler">Seite ${nfEur0.format(daten.seite)} von ${nfEur0.format(gesamtSeiten)} · ${nfEur0.format(daten.gesamt)} Inserate</span>
-      ${weiter}
-    </nav>`;
+  const url = (zielSeite: number): string => inserateUrl(daten.filter, daten.sortierung, zielSeite);
+  return seitenNavigation({
+    label: 'Seiten',
+    zaehler: `Seite ${nfEur0.format(daten.seite)} von ${nfEur0.format(gesamtSeiten)} · ${nfEur0.format(daten.gesamt)} Inserate`,
+    zurueck: daten.seite > 1 ? { href: url(daten.seite - 1), text: '← Zurück' } : undefined,
+    weiter: daten.seite < gesamtSeiten ? { href: url(daten.seite + 1), text: 'Weiter →' } : undefined,
+  });
 }
 
 function inhaltOderLeer(daten: InserateSeitenDaten): string {

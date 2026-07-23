@@ -5,7 +5,30 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.5.0] - 2026-07-23
+
+Siebte Runde (Release 1.5): Umbau der App-Shell. Die Navigation zieht aus der
+oberen Leiste in eine feste linke Seitenleiste, die unter 900px zum
+Off-Canvas-Drawer wird. Am Fuß der Leiste sitzt ein Konto-Slot als Vorarbeit
+für den kommenden Anmelde-Zyklus.
+
+### Geändert
+
+- App-Shell: Die Hauptnavigation zieht von der oberen Leiste in eine feste
+  linke Seitenleiste (240px, ab 900px Viewport-Breite; Body-Grid, sticky mit
+  eigenem Scroll). Darunter wird sie ein Off-Canvas-Drawer — rein per
+  CSS-Checkbox mit Hamburger und papierfarbenem Scrim, ein kleines Script
+  ergänzt nur `aria-expanded` und Schließen per Escape. Der Aktivitäts-Chip
+  wandert ans untere Ende der Seitenleiste, sein Dropdown öffnet nach oben
+  (Markup, IDs und Poll-Script unverändert). Login und statisch exportierte
+  Reports bleiben einspaltig ohne Seitenleiste.
+
+### Hinzugefügt
+
+- Konto-Slot am Fuß der Seitenleiste: Initialen-Quadrat und Benutzername aus
+  `BASIC_AUTH_USER`, verlinkt auf die neue Stub-Seite `/konto` („In Arbeit —
+  Konto-Verwaltung kommt mit dem Anmelde-Zyklus"). Kein Formular, kein
+  Backend — Vorarbeit für den Anmelde-Zyklus.
 
 ## [1.4.0] - 2026-07-22
 

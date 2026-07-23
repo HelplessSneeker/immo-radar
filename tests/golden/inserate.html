@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>immo-radar · Inseratsbestand</title>
+<style entfernt="golden-diff"></style>
+</head>
+<body class="mit-seitenleiste">
+<input type="checkbox" id="nav-schalter" class="sr-nur">
+<label class="nav-oeffner" for="nav-schalter" aria-label="Navigation umschalten" aria-expanded="false" aria-controls="seitenleiste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg></label>
+<label class="nav-scrim" for="nav-schalter" aria-hidden="true"></label>
+<div class="seitenleiste" id="seitenleiste">
+  <nav aria-label="Hauptnavigation">
+    <a class="marke" href="/">immo-radar</a>
+    <a href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Dashboard</span></a>
+    <a href="/top-picks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg><span>Top Picks</span></a>
+    <a href="/inserate" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg><span>Inserate</span></a>
+    <a href="/portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg><span>Portfolio</span></a>
+    <a href="/crawl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Crawl-Läufe</span></a>
+  </nav>
+  <div class="leiste-spacer" aria-hidden="true"></div>
+  <div class="aktivitaet-slot" id="aktivitaet-slot" hidden>
+    <button type="button" class="aktivitaet-chip" aria-expanded="false" aria-controls="aktivitaet-liste" aria-label="Laufenden Crawl anzeigen">
+      <span class="aktivitaet-punkt" aria-hidden="true"></span>
+      <span class="aktivitaet-text">läuft</span>
+    </button>
+    <div class="aktivitaet-liste" id="aktivitaet-liste" role="region" aria-label="Aktuelle Aktivität" hidden></div>
+  </div>
+  <a class="konto-slot" href="/konto">
+    <span class="konto-initialen" aria-hidden="true">ra</span>
+    <span class="konto-name">radar</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg>
+  </a>
+</div>
+<main class="breit">
+  <header>
+    <h1>Inseratsbestand</h1>
+    <p class="meta">Alle 120 historisierten Roh-Inserate aus dem
+    täglichen Kärnten-Sweep (gefiltert) – hier ohne
+    Deduplizierung; das <a href="/">Dashboard</a> rechnet über die zusammengeführten Objekte.
+    <a href="/methodik#datenbasis">Methodik</a></p>
+  </header>
+
+  <section>
+    <h2>Filter</h2>
+    <form class="filterleiste" method="get" action="/inserate">
+      <div class="feld">
+        <label for="f-bundesland">Bundesland</label>
+        <select id="f-bundesland" name="bundesland"><option value="" selected>alle Bundesländer</option><option value="burgenland">Burgenland</option><option value="kaernten">Kärnten</option><option value="niederoesterreich">Niederösterreich</option><option value="oberoesterreich">Oberösterreich</option><option value="salzburg">Salzburg</option><option value="steiermark">Steiermark</option><option value="tirol">Tirol</option><option value="vorarlberg">Vorarlberg</option><option value="wien">Wien</option></select>
+      </div>
+      <div class="feld">
+        <label for="f-typ">Typ</label>
+        <select id="f-typ" name="typ"><option value="">Kauf &amp; Miete</option><option value="kauf" selected>Kauf</option><option value="miete">Miete</option></select>
+      </div>
+      <div class="feld">
+        <label for="f-status">Status</label>
+        <select id="f-status" name="status"><option value="" selected>aktiv &amp; delistet</option><option value="aktiv">aktiv</option><option value="delistet">delistet</option></select>
+      </div>
+      <div class="feld">
+        <label for="f-ort">Ort / PLZ / Bezirk</label>
+        <input type="text" id="f-ort" name="ort" value="Klagenfurt" placeholder="z. B. Villach">
+      </div>
+      <fieldset class="feld feld-zimmer">
+        <legend>Zimmer</legend>
+        <div class="von-bis">
+          <input type="text" id="f-zimmer-min" name="zimmer_min" inputmode="decimal" value="2" placeholder="von" aria-label="Zimmer von">
+          <input type="text" id="f-zimmer-max" name="zimmer_max" inputmode="decimal" value="" placeholder="bis" aria-label="Zimmer bis">
+        </div>
+      </fieldset>
+      <fieldset class="feld feld-baujahr">
+        <legend>Baujahr</legend>
+        <div class="von-bis">
+          <input type="text" id="f-baujahr-min" name="baujahr_min" inputmode="numeric" value="" placeholder="von" aria-label="Baujahr von">
+          <input type="text" id="f-baujahr-max" name="baujahr_max" inputmode="numeric" value="" placeholder="bis" aria-label="Baujahr bis">
+        </div>
+      </fieldset>
+      <div class="feld">
+        <label for="f-heizung">Heizung</label>
+        <select id="f-heizung" name="heizung"><option value="" selected>alle Heizungen</option><option value="Fernwärme">Fernwärme</option><option value="Gas">Gas</option></select>
+      </div>
+      <div class="feld">
+        <label for="f-zustand">Zustand</label>
+        <select id="f-zustand" name="zustand"><option value="" selected>alle Zustände</option><option value="saniert">saniert</option></select>
+      </div>
+      <div class="feld">
+        <label for="f-baustil">Baustil</label>
+        <select id="f-baustil" name="baustil"><option value="" selected>alle Baustile</option><option value="Altbau">Altbau</option></select>
+      </div>
+      <details class="feld-ausstattung">
+        <summary>Ausstattung</summary>
+        <div class="facetten-panel">
+          <label><input type="checkbox" name="ausstattung" value="Balkon"> Balkon</label>
+        </div>
+      </details>
+      <div class="feld">
+        <label for="f-sortierung">Sortierung</label>
+        <select id="f-sortierung" name="sortierung"><option value="zuletzt_gesehen">zuletzt gesehen (neueste zuerst)</option><option value="zuerst_gesehen">zuerst gesehen (neueste zuerst)</option><option value="preis" selected>Preis (aufsteigend)</option><option value="eur_m2">€/m² (aufsteigend)</option><option value="flaeche">Fläche (größte zuerst)</option></select>
+      </div>
+      <div class="feld feld-toggle">
+        <label><input type="checkbox" name="nur" value="ausreisser"> Nur Ausreißer</label>
+        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
+      </div>
+      <button class="klein" type="submit">Filtern</button>
+      <p class="meta"><a href="/inserate">Filter zurücksetzen</a></p>
+    </form>
+  </section>
+
+  <section>
+    <h2>Inserate</h2>
+    <p class="meta">120 Inserate · Seite 2 von 3</p>
+    <div class="tabelle-scroll">
+    <table>
+      <thead><tr><th scope="col">Inserat</th><th scope="col" class="num">Preis</th><th scope="col" class="num">Fläche</th><th scope="col" class="num">€/m²</th><th scope="col" class="num">letzte Preisänderung</th><th scope="col">gesehen</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+      <tr>
+        <td>Klagenfurt · 3 Zi.<span class="sub">Kauf · willhaben.at · Klagenfurt Stadt (9020) · Kärnten</span></td>
+        <td class="num">200 000 €</td>
+        <td class="num">50 m²</td>
+        <td class="num">4 000</td>
+        <td class="num"><span class="gesenkt">−4,8 % (−10 000 €)</span><span class="sub">20.06.2026</span></td>
+        <td>01.06.2026 – 01.07.2026<span class="sub">30 Tage</span></td>
+        <td><span class="status-badge status-aktiv">aktiv</span></td>
+      </tr>
+      <tr>
+        <td>Villach · 2 Zi.<span class="sub">Miete · immowelt.at · Villach Stadt (9500) · Kärnten</span></td>
+        <td class="num">780 €</td>
+        <td class="num">62 m²</td>
+        <td class="num">12,58</td>
+        <td class="num meta">–</td>
+        <td>01.06.2026 – 01.07.2026<span class="sub">30 Tage</span></td>
+        <td><span class="status-badge status-aktiv">aktiv</span></td>
+      </tr>
+      <tr>
+        <td>Ebenthal · 4 Zi.<span class="sub">Kauf · willhaben.at · Klagenfurt Stadt (9065) · Kärnten</span></td>
+        <td class="num">415 000 €</td>
+        <td class="num">9 758 m²</td>
+        <td class="num">43</td>
+        <td class="num meta">–</td>
+        <td>01.06.2026 – 01.07.2026<span class="sub">30 Tage</span></td>
+        <td><span class="status-badge status-delistet">delistet</span></td>
+      </tr>
+      </tbody>
+    </table>
+    </div>
+    <nav class="seiten-nav" aria-label="Seiten">
+      <a href="/inserate?typ=kauf&ort=Klagenfurt&zimmer_min=2&sortierung=preis">← Zurück</a>
+      <span class="meta zaehler">Seite 2 von 3 · 120 Inserate</span>
+      <a href="/inserate?typ=kauf&ort=Klagenfurt&zimmer_min=2&sortierung=preis&seite=3">Weiter →</a>
+    </nav>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const slot = document.getElementById('aktivitaet-slot');
+  if (!slot) return;
+  const chip = slot.querySelector('.aktivitaet-chip');
+  const text = slot.querySelector('.aktivitaet-text');
+  const liste = slot.querySelector('.aktivitaet-liste');
+  let offen = false;
+  let letzterHash = '';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function schliesseListe() {
+    if (!offen) return;
+    offen = false;
+    liste.hidden = true;
+    chip.setAttribute('aria-expanded', 'false');
+  }
+
+  chip.addEventListener('click', function () {
+    offen = !offen;
+    liste.hidden = !offen;
+    chip.setAttribute('aria-expanded', String(offen));
+  });
+  document.addEventListener('click', function (e) {
+    if (offen && !slot.contains(e.target)) schliesseListe();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && offen) { schliesseListe(); chip.focus(); }
+  });
+
+  function baueListe(data) {
+    let html = '';
+    if (data.sweep) {
+      html += '<p class="aktivitaet-titel">Crawl</p><ul>';
+      html += '<li><a href="/crawl"><span class="aktivitaet-punkt-mini" aria-hidden="true"></span><span>Kärnten-Sweep (' + esc(data.sweep.laufDatum) + ')</span></a></li>';
+      html += '</ul>';
+    }
+    liste.innerHTML = html;
+  }
+
+  async function tick() {
+    try {
+      const res = await fetch('/api/laufend', { headers: { accept: 'application/json' } });
+      if (!res.ok) return;
+      const data = await res.json();
+      const hash = data.sweep ? data.sweep.laufDatum : '';
+      const geaendert = hash !== letzterHash;
+      letzterHash = hash;
+
+      if (!data.sweep) {
+        if (!slot.hidden) { slot.hidden = true; schliesseListe(); }
+      } else {
+        if (slot.hidden) slot.hidden = false;
+        text.textContent = 'Sweep läuft';
+        baueListe(data);
+      }
+      if (geaendert) {
+        document.dispatchEvent(new CustomEvent('aktivitaet-aenderung', { detail: data }));
+      }
+    } catch (_) { /* Server offline – nächster Tick versucht es wieder */ }
+  }
+
+  tick();
+  setInterval(tick, 3000);
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  const schalter = document.getElementById('nav-schalter');
+  if (!schalter) return;
+  const oeffner = document.querySelector('.nav-oeffner');
+  function sync() {
+    if (oeffner) oeffner.setAttribute('aria-expanded', String(schalter.checked));
+  }
+  schalter.addEventListener('change', sync);
+  document.addEventListener('keydown', function (e) {
+    // Programmatisches Setzen feuert kein change-Event – sync von Hand.
+    if (e.key === 'Escape' && schalter.checked) { schalter.checked = false; sync(); }
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

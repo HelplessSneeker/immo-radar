@@ -21,6 +21,10 @@ import {
   nfTage,
 } from './format.js';
 import { escapeHtml, renderOhneDatenSeite, seite } from './layout.js';
+import { filterLeiste } from './ui/filter.js';
+import { checkboxFeld, textFeld, versteckt, vonBisFeld } from './ui/formular.js';
+import { html, LEER, raw, type Html } from './ui/html.js';
+import { seitenNav as seitenNavigation } from './ui/navigation.js';
 
 /**
  * Die Startseite: der Kärntner Wohnungsmarkt als Zeitreihe — Bruttorendite,
@@ -68,7 +72,7 @@ const DASHBOARD_CSS = `
   main.breit { gap: 16px; }
   /* Zusammenklappbarer Filter: geschlossen eine schlanke Zeile, offen die
      Filterleiste darunter. Die Summary trägt Akzent als Interaktions-Signal. */
-  .filter-sektion { padding: 12px 20px; }
+  .filter-sektion { padding: var(--raum-kompakt) var(--raum-lg); }
   .filter summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--akzent); }
   .filter summary:hover { text-decoration: underline; }
   .filter[open] summary { margin-bottom: 14px; }
@@ -101,19 +105,19 @@ const DASHBOARD_CSS = `
      damit unterschiedlich lange Erklärungen nicht als Höhen-Wippe erscheinen. */
   .tile {
     background: var(--surface-1);
-    border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px;
+    border: 1px solid var(--border); border-radius: var(--radius-tile); padding: 18px 20px;
     display: flex; flex-direction: column;
   }
   .tile-good { background: var(--good-bg); }
   .tile-label { color: var(--text-secondary); font-size: 13px; margin-bottom: 4px; }
-  .tile-value { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
+  .tile-value { font-size: var(--fs-display); font-weight: 600; line-height: 1.1; margin: 0 0 8px; font-variant-numeric: tabular-nums; }
   /* Einheit vom Wert abgesetzt: die Zahl trägt das Urteil, "%"/"€/m²" ist
      nur ihre Beschriftung – kleiner und gedämpft statt 30px-laut. */
   .tile-einheit { font-size: 16px; font-weight: 400; color: var(--text-secondary); margin-left: 3px; }
   .tile-badge { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .tile-badge-good { color: var(--good-text); font-weight: 600; }
   .tile-sub { font-size: 12px; line-height: 1.45; color: var(--text-secondary); margin-top: auto; padding-top: 4px; }
-  .charts-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .charts-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--raum-page); }
   /* Mittlere Breiten: 2 Spalten, das Rendite-Panel (das Urteils-Chart) voll
      breit oben — statt eines allein danglenden dritten Charts. */
   @media (max-width: 1100px) {
@@ -132,7 +136,7 @@ const DASHBOARD_CSS = `
   .warnung {
     color: var(--status-critical); font-size: 13px;
     background: var(--surface-1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px;
+    border-radius: var(--radius-tile); padding: 10px 12px;
   }
   .datenpunkte summary { cursor: pointer; }
   .datenpunkte summary h2 { display: inline; margin: 0; transition: color var(--dauer-fein) var(--ease-out); }
@@ -142,9 +146,7 @@ const DASHBOARD_CSS = `
   /* Drawer-eigener Ausreißer-Schalter: eine schlanke Zeile aus Checkbox,
      Anwenden-Button und Erklär-Meta — kein zweites Filterleisten-Gewicht. */
   .drawer-toggle { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
-  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin: 16px 0; }
-  .feld-toggle label { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  .feld-toggle .meta { margin: 0; font-size: 12px; }
+  .charts-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--raum-page); margin: 16px 0; }
   /* Zeitraum-Presets: native Radios als Segmented Control light — kein JS,
      Custom-Von/Bis gewinnt (dann ist kein Preset aktiv, siehe filterleiste). */
   .feld-zeitraum .presets { display: flex; gap: 10px; align-items: center; min-height: 31px; }
@@ -177,46 +179,16 @@ function filterBeschreibung(filter: DashboardFilter): string {
   return teile.join(' · ');
 }
 
-function filterleiste(daten: DashboardDaten): string {
-  const filter = daten.filter;
-  const zuruecksetzen =
-    filterBeschreibung(filter) !== '' ||
-    filter.ausreisserEinbeziehen === true ||
-    filter.zeitraum !== undefined
-      ? '\n      <p class="meta"><a href="/">Filter zurücksetzen</a></p>'
-      : '';
-  const zahlWert = (n: number | undefined): string => (n === undefined ? '' : String(n));
-  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
-  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
-  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
-  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
-  const preset = (wert: string, label: string): string =>
-    `<label><input type="radio" name="zeitraum" value="${wert}"${aktivesPreset === wert ? ' checked' : ''}> ${label}</label>`;
-  // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
-  // aus dem neuen Trend, greift der stille Fallback im Handler.
-  const stichtagFeld =
-    daten.datenpunkteOffen && daten.datenpunkteStichtag !== undefined
-      ? `\n      <input type="hidden" name="stichtag" value="${escapeHtml(daten.datenpunkteStichtag)}">`
-      : '';
-  // Der Drawer-Schalter überlebt den Filterwechsel — er gehört zur
-  // Datenpunkte-Sektion, nicht zu dieser Leiste.
-  const drawerFeld =
-    filter.objekteAusreisserEinbeziehen === true
-      ? `\n      <input type="hidden" name="objekte_ausreisser" value="an">`
-      : '';
-  return `    <form class="filterleiste" method="get" action="/">${stichtagFeld}${drawerFeld}
-      <div class="feld feld-plz">
-        <label for="f-plz">PLZ (Anfang genügt)</label>
-        <input type="text" id="f-plz" name="plz" inputmode="numeric" value="${escapeHtml(filter.plz ?? '')}" placeholder="z. B. 9020 oder 95">
-      </div>
-      <fieldset class="feld">
-        <legend>Fläche (m²)</legend>
-        <div class="von-bis">
-          <input type="text" id="f-flaeche-min" name="flaeche_min" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMin))}" placeholder="von" aria-label="Fläche von (m²)">
-          <input type="text" id="f-flaeche-max" name="flaeche_max" inputmode="numeric" value="${escapeHtml(zahlWert(filter.flaecheMax))}" placeholder="bis" aria-label="Fläche bis (m²)">
-        </div>
-      </fieldset>
-      <fieldset class="feld feld-zeitraum">
+/**
+ * Zeitraum-Presets als native Radios (Segmented Control light) — einziger
+ * Nutzer dieses Feldtyps, deshalb seitenlokal statt ui/-Primitive.
+ */
+function zeitraumFeld(aktivesPreset: string | undefined): Html {
+  const preset = (wert: string, label: string): Html =>
+    html`<label><input type="radio" name="zeitraum" value="${wert}"${
+      aktivesPreset === wert ? raw(' checked') : LEER
+    }> ${label}</label>`;
+  return html`<fieldset class="feld feld-zeitraum">
         <legend>Zeitraum</legend>
         <div class="presets">
           ${preset('7d', '7 Tage')}
@@ -224,20 +196,76 @@ function filterleiste(daten: DashboardDaten): string {
           ${preset('90d', '90 Tage')}
           ${preset('alle', 'Alle')}
         </div>
-      </fieldset>
-      <fieldset class="feld">
-        <legend>Eigener Zeitraum</legend>
-        <div class="von-bis">
-          <input type="date" id="f-von" name="von" value="${escapeHtml(filter.zeitraum?.von ?? '')}" aria-label="Von (Datum)">
-          <input type="date" id="f-bis" name="bis" value="${escapeHtml(filter.zeitraum?.bis ?? '')}" aria-label="Bis (Datum)">
-        </div>
-      </fieldset>
-      <div class="feld feld-toggle">
-        <label><input type="checkbox" name="ausreisser" value="an"${filter.ausreisserEinbeziehen === true ? ' checked' : ''}> Ausreißer einbeziehen</label>
-        <p class="meta"><a href="/methodik#ausreisser">Was zählt als Ausreißer?</a></p>
-      </div>
-      <button class="klein" type="submit">Filtern</button>${zuruecksetzen}
-    </form>`;
+      </fieldset>`;
+}
+
+function filterleiste(daten: DashboardDaten): string {
+  const filter = daten.filter;
+  // Custom-Von/Bis schlägt die Presets: dann ist bewusst KEIN Radio aktiv,
+  // damit sichtbar bleibt, dass die Datumsfelder gewinnen.
+  const customAktiv = filter.zeitraum?.von !== undefined && filter.zeitraum?.bis !== undefined;
+  const aktivesPreset = customAktiv ? undefined : (filter.zeitraum?.preset ?? 'alle');
+  return filterLeiste({
+    aktion: '/',
+    felder: [
+      // Offene Datenpunkte-Sektion überlebt den Filterwechsel; fällt der Stichtag
+      // aus dem neuen Trend, greift der stille Fallback im Handler.
+      daten.datenpunkteOffen &&
+        daten.datenpunkteStichtag !== undefined &&
+        versteckt('stichtag', daten.datenpunkteStichtag),
+      // Der Drawer-Schalter überlebt den Filterwechsel — er gehört zur
+      // Datenpunkte-Sektion, nicht zu dieser Leiste.
+      filter.objekteAusreisserEinbeziehen === true && versteckt('objekte_ausreisser', 'an'),
+      textFeld({
+        id: 'f-plz',
+        name: 'plz',
+        label: 'PLZ (Anfang genügt)',
+        klasse: 'feld-plz',
+        inputmode: 'numeric',
+        wert: filter.plz ?? '',
+        platzhalter: 'z. B. 9020 oder 95',
+      }),
+      vonBisFeld({
+        legend: 'Fläche (m²)',
+        von: {
+          id: 'f-flaeche-min',
+          name: 'flaeche_min',
+          inputmode: 'numeric',
+          wert: filter.flaecheMin,
+          platzhalter: 'von',
+          ariaLabel: 'Fläche von (m²)',
+        },
+        bis: {
+          id: 'f-flaeche-max',
+          name: 'flaeche_max',
+          inputmode: 'numeric',
+          wert: filter.flaecheMax,
+          platzhalter: 'bis',
+          ariaLabel: 'Fläche bis (m²)',
+        },
+      }),
+      zeitraumFeld(aktivesPreset),
+      vonBisFeld({
+        legend: 'Eigener Zeitraum',
+        typ: 'date',
+        von: { id: 'f-von', name: 'von', wert: filter.zeitraum?.von ?? '', ariaLabel: 'Von (Datum)' },
+        bis: { id: 'f-bis', name: 'bis', wert: filter.zeitraum?.bis ?? '', ariaLabel: 'Bis (Datum)' },
+      }),
+      checkboxFeld({
+        name: 'ausreisser',
+        wert: 'an',
+        label: 'Ausreißer einbeziehen',
+        checked: filter.ausreisserEinbeziehen === true,
+        hinweis: html`<a href="/methodik#ausreisser">Was zählt als Ausreißer?</a>`,
+      }),
+    ],
+    zuruecksetzenHref:
+      filterBeschreibung(filter) !== '' ||
+      filter.ausreisserEinbeziehen === true ||
+      filter.zeitraum !== undefined
+        ? '/'
+        : undefined,
+  });
 }
 
 /**
@@ -392,19 +420,19 @@ function dashboardUrl(
 function stichtagNav(daten: DashboardDaten, stichtag: string): string {
   const stichtage = daten.trend.map((t) => t.datum);
   const idx = stichtage.indexOf(stichtag);
-  const aeltere =
-    idx > 0
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx - 1] as string)}">← älterer Stichtag</a>`
-      : '<span></span>';
-  const neuere =
-    idx >= 0 && idx < stichtage.length - 1
-      ? `<a href="${dashboardUrl(daten.filter, stichtage[idx + 1] as string)}">neuerer Stichtag →</a>`
-      : '<span></span>';
-  return `      <nav class="seiten-nav" aria-label="Stichtag wählen">
-        ${aeltere}
-        <span class="meta zaehler">Stichtag ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}</span>
-        ${neuere}
-      </nav>`;
+  return seitenNavigation({
+    label: 'Stichtag wählen',
+    einzug: 6,
+    zaehler: `Stichtag ${nfEur0.format(idx + 1)} von ${nfEur0.format(stichtage.length)}`,
+    zurueck:
+      idx > 0
+        ? { href: dashboardUrl(daten.filter, stichtage[idx - 1] as string), text: '← älterer Stichtag' }
+        : undefined,
+    weiter:
+      idx >= 0 && idx < stichtage.length - 1
+        ? { href: dashboardUrl(daten.filter, stichtage[idx + 1] as string), text: 'neuerer Stichtag →' }
+        : undefined,
+  });
 }
 
 function datenpunktZeile(p: StichtagDatenpunkt, serienMedian: number, kauf: boolean): string {
@@ -476,11 +504,13 @@ function serieBlock(daten: DashboardDaten, stichtag: string, kauf: boolean): str
   const nav =
     gesamtSeiten > 1
       ? `
-      <nav class="seiten-nav" aria-label="${label}-Datenpunkte: Seiten">
-        ${seite > 1 ? `<a href="${url(seite - 1)}">← Zurück</a>` : '<span></span>'}
-        <span class="meta zaehler">Seite ${nfEur0.format(seite)} von ${nfEur0.format(gesamtSeiten)}</span>
-        ${seite < gesamtSeiten ? `<a href="${url(seite + 1)}">Weiter →</a>` : '<span></span>'}
-      </nav>`
+${seitenNavigation({
+  label: `${label}-Datenpunkte: Seiten`,
+  einzug: 6,
+  zaehler: `Seite ${nfEur0.format(seite)} von ${nfEur0.format(gesamtSeiten)}`,
+  zurueck: seite > 1 ? { href: url(seite - 1), text: '← Zurück' } : undefined,
+  weiter: seite < gesamtSeiten ? { href: url(seite + 1), text: 'Weiter →' } : undefined,
+})}`
       : '';
   const ausreisserText =
     anzahlAusreisser > 0

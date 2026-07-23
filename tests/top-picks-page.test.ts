@@ -142,9 +142,11 @@ describe('renderTopPicksSeite', () => {
     const html = renderTopPicksSeite(daten());
     expect(html).not.toContain('Filter zurücksetzen');
     expect(html).not.toContain('name="flaeche_min"');
-    // Der Ausreißer-Schalter ist da, aber nicht gesetzt.
+    // Der Ausreißer-Schalter ist da, aber nicht gesetzt. Gezielt auf das
+    // Attribut am Input prüfen – das Wort „checked" kommt seit der
+    // Seitenleiste legitim im Shell-CSS/-JS vor (:checked, schalter.checked).
     expect(html).toContain('name="ausreisser"');
-    expect(html).not.toContain('checked');
+    expect(html).not.toContain('name="ausreisser" value="an" checked');
   });
 
   it('weist gesetzte Fläche-Parameter sichtbar als hier ignoriert aus', () => {
