@@ -5,7 +5,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 die Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.5.0] - 2026-07-23
+
+Siebte Runde (Release 1.5): Umbau der App-Shell. Die Navigation zieht aus der
+oberen Leiste in eine feste linke Seitenleiste, die unter 900px zum
+Off-Canvas-Drawer wird. Am Fuß der Leiste sitzt ein Konto-Slot als Vorarbeit
+für den kommenden Anmelde-Zyklus.
 
 ### Geändert
 
